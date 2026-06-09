@@ -160,7 +160,7 @@ delimited SSE (`data: <json>\n\n`).
 Sent immediately after the turn is persisted. Clients use `turnId` to later fetch full history.
 
 ```
-data: {"event":"turn_created","turnId":"turn-550e8400-...","sequenceNum":1}
+data: {"event":"turn_created","turnId":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","sequenceNum":1}
 ```
 
 ### Event: `capability_notice`
