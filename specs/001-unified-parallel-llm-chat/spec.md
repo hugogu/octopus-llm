@@ -246,8 +246,10 @@ badge and a text-only model does not.
 - **FR-021**: The Capability Matrix MUST be extensible: adding new capability dimensions MUST
   NOT require changes to existing model adapters that do not support the new dimension
   (capability defaults to "unsupported" if absent).
-- **FR-022**: The model catalogue MUST be updatable by platform operators without a code
-  deployment (configuration-driven).
+- **FR-022**: The model catalogue MUST be updatable by platform operators without an
+  application code change — inserting a new row into `model_definitions` via a Flyway
+  migration or direct SQL is sufficient; no rebuild or redeployment of application code
+  is required to add a new model.
 
 ### Key Entities
 
@@ -311,7 +313,12 @@ badge and a text-only model does not.
 
 ## Out of Scope
 
-- Session saving, sharing, and cross-run comparison (separate feature).
+- **Session bookmarking, sharing links, and export**: Users cannot yet name/bookmark sessions
+  for later retrieval across logins or generate shareable URLs. Basic session persistence
+  (turns + responses stored in DB for multi-turn context per FR-019) IS in scope and required
+  for conversation continuity.
+- **Cross-run diff comparison**: Comparing results across multiple re-runs of the same prompt
+  is a separate feature. Immutable turn storage (this feature) lays the groundwork.
 - Usage and satisfaction analytics / rating system (separate feature).
 - Function-calling / tool-use execution (Capability Matrix declares support, but invocation
   is not part of this feature).
