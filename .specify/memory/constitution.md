@@ -1,18 +1,18 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: N/A → 1.0.0 (initial ratification)
-Modified principles: none (first version)
-Added sections:
-  - Core Principles (7 principles)
-  - Technology Stack & Constraints
-  - Development Workflow
-  - Governance
+Version change: 1.0.0 → 1.1.0
+Modified principles:
+  - VI. Security & User Key Privacy: removed "Rate limiting MUST be applied per user to
+    prevent key abuse." The platform is a relay service; the user's own provider enforces
+    quota limits at the key level. Per-user rate limiting at the relay layer is redundant
+    and adds complexity without additional security value.
+Added sections: none
+Removed sections: none
 Templates status:
   ✅ .specify/templates/plan-template.md — Constitution Check section aligns
   ✅ .specify/templates/spec-template.md — Requirement/constraint sections align
   ✅ .specify/templates/tasks-template.md — Phase structure & task categories align
-  ✅ AGENTS.md — pre-existing rules folded into principles where relevant
 Deferred items: none
 -->
 
@@ -85,7 +85,6 @@ User-provided LLM API keys MUST be encrypted at rest using AES-256 or equivalent
 Keys MUST NOT appear in application logs, error messages, API responses, or analytics payloads.
 Authentication is required for all endpoints that access personal data or consume user API keys.
 Session sharing links MUST use opaque tokens — no user identity information in shareable URLs.
-Rate limiting MUST be applied per user to prevent key abuse.
 
 **Rationale**: Users are entrusting the platform with credentials that have real monetary cost.
 A single key leak can result in significant financial harm to the user.
@@ -175,4 +174,4 @@ existing code if the principle affects live systems, and (3) a version bump per 
 All pull requests touching files governed by a principle MUST include a Constitution Check in
 the plan confirming compliance. Violations MUST be justified in the Complexity Tracking table.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-09 | **Last Amended**: 2026-06-09
+**Version**: 1.1.0 | **Ratified**: 2026-06-09 | **Last Amended**: 2026-06-09

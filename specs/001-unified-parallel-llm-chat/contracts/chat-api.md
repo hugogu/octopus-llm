@@ -24,7 +24,7 @@ Create a new chat session.
 **Response 201 Created:**
 ```json
 {
-  "id": "sess-550e8400-e29b-41d4-a716-000000000001",
+  "id": "550e8400-e29b-41d4-a716-446655440001",
   "title": "Comparing code generation",
   "createdAt": "2026-06-09T11:00:00Z"
 }
@@ -45,7 +45,7 @@ List the current user's sessions, newest first.
 {
   "sessions": [
     {
-      "id": "sess-550e8400-...",
+      "id": "550e8400-e29b-41d4-a716-446655440001",
       "title": "Comparing code generation",
       "createdAt": "2026-06-09T11:00:00Z",
       "updatedAt": "2026-06-09T11:05:00Z"
@@ -64,11 +64,11 @@ Retrieve a session with all turns and their responses (for loading session histo
 **Response 200 OK:**
 ```json
 {
-  "id": "sess-550e8400-...",
+  "id": "550e8400-e29b-41d4-a716-446655440001",
   "title": "Comparing code generation",
   "turns": [
     {
-      "id": "turn-...",
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "sequenceNum": 1,
       "promptText": "Write a binary search in Python",
       "attachments": [],
@@ -120,6 +120,7 @@ Authorization: Bearer <token>
 {
   "promptText": "Explain quantum entanglement simply",
   "selectedModelIds": ["gpt-4o-2024-11-20", "claude-3-5-sonnet-20241022", "deepseek-chat"],
+  "clientRequestId": "c7e3a1b2-9f4d-4e80-8b0d-123456789abc",
   "attachments": [
     {
       "type": "image",
@@ -130,6 +131,11 @@ Authorization: Bearer <token>
 }
 ```
 
+`clientRequestId` is an optional UUID supplied by the client. If provided, the server stores
+it in `chat_turns.client_request_id` and uses it as an idempotency key: a second request to
+the same session with the same `clientRequestId` returns `409 Conflict` with the existing
+`turnId`, instead of creating a new turn and dispatching duplicate LLM calls.
+
 `attachments` is optional. Each attachment is base64-encoded inline (max 10 MB per file).
 Attachments are routed only to models whose `capabilityMatrix.inputModalities` includes the
 attachment type; others receive only the text prompt.
@@ -137,6 +143,7 @@ attachment type; others receive only the text prompt.
 **Validation:**
 - `promptText`: non-empty, max 100,000 chars
 - `selectedModelIds`: non-empty array; each ID must be enabled in the user's model-configs
+- `clientRequestId`: optional; if present must be a valid UUID v4
 - `attachments[].mimeType`: must be in `["image/png","image/jpeg","image/webp","image/gif",
   "video/mp4","video/webm"]`
 - `attachments[].data`: base64-encoded, decoded size must not exceed 10 MB per file
@@ -212,6 +219,7 @@ The SSE connection closes after `all_complete`.
 - `400` — `VALIDATION_ERROR` (invalid prompt, unknown modelId, attachment too large)
 - `403` — one or more `selectedModelIds` not enabled for current user
 - `404` — session not found or not owned by current user
+- `409` — `DUPLICATE_REQUEST`: a turn with the supplied `clientRequestId` already exists in this session; response body includes `{"turnId":"<existing-turn-uuid>"}` so the client can fetch results
 
 ---
 

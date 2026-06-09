@@ -189,11 +189,18 @@ Turns are immutable after creation (append-only; no UPDATE on existing rows).
 | `prompt_text` | `TEXT` | NOT NULL | User's text prompt |
 | `attachments` | `JSONB` | NULLABLE | `[{"type":"image","data":"<base64>","mime_type":"image/png","size_bytes":12345}]` |
 | `selected_model_ids` | `TEXT[]` | NOT NULL | Array of model IDs selected for this turn |
+| `client_request_id` | `VARCHAR(100)` | NULLABLE, UNIQUE | Client-supplied idempotency key (UUID recommended) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT now() | |
 
 **Unique constraint:** `(session_id, sequence_num)`.
 
+**Unique index:** `client_request_id` (sparse — only non-NULL values are indexed).
+
 **Index:** `(session_id, sequence_num)` — supports ordered retrieval of turns in a session.
+
+**Idempotency rule**: If a `POST /turns` request supplies a `clientRequestId` that already
+exists in this column, the backend MUST return `409 Conflict` with the existing `turnId`
+instead of creating a duplicate turn. This prevents duplicate LLM calls on network retries.
 
 **Immutability rule**: Once a row is inserted, it is never updated. Re-runs create a new turn
 in the same session. This is the basis for cross-run comparison (future feature).
@@ -202,32 +209,33 @@ in the same session. This is the basis for cross-run comparison (future feature)
 
 ## Table: `provider_responses`
 
-One model's response to a single chat turn. Streamed incrementally; full text stored on completion.
+One model's final response to a single chat turn. Rows are **inserted once** when streaming
+completes or errors — never updated in place. During streaming, response text is accumulated
+in application memory; the DB row is written only when the outcome is known. This ensures
+immutability as required by Constitution Principle IV.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
 | `id` | `UUID` | PK, DEFAULT gen_random_uuid() | |
 | `turn_id` | `UUID` | NOT NULL, FK → chat_turns(id) ON DELETE CASCADE | |
 | `model_id` | `VARCHAR(100)` | NOT NULL, FK → model_definitions(id) | |
-| `status` | `VARCHAR(50)` | NOT NULL, DEFAULT 'pending' | `pending`, `streaming`, `complete`, `error` |
-| `response_text` | `TEXT` | NULLABLE | Full response text; populated on completion |
+| `status` | `VARCHAR(50)` | NOT NULL | `complete` or `error` — set at insert time, never updated |
+| `response_text` | `TEXT` | NULLABLE | Full accumulated response text; NULL when `status = 'error'` |
 | `error_message` | `TEXT` | NULLABLE | Set when `status = 'error'` |
 | `input_tokens` | `INTEGER` | NULLABLE | Reported by provider on completion |
 | `output_tokens` | `INTEGER` | NULLABLE | |
-| `latency_ms` | `INTEGER` | NULLABLE | Wall-clock time from dispatch to completion |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT now() | |
-| `completed_at` | `TIMESTAMPTZ` | NULLABLE | Set when `status` → `complete` or `error` |
+| `latency_ms` | `INTEGER` | NOT NULL | Wall-clock time from dispatch to final INSERT |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT now() | Timestamp of the INSERT (i.e., completion time) |
 
 **Unique constraint:** `(turn_id, model_id)`.
 
 **Index:** `(turn_id)` — supports loading all responses for a given turn.
 
-**State transitions:**
-```
-pending → streaming → complete
-pending → error
-streaming → error
-```
+**Streaming behaviour (application layer, not DB):**
+Tokens are appended to an in-memory buffer per `(turnId, modelId)` as they arrive.
+On `model_complete` event: INSERT one row with `status='complete'`, full `response_text`, token counts, and latency.
+On `model_error` event: INSERT one row with `status='error'`, `error_message`, and latency.
+No intermediate rows, no UPDATE statements.
 
 ---
 

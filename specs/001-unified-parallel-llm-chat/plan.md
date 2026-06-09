@@ -45,7 +45,7 @@ Vitest + React Testing Library (frontend)
 | I. Provider-Agnostic Abstraction | ✅ PASS | `LlmAdapter` interface; per-provider adapters; new providers require only a new adapter class and a catalogue seed migration |
 | II. API-First Design | ✅ PASS | Next.js frontend consumes REST API; all routes in `lib/api/`; no direct DB queries from frontend |
 | III. Concurrent Execution | ✅ PASS | `Flux.merge()` dispatches all providers concurrently; each provider's `Flux<SseEvent>` is independent |
-| IV. Data Integrity | ✅ PASS | Flyway V001–V009; `chat_turns` rows immutable after insert; no DDL against live DB |
+| IV. Data Integrity | ✅ PASS | Flyway V001–V010; `chat_turns` rows immutable after insert; `provider_responses` inserted once on completion (no in-place status updates); no DDL against live DB |
 | V. Observability | ✅ PASS | Structured log event per provider call (modelId, latency, tokens, error) on every `LlmAdapter` call |
 | VI. Security | ✅ PASS | AES-256-GCM with per-key IV; `encrypted_key` + `key_iv` stored in BYTEA; key never returned by any API endpoint |
 | VII. Simplicity | ✅ PASS | In-process `Flux` streaming (no broker); Docker Compose single-server; no distributed locks |
@@ -61,7 +61,7 @@ specs/001-unified-parallel-llm-chat/
 ├── plan.md              ← this file
 ├── spec.md              ← feature specification
 ├── research.md          ← Phase 0: SDK choices, streaming arch, encryption strategy
-├── data-model.md        ← Phase 1: 8 tables + Capability Matrix JSONB schema
+├── data-model.md        ← Phase 1: 9 tables + Capability Matrix JSONB schema
 ├── quickstart.md        ← Phase 1: 5 validation scenarios
 ├── contracts/
 │   ├── auth-api.md      ← POST /register, /verify-email, /login, /logout
@@ -85,8 +85,13 @@ backend/
     │   │   ├── auth/
     │   │   │   ├── AuthController.kt
     │   │   │   ├── AuthService.kt
+    │   │   │   ├── JwtTokenService.kt          ← issues + validates JWT; checks revoked_tokens
+    │   │   │   ├── User.kt
     │   │   │   ├── UserRepository.kt
+    │   │   │   ├── EmailVerification.kt
     │   │   │   ├── EmailVerificationRepository.kt
+    │   │   │   ├── RevokedToken.kt
+    │   │   │   ├── RevokedTokenRepository.kt
     │   │   │   └── EmailService.kt
     │   │   ├── llm/
     │   │   │   ├── LlmAdapter.kt                   ← unified interface
@@ -132,7 +137,8 @@ backend/
     │           ├── V006__create_chat_sessions.sql
     │           ├── V007__create_chat_turns.sql
     │           ├── V008__create_provider_responses.sql
-    │           └── V009__seed_model_catalogue.sql
+    │           ├── V009__seed_model_catalogue.sql
+    │           └── V010__create_revoked_tokens.sql
     └── test/
         └── kotlin/com/octopusllm/
             ├── auth/
