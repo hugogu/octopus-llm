@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { ModelDefinition, UserModelConfig, SseEvent } from "@/lib/types/api";
+import type { ModelDefinition, UserModelConfig, ApiKeyMeta, SseEvent } from "@/lib/types/api";
 import { createSession, streamTurn } from "@/lib/api/chat";
 import { listModels } from "@/lib/api/models";
-import { listModelConfigs } from "@/lib/api/userConfig";
+import { listModelConfigs, listApiKeys } from "@/lib/api/userConfig";
 import { getToken } from "@/lib/api/auth";
 import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import ChatInput from "@/components/chat/ChatInput";
@@ -15,29 +15,34 @@ import { useEffect } from "react";
 export default function ChatPage() {
   const [models, setModels] = useState<ModelDefinition[]>([]);
   const [configs, setConfigs] = useState<UserModelConfig[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKeyMeta[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const { models: panelStates, streaming, reset, handleEvent } = useParallelStream();
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     const token = getToken();
     if (!token) return;
-    (async () => {
-      try {
-        const [{ models: ms }, { modelConfigs }] = await Promise.all([
-          listModels(),
-          listModelConfigs(token),
-        ]);
+    try {
+      const [{ models: ms }, { modelConfigs }, { apiKeys: keys }] = await Promise.all([
+        listModels(),
+        listModelConfigs(token),
+        listApiKeys(token),
+      ]);
 
-        setModels(ms);
-        setConfigs(modelConfigs);
-        const enabled = modelConfigs.filter((c) => c.isEnabled).map((c) => c.modelId);
-        setSelectedIds(enabled.slice(0, 3));
-      } catch (err) {
-        console.error(err);
-      }
-    })();
+      setModels(ms);
+      setConfigs(modelConfigs);
+      setApiKeys(keys);
+      const enabled = modelConfigs.filter((c) => c.isEnabled).map((c) => c.modelId);
+      setSelectedIds((prev) => prev.length > 0 ? prev : enabled.slice(0, 3));
+    } catch (err) {
+      console.error(err);
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const displayNames = Object.fromEntries(
     models.map((m) => [m.id, m.displayName]),
@@ -87,6 +92,7 @@ export default function ChatPage() {
         <ModelSelectorPanel
           models={models}
           configs={configs}
+          apiKeys={apiKeys}
           selectedIds={selectedIds}
           onChange={setSelectedIds}
         />

@@ -19,12 +19,12 @@
 
 **Purpose**: Install dependencies and prepare shared UI components
 
-- [ ] T001 Install frontend markdown dependencies: `react-markdown`, `remark-gfm`, `rehype-sanitize`, `react-syntax-highlighter` in `frontend/package.json`
-- [ ] T002 Install frontend UI dependencies: `lucide-react` in `frontend/package.json`
-- [ ] T003 [P] Create reusable `Modal` component in `frontend/src/components/ui/Modal.tsx`
-- [ ] T004 [P] Create reusable `Button` component in `frontend/src/components/ui/Button.tsx`
-- [ ] T005 [P] Create reusable `Input` component in `frontend/src/components/ui/Input.tsx`
-- [ ] T006 Run `npm install` in `frontend/` to lock dependency changes
+- [x] T001 Install frontend markdown dependencies: `react-markdown`, `remark-gfm`, `rehype-sanitize`, `react-syntax-highlighter` in `frontend/package.json`
+- [x] T002 Install frontend UI dependencies: `lucide-react` in `frontend/package.json`
+- [x] T003 [P] Create reusable `Modal` component in `frontend/src/components/ui/Modal.tsx`
+- [x] T004 [P] Create reusable `Button` component in `frontend/src/components/ui/Button.tsx`
+- [x] T005 [P] Create reusable `Input` component in `frontend/src/components/ui/Input.tsx`
+- [x] T006 Run `npm install` in `frontend/` to lock dependency changes
 
 ---
 
@@ -36,25 +36,25 @@
 
 ### Database & Entities
 
-- [ ] T007 Create Flyway migration V014: `backend/src/main/resources/db/migration/V014__user_preferences_and_session_model.sql`
-- [ ] T008 [P] Create `UserPreference` entity in `backend/src/main/kotlin/com/octopusllm/userconfig/UserPreference.kt`
-- [ ] T009 [P] Create `UserPreferenceRepository` in `backend/src/main/kotlin/com/octopusllm/userconfig/UserPreferenceRepository.kt`
-- [ ] T010 Add `selectedModelId` field to `ChatSession` entity in `backend/src/main/kotlin/com/octopusllm/chat/ChatSession.kt`
+- [x] T007 Create Flyway migration V014: `backend/src/main/resources/db/migration/V014__user_preferences_and_session_model.sql`
+- [x] T008 [P] Create `UserPreference` entity in `backend/src/main/kotlin/com/octopusllm/userconfig/UserPreference.kt`
+- [x] T009 [P] Create `UserPreferenceRepository` in `backend/src/main/kotlin/com/octopusllm/userconfig/UserPreferenceRepository.kt`
+- [x] T010 Add `selectedModelId` field to `ChatSession` entity in `backend/src/main/kotlin/com/octopusllm/chat/ChatSession.kt`
 
 ### Backend Services & APIs
 
-- [ ] T011 Extend `UserConfigService` with preference CRUD in `backend/src/main/kotlin/com/octopusllm/userconfig/UserConfigService.kt`
-- [ ] T012 Add `/api/v1/user/preferences` endpoints (GET, PUT, PATCH) to `UserConfigController` in `backend/src/main/kotlin/com/octopusllm/userconfig/UserConfigController.kt`
-- [ ] T013 Add `deleteSession` method to `ChatService` in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
-- [ ] T014 Update `ChatService.createSession` to accept and store `selectedModelId` in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
-- [ ] T015 Add DELETE endpoint to `ChatController` in `backend/src/main/kotlin/com/octopusllm/chat/ChatController.kt`
-- [ ] T016 Add `selectedModelId` to `SessionResponse` DTO in `backend/src/main/kotlin/com/octopusllm/chat/ChatController.kt`
+- [x] T011 Extend `UserConfigService` with preference CRUD in `backend/src/main/kotlin/com/octopusllm/userconfig/UserConfigService.kt`
+- [x] T012 Add `/api/v1/user/preferences` endpoints (GET, PUT, PATCH) to `UserConfigController` in `backend/src/main/kotlin/com/octopusllm/userconfig/UserConfigController.kt`
+- [x] T013 Add `deleteSession` method to `ChatService` in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
+- [x] T014 Update `ChatService.createSession` to accept and store `selectedModelId` in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
+- [x] T015 Add DELETE endpoint to `ChatController` in `backend/src/main/kotlin/com/octopusllm/chat/ChatController.kt`
+- [x] T016 Add `selectedModelId` to `SessionResponse` DTO in `backend/src/main/kotlin/com/octopusllm/chat/ChatController.kt`
 
 ### Frontend API Layer
 
-- [ ] T017 [P] Add preference types to `frontend/src/lib/types/api.ts`
-- [ ] T018 [P] Add preference API functions to `frontend/src/lib/api/userConfig.ts`
-- [ ] T019 [P] Add `deleteSession` to `frontend/src/lib/api/chat.ts`
+- [x] T017 [P] Add preference types to `frontend/src/lib/types/api.ts`
+- [x] T018 [P] Add preference API functions to `frontend/src/lib/api/userConfig.ts`
+- [x] T019 [P] Add `deleteSession` to `frontend/src/lib/api/chat.ts`
 
 **Checkpoint**: Foundation ready - migrations run, backend builds, frontend dependencies installed
 
@@ -68,12 +68,12 @@
 
 ### Implementation
 
-- [ ] T020 [US1] Redesign `SettingsLayout` container in `frontend/src/components/models/SettingsLayout.tsx`
-- [ ] T021 [P] [US1] Wrap `ApiKeyForm` in modal in `frontend/src/components/models/ApiKeyForm.tsx`
-- [ ] T022 [P] [US1] Wrap `CustomModelForm` in modal in `frontend/src/components/models/CustomModelForm.tsx`
-- [ ] T023 [US1] Redesign settings page in `frontend/src/app/(app)/settings/models/page.tsx`
-- [ ] T024 [US1] Apply Tailwind responsive classes to settings page for 320px–2560px support
-- [ ] T025 [US1] Add empty-state prompt when no API keys configured
+- [x] T020 [US1] Redesign `SettingsLayout` container in `frontend/src/components/models/SettingsLayout.tsx`
+- [x] T021 [P] [US1] Wrap `ApiKeyForm` in modal in `frontend/src/components/models/ApiKeyForm.tsx`
+- [x] T022 [P] [US1] Wrap `CustomModelForm` in modal in `frontend/src/components/models/CustomModelForm.tsx`
+- [x] T023 [US1] Redesign settings page in `frontend/src/app/(app)/settings/models/page.tsx`
+- [x] T024 [US1] Apply Tailwind responsive classes to settings page for 320px–2560px support
+- [x] T025 [US1] Add empty-state prompt when no API keys configured
 
 **Checkpoint**: Settings page is visually modern, responsive, and uses modals for key/model addition
 
@@ -87,10 +87,10 @@
 
 ### Implementation
 
-- [ ] T026 [US2] Create `ModelList` component with provider grouping in `frontend/src/components/models/ModelList.tsx`
-- [ ] T027 [US2] Update `ModelSelectorPanel` to use dynamic `ModelList` in `frontend/src/components/chat/ModelSelectorPanel.tsx`
-- [ ] T028 [US2] Add provider validation status display (valid/invalid key indicator)
-- [ ] T029 [US2] Wire frontend to re-fetch models after key add/remove operations
+- [x] T026 [US2] Create `ModelList` component with provider grouping in `frontend/src/components/models/ModelList.tsx`
+- [x] T027 [US2] Update `ModelSelectorPanel` to use dynamic `ModelList` in `frontend/src/components/chat/ModelSelectorPanel.tsx`
+- [x] T028 [US2] Add provider validation status display (valid/invalid key indicator)
+- [x] T029 [US2] Wire frontend to re-fetch models after key add/remove operations
 
 **Checkpoint**: Model list updates automatically when API keys change; no manual refresh needed
 

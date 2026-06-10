@@ -8,11 +8,12 @@ import type { ApiKeyMeta, CapabilityMatrix } from "@/lib/types/api";
 
 interface CustomModelFormProps {
   apiKeys: ApiKeyMeta[];
+  onClose?: () => void;
 }
 
 const DEFAULT_PARAMS = "{}";
 
-export default function CustomModelForm({ apiKeys }: CustomModelFormProps) {
+export default function CustomModelForm({ apiKeys, onClose }: CustomModelFormProps) {
   const router = useRouter();
   const providers = useMemo(
     () => [...new Set(apiKeys.map((key) => key.providerId))].sort(),
@@ -83,6 +84,7 @@ export default function CustomModelForm({ apiKeys }: CustomModelFormProps) {
       setSupportsVideo(false);
       setSupportsFunctionCalling(true);
       setCustomParamsText(DEFAULT_PARAMS);
+      onClose?.();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create custom model");

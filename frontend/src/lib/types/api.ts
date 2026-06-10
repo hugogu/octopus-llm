@@ -116,15 +116,29 @@ export interface CreateCustomModelRequest {
 // Chat API — contracts/chat-api.md
 // ---------------------------------------------------------------------------
 
+export interface UserPreferences {
+  lastSelectedModelId: string | null;
+  themePreference: string;
+  sidebarCollapsed: boolean;
+}
+
+export interface UpdatePreferencesRequest {
+  lastSelectedModelId?: string;
+  themePreference?: string;
+  sidebarCollapsed?: boolean;
+}
+
 export interface ChatSession {
   id: string;
   title: string | null;
+  selectedModelId: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateSessionRequest {
   title?: string;
+  selectedModelId?: string;
 }
 
 export interface CreateSessionResponse {

@@ -27,12 +27,12 @@ class ChatService(
     private val orchestrator: ConcurrentLlmOrchestrator,
 ) {
 
-    fun createSession(userId: UUID, title: String?): Mono<ChatSession> =
+    fun createSession(userId: UUID, title: String?, selectedModelId: String? = null): Mono<ChatSession> =
         Mono.fromCallable {
             val user = userRepository.findById(userId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
             }
-            sessionRepository.save(ChatSession(user = user, title = title))
+            sessionRepository.save(ChatSession(user = user, title = title, selectedModelId = selectedModelId))
         }.subscribeOn(Schedulers.boundedElastic())
 
     fun listSessions(userId: UUID, limit: Int, offset: Int): Mono<Pair<List<ChatSession>, Long>> =
@@ -53,6 +53,15 @@ class ChatService(
             }
             session to turnsWithResponses
         }.subscribeOn(Schedulers.boundedElastic())
+
+    fun deleteSession(sessionId: UUID, userId: UUID): Mono<Unit> =
+        Mono.fromCallable {
+            val session = sessionRepository.findById(sessionId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+            }
+            if (session.user.id != userId) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+            sessionRepository.delete(session)
+        }.subscribeOn(Schedulers.boundedElastic()).thenReturn(Unit)
 
     fun submitTurn(
         sessionId: UUID,

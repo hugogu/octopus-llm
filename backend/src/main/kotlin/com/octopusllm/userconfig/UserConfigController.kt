@@ -170,4 +170,47 @@ class UserConfigController(private val service: UserConfigService) {
             request.customParams,
             request.capabilityMatrix,
         ).map { it.toResponse() }
+
+    // User Preferences
+
+    data class PreferencesResponse(
+        val lastSelectedModelId: String?,
+        val themePreference: String,
+        val sidebarCollapsed: Boolean,
+    )
+    private fun UserPreference.toPreferencesResponse() = PreferencesResponse(lastSelectedModelId, themePreference, sidebarCollapsed)
+
+    data class UpdatePreferencesRequest(
+        val lastSelectedModelId: String? = null,
+        val themePreference: String? = null,
+        val sidebarCollapsed: Boolean? = null,
+    )
+
+    @GetMapping("/preferences")
+    fun getPreferences(@AuthenticationPrincipal principal: String): Mono<PreferencesResponse> =
+        service.getPreferences(userId(principal)).map { it.toPreferencesResponse() }
+
+    @PutMapping("/preferences")
+    fun updatePreferences(
+        @AuthenticationPrincipal principal: String,
+        @RequestBody request: UpdatePreferencesRequest,
+    ): Mono<PreferencesResponse> =
+        service.updatePreferences(
+            userId(principal),
+            request.lastSelectedModelId,
+            request.themePreference,
+            request.sidebarCollapsed,
+        ).map { it.toPreferencesResponse() }
+
+    @PatchMapping("/preferences")
+    fun patchPreferences(
+        @AuthenticationPrincipal principal: String,
+        @RequestBody request: UpdatePreferencesRequest,
+    ): Mono<PreferencesResponse> =
+        service.updatePreferences(
+            userId(principal),
+            request.lastSelectedModelId,
+            request.themePreference,
+            request.sidebarCollapsed,
+        ).map { it.toPreferencesResponse() }
 }

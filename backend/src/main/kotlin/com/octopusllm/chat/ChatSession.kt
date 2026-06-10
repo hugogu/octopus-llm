@@ -24,4 +24,7 @@ class ChatSession(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),
+
+    @Column(name = "selected_model_id", length = 255)
+    var selectedModelId: String? = null,
 )

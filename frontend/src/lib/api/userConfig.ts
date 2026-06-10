@@ -7,6 +7,8 @@ import type {
   UpsertModelConfigRequest,
   PatchModelConfigRequest,
   UserModelConfig,
+  UserPreferences,
+  UpdatePreferencesRequest,
 } from "@/lib/types/api";
 import { apiUrl } from "@/lib/api/base";
 
@@ -92,6 +94,30 @@ export async function createCustomModel(
 ): Promise<UserModelConfig> {
   return authFetch("/api/v1/user/custom-models", {
     method: "POST",
+    body: JSON.stringify(req),
+  }, token);
+}
+
+export async function getPreferences(token: string): Promise<UserPreferences> {
+  return authFetch("/api/v1/user/preferences", { method: "GET" }, token);
+}
+
+export async function updatePreferences(
+  token: string,
+  req: UpdatePreferencesRequest,
+): Promise<UserPreferences> {
+  return authFetch("/api/v1/user/preferences", {
+    method: "PUT",
+    body: JSON.stringify(req),
+  }, token);
+}
+
+export async function patchPreferences(
+  token: string,
+  req: UpdatePreferencesRequest,
+): Promise<UserPreferences> {
+  return authFetch("/api/v1/user/preferences", {
+    method: "PATCH",
     body: JSON.stringify(req),
   }, token);
 }

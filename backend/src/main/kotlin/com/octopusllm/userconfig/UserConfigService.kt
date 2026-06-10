@@ -21,6 +21,7 @@ class UserConfigService(
     private val modelDefinitionRepository: ModelDefinitionRepository,
     private val encryptionService: ApiKeyEncryptionService,
     private val providerModelSyncService: ProviderModelSyncService,
+    private val preferenceRepository: UserPreferenceRepository,
 ) {
 
     fun listApiKeys(userId: UUID): Mono<List<ProviderApiKey>> =
@@ -184,4 +185,42 @@ class UserConfigService(
             if (config.user.id != userId) throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
             modelConfigRepository.delete(config)
         }.subscribeOn(Schedulers.boundedElastic()).thenReturn(Unit)
+
+    // User Preferences
+
+    fun getPreferences(userId: UUID): Mono<UserPreference> =
+        Mono.fromCallable {
+            preferenceRepository.findByUserId(userId)
+                ?: UserPreference(
+                    user = userRepository.findById(userId).orElseThrow {
+                        ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+                    }
+                )
+        }.subscribeOn(Schedulers.boundedElastic())
+
+    fun updatePreferences(
+        userId: UUID,
+        lastSelectedModelId: String?,
+        themePreference: String?,
+        sidebarCollapsed: Boolean?,
+    ): Mono<UserPreference> =
+        Mono.fromCallable {
+            val user = userRepository.findById(userId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+            }
+            val preference = preferenceRepository.findByUserId(userId)
+                ?: UserPreference(user = user)
+            
+            if (lastSelectedModelId != null) preference.lastSelectedModelId = lastSelectedModelId
+            if (themePreference != null) {
+                require(themePreference in setOf("light", "dark", "system")) {
+                    "Theme preference must be one of: light, dark, system"
+                }
+                preference.themePreference = themePreference
+            }
+            if (sidebarCollapsed != null) preference.sidebarCollapsed = sidebarCollapsed
+            preference.updatedAt = Instant.now()
+            
+            preferenceRepository.save(preference)
+        }.subscribeOn(Schedulers.boundedElastic())
 }

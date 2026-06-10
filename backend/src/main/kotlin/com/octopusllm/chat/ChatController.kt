@@ -16,7 +16,7 @@ import reactor.core.publisher.Mono
 import java.time.Instant
 import java.util.UUID
 
-data class CreateSessionRequest(val title: String? = null)
+data class CreateSessionRequest(val title: String? = null, val selectedModelId: String? = null)
 
 data class SubmitTurnRequest(
     @field:NotBlank val promptText: String,
@@ -25,8 +25,8 @@ data class SubmitTurnRequest(
     val attachments: List<Map<String, String>> = emptyList(),
 )
 
-data class SessionResponse(val id: UUID, val title: String?, val createdAt: Instant, val updatedAt: Instant)
-private fun ChatSession.toResponse() = SessionResponse(id, title, createdAt, updatedAt)
+data class SessionResponse(val id: UUID, val title: String?, val selectedModelId: String?, val createdAt: Instant, val updatedAt: Instant)
+private fun ChatSession.toResponse() = SessionResponse(id, title, selectedModelId, createdAt, updatedAt)
 
 data class ProviderResponseDto(
     val modelId: String, val status: String, val responseText: String?,
@@ -55,7 +55,7 @@ class ChatController(
         @AuthenticationPrincipal principal: String,
         @RequestBody(required = false) req: CreateSessionRequest?,
     ): Mono<SessionResponse> =
-        chatService.createSession(userId(principal), req?.title).map { it.toResponse() }
+        chatService.createSession(userId(principal), req?.title, req?.selectedModelId).map { it.toResponse() }
 
     @GetMapping
     fun listSessions(
@@ -76,9 +76,18 @@ class ChatController(
             mapOf(
                 "id" to session.id,
                 "title" to session.title,
+                "selectedModelId" to session.selectedModelId,
                 "turns" to turns.map { it.toDto() },
             )
         }
+
+    @DeleteMapping("/{sessionId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteSession(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable sessionId: UUID,
+    ): Mono<Void> =
+        chatService.deleteSession(sessionId, userId(principal)).then()
 
     @PostMapping("/{sessionId}/turns", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun submitTurn(

@@ -54,6 +54,14 @@ export async function getSession(id: string, token?: string): Promise<GetSession
   return res.json() as Promise<GetSessionResponse>;
 }
 
+export async function deleteSession(id: string, token?: string): Promise<void> {
+  const res = await fetch(apiUrl(`/api/v1/chat/sessions/${encodeURIComponent(id)}`), {
+    method: "DELETE",
+    headers: authHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Failed to delete session: ${res.status}`);
+}
+
 export async function streamTurn(
   sessionId: string,
   body: SubmitTurnRequest,
