@@ -37,3 +37,5 @@ frontend/node_modules/
 
 # Local runtime data
 data/
+.gradle-local/
+.next/
