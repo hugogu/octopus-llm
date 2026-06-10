@@ -15,6 +15,7 @@ export default function ModelCard({ model, children }: ModelCardProps) {
         <div>
           <p className="font-semibold text-sm">{model.displayName}</p>
           <p className="text-xs text-gray-500">{model.providerId}</p>
+          <p className="text-[11px] text-gray-400">{model.id}</p>
         </div>
         {children}
       </div>

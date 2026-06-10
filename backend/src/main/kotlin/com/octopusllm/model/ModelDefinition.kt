@@ -6,6 +6,12 @@ import jakarta.persistence.*
 import org.hibernate.annotations.Type
 import java.time.Instant
 
+enum class ModelSource {
+    CATALOGUE,
+    DISCOVERED,
+    CUSTOM,
+}
+
 @Entity
 @Table(name = "model_definitions")
 class ModelDefinition(
@@ -25,6 +31,10 @@ class ModelDefinition(
 
     @Column(name = "is_active", nullable = false)
     val isActive: Boolean = true,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false, length = 20)
+    val source: ModelSource = ModelSource.CATALOGUE,
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),

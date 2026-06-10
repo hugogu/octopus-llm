@@ -1,6 +1,9 @@
 import type {
   ApiKeyMeta,
   AddApiKeyRequest,
+  CreateCustomModelRequest,
+  ListModelsResponse,
+  SyncProviderModelsRequest,
   UpsertModelConfigRequest,
   PatchModelConfigRequest,
   UserModelConfig,
@@ -71,4 +74,24 @@ export async function patchModelConfig(
 
 export async function deleteModelConfig(token: string, configId: string): Promise<void> {
   return authFetch(`/api/v1/user/model-configs/${encodeURIComponent(configId)}`, { method: "DELETE" }, token);
+}
+
+export async function syncProviderModels(
+  token: string,
+  req: SyncProviderModelsRequest,
+): Promise<ListModelsResponse> {
+  return authFetch("/api/v1/user/provider-models/sync", {
+    method: "POST",
+    body: JSON.stringify(req),
+  }, token);
+}
+
+export async function createCustomModel(
+  token: string,
+  req: CreateCustomModelRequest,
+): Promise<UserModelConfig> {
+  return authFetch("/api/v1/user/custom-models", {
+    method: "POST",
+    body: JSON.stringify(req),
+  }, token);
 }

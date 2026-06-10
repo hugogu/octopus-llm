@@ -3,6 +3,8 @@ import { listModels } from "@/lib/api/models";
 import { listApiKeys, listModelConfigs } from "@/lib/api/userConfig";
 import ModelCard from "@/components/models/ModelCard";
 import ApiKeyForm from "@/components/models/ApiKeyForm";
+import CustomModelForm from "@/components/models/CustomModelForm";
+import ModelConfigControls from "@/components/models/ModelConfigControls";
 import type { ModelDefinition } from "@/lib/types/api";
 
 export default async function ModelsSettingsPage() {
@@ -14,17 +16,30 @@ export default async function ModelsSettingsPage() {
     listApiKeys(token),
     listModelConfigs(token),
   ]);
+  const sortedModels = [...models].sort((a, b) =>
+    a.providerId.localeCompare(b.providerId) || a.displayName.localeCompare(b.displayName),
+  );
 
   const configMap = new Map(modelConfigs.map((c) => [c.modelId, c]));
   const keyMap = new Map(apiKeys.map((k) => [k.id, k]));
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-8">
-      <h1 className="text-2xl font-bold">Model Settings</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">Model Settings</h1>
+        <a href="/chat" className="rounded border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+          Back To Chat
+        </a>
+      </div>
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Add API Key</h2>
         <ApiKeyForm models={models} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold">Custom Models</h2>
+        <CustomModelForm apiKeys={apiKeys} />
       </section>
 
       <section className="flex flex-col gap-4">
@@ -49,7 +64,7 @@ export default async function ModelsSettingsPage() {
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Available Models</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {models.map((model: ModelDefinition) => {
+          {sortedModels.map((model: ModelDefinition) => {
             const config = configMap.get(model.id);
             const keyMeta = config?.providerApiKeyId ? keyMap.get(config.providerApiKeyId) : undefined;
             return (
@@ -60,12 +75,21 @@ export default async function ModelsSettingsPage() {
                       <span className={`px-1.5 py-0.5 rounded ${config.isEnabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                         {config.isEnabled ? "Enabled" : "Disabled"}
                       </span>
+                      <span className="text-gray-400">{model.source.toLowerCase()}</span>
                       {keyMeta && <span className="text-gray-400">{keyMeta.providerId}</span>}
                     </>
                   ) : (
-                    <span className="text-gray-400">Not configured</span>
+                    <>
+                      <span className="text-gray-400">Not configured</span>
+                      <span className="text-gray-400">{model.source.toLowerCase()}</span>
+                    </>
                   )}
                 </div>
+                <ModelConfigControls
+                  model={model}
+                  apiKeys={apiKeys}
+                  config={config}
+                />
               </ModelCard>
             );
           })}

@@ -1,7 +1,9 @@
 package com.octopusllm.userconfig
 
 import com.octopusllm.auth.UserRepository
+import com.octopusllm.llm.CapabilityMatrix
 import com.octopusllm.model.ModelDefinitionRepository
+import com.octopusllm.model.ModelSource
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,6 +20,7 @@ class UserConfigService(
     private val modelConfigRepository: UserModelConfigRepository,
     private val modelDefinitionRepository: ModelDefinitionRepository,
     private val encryptionService: ApiKeyEncryptionService,
+    private val providerModelSyncService: ProviderModelSyncService,
 ) {
 
     fun listApiKeys(userId: UUID): Mono<List<ProviderApiKey>> =
@@ -39,6 +42,9 @@ class UserConfigService(
             )
             apiKeyRepository.save(key)
         }.subscribeOn(Schedulers.boundedElastic())
+
+    fun syncProviderModels(userId: UUID, providerId: String, providerApiKeyId: UUID? = null) =
+        providerModelSyncService.syncProviderModels(userId, providerId, providerApiKeyId)
 
     @Transactional
     fun deleteApiKey(userId: UUID, keyId: UUID): Mono<Unit> =
@@ -62,7 +68,13 @@ class UserConfigService(
         Mono.fromCallable { modelConfigRepository.findByUserId(userId) }
             .subscribeOn(Schedulers.boundedElastic())
 
-    fun addModelConfig(userId: UUID, modelId: String, apiKeyId: UUID, isEnabled: Boolean = true): Mono<UserModelConfig> =
+    fun addModelConfig(
+        userId: UUID,
+        modelId: String,
+        apiKeyId: UUID,
+        isEnabled: Boolean = true,
+        customParams: Map<String, Any?> = emptyMap(),
+    ): Mono<UserModelConfig> =
         Mono.fromCallable {
             val user = userRepository.findById(userId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
@@ -80,25 +92,89 @@ class UserConfigService(
             if (existing != null) {
                 existing.providerApiKey = apiKey
                 existing.isEnabled = isEnabled
+                existing.customParams = customParams
                 existing.updatedAt = Instant.now()
                 modelConfigRepository.save(existing)
             } else {
-                val config = UserModelConfig(user = user, model = model, providerApiKey = apiKey, isEnabled = isEnabled)
+                val config = UserModelConfig(
+                    user = user,
+                    model = model,
+                    providerApiKey = apiKey,
+                    isEnabled = isEnabled,
+                    customParams = customParams,
+                )
                 modelConfigRepository.save(config)
             }
         }.subscribeOn(Schedulers.boundedElastic())
 
-    fun patchModelConfig(userId: UUID, configId: UUID, isEnabled: Boolean): Mono<UserModelConfig> =
+    fun patchModelConfig(
+        userId: UUID,
+        configId: UUID,
+        providerApiKeyId: UUID?,
+        isEnabled: Boolean?,
+        customParams: Map<String, Any?>?,
+    ): Mono<UserModelConfig> =
         Mono.fromCallable {
             val config = modelConfigRepository.findById(configId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Config not found")
             }
             if (config.user.id != userId) throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
-            if (config.providerApiKey == null) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "API key deleted; re-add a key first")
-            config.isEnabled = isEnabled
+            val nextKey = if (providerApiKeyId != null) {
+                apiKeyRepository.findById(providerApiKeyId).orElseThrow {
+                    ResponseStatusException(HttpStatus.BAD_REQUEST, "API key not found")
+                }.also { key ->
+                    if (key.user.id != userId) throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+                    if (key.providerId != config.model.providerId) {
+                        throw ResponseStatusException(HttpStatus.BAD_REQUEST, "API key provider does not match model provider")
+                    }
+                }
+            } else {
+                config.providerApiKey
+                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "API key deleted; re-add a key first")
+            }
+
+            config.providerApiKey = nextKey
+            if (isEnabled != null) config.isEnabled = isEnabled
+            if (customParams != null) config.customParams = customParams
             config.updatedAt = Instant.now()
             modelConfigRepository.save(config)
         }.subscribeOn(Schedulers.boundedElastic())
+
+    fun createCustomModel(
+        userId: UUID,
+        providerId: String,
+        modelId: String,
+        displayName: String?,
+        providerApiKeyId: UUID,
+        isEnabled: Boolean,
+        customParams: Map<String, Any?>,
+        capabilityMatrix: CapabilityMatrix,
+    ): Mono<UserModelConfig> =
+        Mono.fromCallable {
+            val existing = modelDefinitionRepository.findById(modelId).orElse(null)
+            if (existing != null && existing.providerId != providerId) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Model ID already exists for another provider")
+            }
+
+            val model = existing ?: modelDefinitionRepository.save(
+                com.octopusllm.model.ModelDefinition(
+                    id = modelId,
+                    providerId = providerId,
+                    displayName = displayName?.trim()?.takeIf { it.isNotEmpty() } ?: modelId,
+                    capabilityMatrix = capabilityMatrix,
+                    isActive = true,
+                    source = ModelSource.CUSTOM,
+                )
+            )
+
+            if (existing != null && existing.source != ModelSource.CUSTOM) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Model already exists in the shared catalogue")
+            }
+
+            model
+        }.subscribeOn(Schedulers.boundedElastic()).flatMap {
+            addModelConfig(userId, modelId, providerApiKeyId, isEnabled, customParams)
+        }
 
     fun deleteModelConfig(userId: UUID, configId: UUID): Mono<Unit> =
         Mono.fromCallable {

@@ -25,6 +25,7 @@ List all active models in the platform catalogue with their Capability Matrix.
       "id": "gpt-4o-2024-11-20",
       "providerId": "openai",
       "displayName": "GPT-4o (Nov 2024)",
+      "source": "CATALOGUE",
       "capabilityMatrix": {
         "inputModalities": ["text", "image"],
         "outputModalities": ["text"],
@@ -55,6 +56,10 @@ List all active models in the platform catalogue with their Capability Matrix.
 
 The `capabilityMatrix` object contains all known fields plus any additional fields stored
 in the JSONB column (forward-compatible with new dimensions).
+
+The `source` field indicates whether the model row comes from the seeded shared catalogue
+(`CATALOGUE`), provider-side dynamic discovery (`DISCOVERED`), or a user-authored custom
+model definition (`CUSTOM`).
 
 ---
 

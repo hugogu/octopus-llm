@@ -2,7 +2,9 @@ package com.octopusllm.userconfig
 
 import com.octopusllm.auth.User
 import com.octopusllm.model.ModelDefinition
+import io.hypersistence.utils.hibernate.type.json.JsonType
 import jakarta.persistence.*
+import org.hibernate.annotations.Type
 import java.time.Instant
 import java.util.UUID
 
@@ -27,6 +29,10 @@ class UserModelConfig(
 
     @Column(name = "is_enabled", nullable = false)
     var isEnabled: Boolean = true,
+
+    @Type(JsonType::class)
+    @Column(name = "custom_params", columnDefinition = "jsonb", nullable = false)
+    var customParams: Map<String, Any?> = emptyMap(),
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),

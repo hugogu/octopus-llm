@@ -10,17 +10,21 @@ data class ModelResponse(
     val displayName: String,
     val capabilityMatrix: CapabilityMatrix,
     val isActive: Boolean,
+    val source: ModelSource,
 )
 
-private fun ModelDefinition.toResponse() = ModelResponse(id, providerId, displayName, capabilityMatrix, isActive)
+private fun ModelDefinition.toResponse() = ModelResponse(id, providerId, displayName, capabilityMatrix, isActive, source)
 
 @RestController
 @RequestMapping("/api/v1/models")
 class ModelCatalogueController(private val service: ModelCatalogueService) {
 
     @GetMapping
-    fun listModels(@RequestParam providerId: String?): Mono<Map<String, List<ModelResponse>>> =
-        service.listActiveModels(providerId).map { models ->
+    fun listModels(
+        @RequestParam(name = "provider_id", required = false) providerId: String?,
+        @RequestParam(name = "input_modality", required = false) inputModality: String?,
+    ): Mono<Map<String, List<ModelResponse>>> =
+        service.listActiveModels(providerId, inputModality).map { models ->
             mapOf("models" to models.map { it.toResponse() })
         }
 

@@ -116,6 +116,7 @@ class ChatService(
                             providerId = config.model.providerId,
                             decryptedApiKey = decryptedKey,
                             capabilityMatrix = config.model.capabilityMatrix,
+                            customParams = config.customParams,
                         )
                     }
 

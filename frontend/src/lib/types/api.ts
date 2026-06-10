@@ -50,6 +50,7 @@ export interface ModelDefinition {
   displayName: string;
   capabilityMatrix: CapabilityMatrix;
   isActive: boolean;
+  source: "CATALOGUE" | "DISCOVERED" | "CUSTOM";
 }
 
 export interface ListModelsResponse {
@@ -78,6 +79,7 @@ export interface UserModelConfig {
   modelId: string;
   providerApiKeyId: string | null;
   isEnabled: boolean;
+  customParams: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,10 +88,28 @@ export interface UpsertModelConfigRequest {
   modelId: string;
   providerApiKeyId: string;
   isEnabled?: boolean;
+  customParams?: Record<string, unknown>;
 }
 
 export interface PatchModelConfigRequest {
-  isEnabled: boolean;
+  providerApiKeyId?: string;
+  isEnabled?: boolean;
+  customParams?: Record<string, unknown>;
+}
+
+export interface SyncProviderModelsRequest {
+  providerId: string;
+  providerApiKeyId?: string;
+}
+
+export interface CreateCustomModelRequest {
+  providerId: string;
+  modelId: string;
+  displayName?: string;
+  providerApiKeyId: string;
+  isEnabled?: boolean;
+  customParams?: Record<string, unknown>;
+  capabilityMatrix?: CapabilityMatrix;
 }
 
 // ---------------------------------------------------------------------------

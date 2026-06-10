@@ -17,6 +17,7 @@ import com.octopusllm.userconfig.ProviderApiKeyRepository
 import com.octopusllm.userconfig.UserModelConfig
 import com.octopusllm.userconfig.UserModelConfigRepository
 import io.mockk.every
+import io.mockk.match
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
@@ -98,11 +99,25 @@ class ChatControllerTest {
             ProviderApiKey(user = user, providerId = "anthropic", encryptedKey = byteArrayOf(3), keyIv = byteArrayOf(4)),
         )
 
-        userModelConfigRepository.save(UserModelConfig(user = user, model = openAiModel, providerApiKey = openAiKey))
+        userModelConfigRepository.save(
+            UserModelConfig(
+                user = user,
+                model = openAiModel,
+                providerApiKey = openAiKey,
+                customParams = mapOf("temperature" to 0.2),
+            ),
+        )
         userModelConfigRepository.save(UserModelConfig(user = user, model = anthropicModel, providerApiKey = anthropicKey))
 
         every { encryptionService.decrypt(any(), any()) } returns "decrypted-key"
-        every { orchestrator.stream(any<List<ModelDispatchTarget>>(), any<LlmRequest>()) } returns reactor.core.publisher.Flux.just(
+        every {
+            orchestrator.stream(
+                match { targets ->
+                    targets.firstOrNull { it.modelId == "gpt-4o-2024-11-20" }?.customParams?.get("temperature") == 0.2
+                },
+                any<LlmRequest>(),
+            )
+        } returns reactor.core.publisher.Flux.just(
             LlmStreamEvent.Token("gpt-4o-2024-11-20", "Hello"),
             LlmStreamEvent.Token("claude-3-5-sonnet-20241022", "Hi"),
             LlmStreamEvent.ModelComplete("gpt-4o-2024-11-20", 8, 12, 120L),

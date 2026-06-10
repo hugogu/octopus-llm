@@ -22,12 +22,21 @@ export default function ChatPage() {
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    Promise.all([listModels(), listModelConfigs(token)]).then(([{ models: ms }, { modelConfigs }]) => {
-      setModels(ms);
-      setConfigs(modelConfigs);
-      const enabled = modelConfigs.filter((c) => c.isEnabled).map((c) => c.modelId);
-      setSelectedIds(enabled.slice(0, 3));
-    }).catch(console.error);
+    (async () => {
+      try {
+        const [{ models: ms }, { modelConfigs }] = await Promise.all([
+          listModels(),
+          listModelConfigs(token),
+        ]);
+
+        setModels(ms);
+        setConfigs(modelConfigs);
+        const enabled = modelConfigs.filter((c) => c.isEnabled).map((c) => c.modelId);
+        setSelectedIds(enabled.slice(0, 3));
+      } catch (err) {
+        console.error(err);
+      }
+    })();
   }, []);
 
   const displayNames = Object.fromEntries(

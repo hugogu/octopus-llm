@@ -9,10 +9,16 @@ import reactor.core.scheduler.Schedulers
 @Service
 class ModelCatalogueService(private val repository: ModelDefinitionRepository) {
 
-    fun listActiveModels(providerId: String? = null): Mono<List<ModelDefinition>> =
+    fun listActiveModels(providerId: String? = null, inputModality: String? = null): Mono<List<ModelDefinition>> =
         Mono.fromCallable {
-            if (providerId != null) repository.findByProviderIdAndIsActiveTrue(providerId)
+            val models = if (providerId != null) repository.findByProviderIdAndIsActiveTrue(providerId)
             else repository.findByIsActiveTrue()
+
+            if (inputModality != null) {
+                models.filter { inputModality in it.capabilityMatrix.inputModalities }
+            } else {
+                models
+            }
         }.subscribeOn(Schedulers.boundedElastic())
 
     fun getActiveModel(modelId: String): Mono<ModelDefinition> =

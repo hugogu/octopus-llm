@@ -3,6 +3,7 @@ package com.octopusllm.userconfig
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import com.octopusllm.llm.CapabilityMatrix
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
@@ -23,19 +24,40 @@ data class UpsertModelConfigRequest(
     @field:NotBlank val modelId: String,
     @field:NotNull val providerApiKeyId: UUID,
     val isEnabled: Boolean = true,
+    val customParams: Map<String, Any?> = emptyMap(),
 )
 
-data class PatchModelConfigRequest(val isEnabled: Boolean)
+data class PatchModelConfigRequest(
+    val providerApiKeyId: UUID? = null,
+    val isEnabled: Boolean? = null,
+    val customParams: Map<String, Any?>? = null,
+)
+
+data class SyncProviderModelsRequest(
+    @field:NotBlank val providerId: String,
+    val providerApiKeyId: UUID? = null,
+)
+
+data class CreateCustomModelRequest(
+    @field:NotBlank val providerId: String,
+    @field:NotBlank val modelId: String,
+    val displayName: String? = null,
+    @field:NotNull val providerApiKeyId: UUID,
+    val isEnabled: Boolean = true,
+    val customParams: Map<String, Any?> = emptyMap(),
+    val capabilityMatrix: CapabilityMatrix = CapabilityMatrix(),
+)
 
 data class ModelConfigResponse(
     val id: UUID,
     val modelId: String,
     val providerApiKeyId: UUID?,
     val isEnabled: Boolean,
+    val customParams: Map<String, Any?>,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
-private fun UserModelConfig.toResponse() = ModelConfigResponse(id, model.id, providerApiKey?.id, isEnabled, createdAt, updatedAt)
+private fun UserModelConfig.toResponse() = ModelConfigResponse(id, model.id, providerApiKey?.id, isEnabled, customParams, createdAt, updatedAt)
 
 @RestController
 @RequestMapping("/api/v1/user")
@@ -82,7 +104,13 @@ class UserConfigController(private val service: UserConfigService) {
         @AuthenticationPrincipal principal: String,
         @Valid @RequestBody request: UpsertModelConfigRequest,
     ): Mono<ModelConfigResponse> =
-        service.addModelConfig(userId(principal), request.modelId, request.providerApiKeyId, request.isEnabled)
+        service.addModelConfig(
+            userId(principal),
+            request.modelId,
+            request.providerApiKeyId,
+            request.isEnabled,
+            request.customParams,
+        )
             .map { it.toResponse() }
 
     @PatchMapping("/model-configs/{configId}")
@@ -91,7 +119,13 @@ class UserConfigController(private val service: UserConfigService) {
         @PathVariable configId: UUID,
         @RequestBody request: PatchModelConfigRequest,
     ): Mono<ModelConfigResponse> =
-        service.patchModelConfig(userId(principal), configId, request.isEnabled)
+        service.patchModelConfig(
+            userId(principal),
+            configId,
+            request.providerApiKeyId,
+            request.isEnabled,
+            request.customParams,
+        )
             .map { it.toResponse() }
 
     @DeleteMapping("/model-configs/{configId}")
@@ -101,4 +135,39 @@ class UserConfigController(private val service: UserConfigService) {
         @PathVariable configId: UUID,
     ): Mono<Void> =
         service.deleteModelConfig(userId(principal), configId).then()
+
+    @PostMapping("/provider-models/sync")
+    fun syncProviderModels(
+        @AuthenticationPrincipal principal: String,
+        @Valid @RequestBody request: SyncProviderModelsRequest,
+    ): Mono<Map<String, List<com.octopusllm.model.ModelResponse>>> =
+        service.syncProviderModels(userId(principal), request.providerId, request.providerApiKeyId).map { models ->
+            mapOf("models" to models.map {
+                com.octopusllm.model.ModelResponse(
+                    id = it.id,
+                    providerId = it.providerId,
+                    displayName = it.displayName,
+                    capabilityMatrix = it.capabilityMatrix,
+                    isActive = it.isActive,
+                    source = it.source,
+                )
+            })
+        }
+
+    @PostMapping("/custom-models")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createCustomModel(
+        @AuthenticationPrincipal principal: String,
+        @Valid @RequestBody request: CreateCustomModelRequest,
+    ): Mono<ModelConfigResponse> =
+        service.createCustomModel(
+            userId(principal),
+            request.providerId,
+            request.modelId,
+            request.displayName,
+            request.providerApiKeyId,
+            request.isEnabled,
+            request.customParams,
+            request.capabilityMatrix,
+        ).map { it.toResponse() }
 }

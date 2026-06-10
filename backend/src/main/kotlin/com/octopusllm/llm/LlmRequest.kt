@@ -16,4 +16,5 @@ data class LlmRequest(
     val prompt: String,
     val history: List<HistoryTurn> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
+    val customParams: Map<String, Any?> = emptyMap(),
 )

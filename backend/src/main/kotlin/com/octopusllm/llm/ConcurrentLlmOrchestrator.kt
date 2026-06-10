@@ -9,6 +9,7 @@ data class ModelDispatchTarget(
     val providerId: String,
     val decryptedApiKey: String,
     val capabilityMatrix: CapabilityMatrix,
+    val customParams: Map<String, Any?> = emptyMap(),
 )
 
 @Component
@@ -26,7 +27,10 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: AdapterRegistry) {
                 att.type !in target.capabilityMatrix.inputModalities
             }
 
-            val routedRequest = request.copy(attachments = supportedAttachments)
+            val routedRequest = request.copy(
+                attachments = supportedAttachments,
+                customParams = target.customParams,
+            )
 
             val noticeFlux: Flux<LlmStreamEvent> = if (droppedAttachments.isNotEmpty()) {
                 val types = droppedAttachments.map { it.type }.distinct().joinToString(", ")

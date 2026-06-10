@@ -1,8 +1,10 @@
 package com.octopusllm.llm.adapter
 
 import com.octopusllm.llm.*
+import com.openai.core.JsonValue
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.models.ReasoningEffort
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.chat.completions.ChatCompletionMessageParam
 import reactor.core.publisher.Flux
@@ -23,10 +25,11 @@ class OpenAiCompatAdapter(
                     .build()
 
                 val messages = buildMessages(request)
-                val params = ChatCompletionCreateParams.builder()
+                val paramsBuilder = ChatCompletionCreateParams.builder()
                     .messages(messages)
                     .model(modelId)
-                    .build()
+                applyCustomParams(paramsBuilder, request.customParams)
+                val params = paramsBuilder.build()
 
                 var inputTokens: Int? = null
                 var outputTokens: Int? = null
@@ -124,5 +127,31 @@ class OpenAiCompatAdapter(
         }
 
         return messages
+    }
+
+    private fun applyCustomParams(
+        builder: ChatCompletionCreateParams.Builder,
+        customParams: Map<String, Any?>,
+    ) {
+        customParams.forEach { (key, value) ->
+            when (key) {
+                "temperature" -> (value as? Number)?.toDouble()?.let(builder::temperature)
+                "top_p" -> (value as? Number)?.toDouble()?.let(builder::topP)
+                "max_tokens" -> (value as? Number)?.toLong()?.let(builder::maxTokens)
+                "max_completion_tokens" -> (value as? Number)?.toLong()?.let(builder::maxCompletionTokens)
+                "presence_penalty" -> (value as? Number)?.toDouble()?.let(builder::presencePenalty)
+                "frequency_penalty" -> (value as? Number)?.toDouble()?.let(builder::frequencyPenalty)
+                "reasoning_effort" -> (value as? String)?.lowercase()?.let { effort ->
+                    when (effort) {
+                        "low" -> builder.reasoningEffort(ReasoningEffort.LOW)
+                        "medium" -> builder.reasoningEffort(ReasoningEffort.MEDIUM)
+                        "high" -> builder.reasoningEffort(ReasoningEffort.HIGH)
+                    }
+                }
+                else -> if (value != null) {
+                    builder.putAdditionalBodyProperty(key, JsonValue.from(value))
+                }
+            }
+        }
     }
 }

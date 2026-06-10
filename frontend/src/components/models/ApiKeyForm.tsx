@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ModelDefinition } from "@/lib/types/api";
-import { addApiKey } from "@/lib/api/userConfig";
+import { listModels } from "@/lib/api/models";
+import { addApiKey, addModelConfig, syncProviderModels } from "@/lib/api/userConfig";
 import { getToken } from "@/lib/api/auth";
 
 interface ApiKeyFormProps {
@@ -27,7 +28,22 @@ export default function ApiKeyForm({ models }: ApiKeyFormProps) {
     try {
       const token = getToken();
       if (!token) throw new Error("Not authenticated");
-      await addApiKey(token, { providerId, apiKey, label: label || undefined });
+      const createdKey = await addApiKey(token, { providerId, apiKey, label: label || undefined });
+      const { models: syncedModels } = await syncProviderModels(token, {
+        providerId,
+        providerApiKeyId: createdKey.id,
+      }).catch(async () => listModels({ providerId }));
+      const providerModels = syncedModels.filter((model) => model.providerId === providerId);
+      await Promise.all(
+        providerModels.map((model) =>
+          addModelConfig(token, {
+            modelId: model.id,
+            providerApiKeyId: createdKey.id,
+            isEnabled: true,
+            customParams: {},
+          }),
+        ),
+      );
       setApiKey("");
       setLabel("");
       router.refresh();
@@ -75,7 +91,7 @@ export default function ApiKeyForm({ models }: ApiKeyFormProps) {
         disabled={loading}
         className="bg-blue-600 text-white rounded px-3 py-1.5 text-sm disabled:opacity-50"
       >
-        {loading ? "Saving…" : "Save Key"}
+        {loading ? "Saving…" : "Save Key And Load Models"}
       </button>
     </form>
   );
