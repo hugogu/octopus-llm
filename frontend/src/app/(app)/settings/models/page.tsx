@@ -24,7 +24,7 @@ export default async function ModelsSettingsPage() {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Add API Key</h2>
-        <ApiKeyForm models={models} onAdded={() => {}} />
+        <ApiKeyForm models={models} />
       </section>
 
       <section className="flex flex-col gap-4">

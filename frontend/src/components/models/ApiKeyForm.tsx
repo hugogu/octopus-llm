@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import type { ModelDefinition, ApiKeyMeta } from "@/lib/types/api";
+import { useRouter } from "next/navigation";
+import type { ModelDefinition } from "@/lib/types/api";
 import { addApiKey } from "@/lib/api/userConfig";
 import { getToken } from "@/lib/api/auth";
 
 interface ApiKeyFormProps {
   models: ModelDefinition[];
-  onAdded: (key: ApiKeyMeta) => void;
 }
 
-export default function ApiKeyForm({ models, onAdded }: ApiKeyFormProps) {
+export default function ApiKeyForm({ models }: ApiKeyFormProps) {
+  const router = useRouter();
   const providers = [...new Set(models.map((m) => m.providerId))].sort();
 
   const [providerId, setProviderId] = useState(providers[0] ?? "");
@@ -26,10 +27,10 @@ export default function ApiKeyForm({ models, onAdded }: ApiKeyFormProps) {
     try {
       const token = getToken();
       if (!token) throw new Error("Not authenticated");
-      const created = await addApiKey(token, { providerId, apiKey, label: label || undefined });
-      onAdded(created);
+      await addApiKey(token, { providerId, apiKey, label: label || undefined });
       setApiKey("");
       setLabel("");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save key");
     } finally {
