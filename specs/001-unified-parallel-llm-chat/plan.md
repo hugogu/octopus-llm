@@ -18,8 +18,8 @@ providers: OpenAI, Anthropic Claude, Moonshot (Kimi), DeepSeek, Zhipu AI (GLM), 
 **Language/Runtime**: Kotlin 2.x on JVM, Java 21; TypeScript 5.x with strict mode
 **Primary Dependencies**:
 - Backend: Spring Boot 3.x (WebFlux), Spring Security 6, Flyway, Spring Data JPA
-- LLM SDKs: `openai-java` (OpenAI / Moonshot / DeepSeek), `anthropic-java`,
-  `zhipuai-sdk-java-v4`, Spring WebClient (MiniMax)
+- LLM SDKs: `openai-java` (OpenAI / Moonshot / DeepSeek / Zhipu),
+  `anthropic-java`, Spring WebClient (MiniMax)
 - Frontend: Next.js 15 (App Router), React 19
 **Storage**: PostgreSQL 16; JSONB for Capability Matrix and attachment metadata
 **Testing**: JUnit 5 + MockK (backend unit); Testcontainers + PostgreSQL (integration);
@@ -100,9 +100,8 @@ backend/
     │   │   │   ├── LlmStreamEvent.kt                ← sealed class: Token/Complete/Error
     │   │   │   ├── ConcurrentLlmOrchestrator.kt    ← Flux.merge() parallel dispatch
     │   │   │   └── adapter/
-    │   │   │       ├── OpenAiCompatAdapter.kt       ← serves OpenAI, Moonshot, DeepSeek
+    │   │   │       ├── OpenAiCompatAdapter.kt       ← serves OpenAI, Moonshot, DeepSeek, Zhipu
     │   │   │       ├── AnthropicAdapter.kt
-    │   │   │       ├── ZhipuAdapter.kt
     │   │   │       └── MiniMaxAdapter.kt
     │   │   ├── model/
     │   │   │   ├── ModelDefinition.kt               ← JPA entity

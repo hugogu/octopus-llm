@@ -18,11 +18,11 @@ REST APIs.
 | Anthropic Claude | `com.anthropic:anthropic-java` (official) | Supports streaming, multi-modal |
 | Moonshot (Kimi) | OpenAI SDK with `baseUrl = https://api.moonshot.cn/v1` | 100% OpenAI-compatible |
 | DeepSeek | OpenAI SDK with `baseUrl = https://api.deepseek.com` | 100% OpenAI-compatible |
-| GLM (Zhipu AI) | `com.zhipu.oapi:client-v4` (official Java SDK) | Has streaming support |
+| GLM (Zhipu AI) | OpenAI SDK with `baseUrl = https://open.bigmodel.cn/api/paas/v4` | Current chat-completions flow works through the OpenAI-compatible API |
 | MiniMax | Spring `WebClient` + custom REST client | No standard Java SDK |
 
 **Rationale**: Re-using the OpenAI SDK for compatible providers eliminates duplicate HTTP
-client code. Only MiniMax requires a fully custom adapter.
+client code. Only Anthropic and MiniMax require dedicated non-OpenAI-compatible adapters.
 
 **Alternatives considered**:
 - LangChain4j: Would unify the adapter layer but adds a heavy framework dependency and lags

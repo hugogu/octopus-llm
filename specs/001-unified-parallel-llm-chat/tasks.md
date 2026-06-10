@@ -27,7 +27,7 @@ All tasks in this phase can run in parallel once the directory structure exists.
 - [ ] T002 [P] Create frontend/ directory and initialize Next.js 15 App Router project with TypeScript (`npx create-next-app@latest frontend --typescript --app --tailwind --src-dir false`) in `frontend/`
 - [ ] T003 Configure `docker-compose.yml` at repo root with services: `db` (postgres:16), `backend` (port 8080), `frontend` (port 3000), `mailhog` (ports 1025/8025); use env_file `.env`
 - [ ] T004 [P] Create `.env.example` at repo root with all required variables: `DB_URL`, `DB_USER`, `DB_PASSWORD`, `ENCRYPTION_MASTER_KEY`, `JWT_SECRET`, `JWT_EXPIRY_SECONDS`, `MAIL_HOST`, `MAIL_PORT`, `FRONTEND_URL`
-- [ ] T005 Configure `backend/build.gradle.kts` with dependencies: `spring-boot-starter-webflux`, `spring-boot-starter-security`, `spring-boot-starter-data-jpa`, `flyway-core`, `postgresql`, `openai-java:2.x`, `anthropic-java`, `zhipuai-sdk-java-v4`, `kotlin-coroutines-reactor`, `jjwt-api` + impl + jackson, `testcontainers-postgresql`, `mockk`
+- [ ] T005 Configure `backend/build.gradle.kts` with dependencies: `spring-boot-starter-webflux`, `spring-boot-starter-security`, `spring-boot-starter-data-jpa`, `flyway-core`, `postgresql`, `openai-java:2.x`, `anthropic-java`, `kotlin-coroutines-reactor`, `jjwt-api` + impl + jackson, `testcontainers-postgresql`, `mockk`
 - [ ] T006 [P] Configure `frontend/package.json` to add dev dependencies: `vitest`, `@testing-library/react`, `@testing-library/user-event`; confirm `next`, `react`, `react-dom`, `typescript` are present
 - [ ] T007 [P] Create `backend/src/main/resources/application.yml` with datasource, JPA (ddl-auto: validate), Flyway (enabled: true, locations: classpath:db/migration), server port 8080, JWT config from env vars
 - [ ] T008 [P] Create `backend/src/main/resources/application-docker.yml` with DB host pointing to `db` service container name
@@ -114,7 +114,7 @@ returns 401 on subsequent request with same token).
 
 ### Tests for User Story 1
 
-- [ ] T045 [P] [US1] Create `backend/src/test/kotlin/com/octopusllm/auth/AuthControllerTest.kt`: Testcontainers+PostgreSQL integration tests for register→verify→login→logout flow per quickstart.md Scenario 1
+- [x] T045 [P] [US1] Create `backend/src/test/kotlin/com/octopusllm/auth/AuthControllerTest.kt`: Testcontainers+PostgreSQL integration tests for register→verify→login→logout flow per quickstart.md Scenario 1
 
 **Checkpoint**: Scenario 1 from quickstart.md passes. User can register, verify email, log in, call an authenticated endpoint, log out, and confirm the token is rejected.
 
@@ -168,7 +168,7 @@ all model responses streaming concurrently in real time.
 
 - [ ] T062 [P] [US3] Create `backend/src/main/kotlin/com/octopusllm/llm/adapter/OpenAiCompatAdapter.kt`: implements `LlmAdapter`; accepts `baseUrl` and `providerId` constructor args; uses `openai-java` `OpenAIClient.chat().completions().streamRaw()` with `stream: true`; maps chunks to `Token` / `ModelComplete` events; handles `OpenAIServiceException` → `ModelError`
 - [ ] T063 [P] [US3] Create `backend/src/main/kotlin/com/octopusllm/llm/adapter/AnthropicAdapter.kt`: implements `LlmAdapter`; uses `anthropic-java` client; maps streaming message events to `Token` / `ModelComplete`; wraps `APIException` → `ModelError`
-- [ ] T064 [P] [US3] Create `backend/src/main/kotlin/com/octopusllm/llm/adapter/ZhipuAdapter.kt`: implements `LlmAdapter`; uses `zhipuai-sdk-java-v4` `ChatCompletionRequest` with `stream = true`; maps SSE events to `Token` / `ModelComplete`
+- [x] T064 [P] [US3] Route Zhipu through `OpenAiCompatAdapter` in `AdapterRegistry.kt` using `baseUrl = https://open.bigmodel.cn/api/paas/v4`; no separate SDK adapter is required for the current chat-completions flow
 - [ ] T065 [P] [US3] Create `backend/src/main/kotlin/com/octopusllm/llm/adapter/MiniMaxAdapter.kt`: implements `LlmAdapter`; uses Spring `WebClient` to POST to MiniMax REST API (`https://api.minimax.chat/v1/text/chatcompletion_v2`); parses `text/event-stream` response body as `Token` / `ModelComplete` events
 
 ### Orchestrator & Adapter Registry
@@ -199,8 +199,8 @@ all model responses streaming concurrently in real time.
 
 ### Tests for User Story 3
 
-- [ ] T083 [P] [US3] Create `backend/src/test/kotlin/com/octopusllm/llm/ConcurrentLlmOrchestratorTest.kt`: unit tests with mock `LlmAdapter`s verifying: all adapters called simultaneously, `Flux.merge()` interleaves events, single adapter error emits `ModelError` without cancelling others
-- [ ] T084 [P] [US3] Create `backend/src/test/kotlin/com/octopusllm/chat/ChatControllerTest.kt`: integration test (Testcontainers + PostgreSQL) for `POST /sessions/{id}/turns`; asserts SSE stream contains `turn_created`, `token` events from both mock adapters, `model_complete` for each, then `all_complete`
+- [x] T083 [P] [US3] Create `backend/src/test/kotlin/com/octopusllm/llm/ConcurrentLlmOrchestratorTest.kt`: unit tests with mock `LlmAdapter`s verifying: all adapters called simultaneously, `Flux.merge()` interleaves events, single adapter error emits `ModelError` without cancelling others
+- [x] T084 [P] [US3] Create `backend/src/test/kotlin/com/octopusllm/chat/ChatControllerTest.kt`: integration test (Testcontainers + PostgreSQL) for `POST /sessions/{id}/turns`; asserts SSE stream contains `turn_created`, `token` events from both mock adapters, `model_complete` for each, then `all_complete`
 
 **Checkpoint**: Scenario 3 from quickstart.md passes. Two models stream concurrently; fastest model's first token arrives before slowest model completes.
 
@@ -245,14 +245,14 @@ hover a model panel header and verify full Capability Matrix is shown.
 
 **Purpose**: Integration, correctness gates, Docker verification, and quickstart validation.
 
-- [ ] T093 [P] Create `backend/src/test/kotlin/com/octopusllm/llm/CapabilityRoutingTest.kt`: unit tests verifying that an attachment of type `"image"` is included in `LlmRequest.attachments` only for models with `"image"` in `inputModalities`; dropped + `capability_notice` emitted for others
-- [ ] T094 Run `./gradlew build` from `backend/` and fix ALL compilation errors and test failures
-- [ ] T095 [P] Run `npx tsc --noEmit` from `frontend/` and fix ALL TypeScript errors
-- [ ] T096 Run `docker compose build` from repo root and verify both service images build successfully on local platform
-- [ ] T097 Run `docker compose up -d` and perform quickstart.md Scenario 1 (auth flow) against running containers; confirm `201`, email token, `200`, JWT, `401` after logout
+- [x] T093 [P] Create `backend/src/test/kotlin/com/octopusllm/llm/CapabilityRoutingTest.kt`: unit tests verifying that an attachment of type `"image"` is included in `LlmRequest.attachments` only for models with `"image"` in `inputModalities`; dropped + `capability_notice` emitted for others
+- [x] T094 Run `./gradlew build` from `backend/` and fix ALL compilation errors and test failures
+- [x] T095 [P] Run `npx tsc --noEmit` from `frontend/` and fix ALL TypeScript errors
+- [x] T096 Run `docker compose build` from repo root and verify both service images build successfully on local platform
+- [x] T097 Run `docker compose up -d` and perform quickstart.md Scenario 1 (auth flow) against running containers; confirm `201`, email token, `200`, JWT, `401` after logout
 - [ ] T098 Run quickstart.md Scenario 3 (parallel chat) against running containers; confirm SSE events interleaved, `all_complete` final
 - [ ] T099 Run quickstart.md Scenario 4 (single model failure) against running containers; confirm `model_error` for bad-key model, `model_complete` for good model, `all_complete` final
-- [ ] T100 [P] Review and update `specs/001-unified-parallel-llm-chat/checklists/requirements.md`; confirm all acceptance scenarios from spec.md have corresponding implemented tests or quickstart verification steps
+- [x] T100 [P] Review and update `specs/001-unified-parallel-llm-chat/checklists/requirements.md`; confirm all acceptance scenarios from spec.md have corresponding implemented tests or quickstart verification steps
 
 ---
 

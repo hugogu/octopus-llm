@@ -34,3 +34,6 @@ backend/build/
 # Frontend local/build artifacts
 frontend/.next/
 frontend/node_modules/
+
+# Local runtime data
+data/

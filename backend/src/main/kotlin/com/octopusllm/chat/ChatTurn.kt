@@ -1,9 +1,10 @@
 package com.octopusllm.chat
 
-import io.hypersistence.utils.hibernate.type.array.StringArrayType
 import io.hypersistence.utils.hibernate.type.json.JsonType
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.annotations.Type
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.UUID
 
@@ -28,7 +29,7 @@ class ChatTurn(
     @Column(columnDefinition = "jsonb")
     val attachments: List<Map<String, String>>? = null,
 
-    @Type(StringArrayType::class)
+    @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "selected_model_ids", nullable = false, columnDefinition = "TEXT[]")
     val selectedModelIds: Array<String>,
 
