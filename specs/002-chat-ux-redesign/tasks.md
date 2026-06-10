@@ -124,11 +124,11 @@
 
 ### Implementation
 
-- [ ] T037 [US4] Create `usePreferences` hook in `frontend/src/lib/hooks/usePreferences.ts`
-- [ ] T038 [US4] Update `ChatInput` to persist model selection via preferences API in `frontend/src/components/chat/ChatInput.tsx`
-- [ ] T039 [US4] Update `ModelSelectorPanel` to restore last selected model on load in `frontend/src/components/chat/ModelSelectorPanel.tsx`
-- [ ] T040 [US4] Handle unavailable model: show notification + select fallback
-- [ ] T041 [US4] Add first-time user default model selection or prompt
+- [x] T037 [US4] Create `usePreferences` hook in `frontend/src/lib/hooks/usePreferences.ts`
+- [x] T038 [US4] Update `ChatInput` to persist model selection via preferences API in `frontend/src/components/chat/ChatInput.tsx`
+- [x] T039 [US4] Update `ModelSelectorPanel` to restore last selected model on load in `frontend/src/components/chat/ModelSelectorPanel.tsx`
+- [x] T040 [US4] Handle unavailable model: show notification + select fallback
+- [x] T041 [US4] Add first-time user default model selection or prompt
 
 **Checkpoint**: Model preference persists across app restarts; gracefully handles removed models
 
