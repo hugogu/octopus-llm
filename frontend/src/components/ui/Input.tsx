@@ -16,11 +16,12 @@ export default function Input({
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+        <label htmlFor={props.id || props.name} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           {label}
         </label>
       )}
       <input
+        id={props.id || props.name}
         className={`
           w-full px-3.5 py-2.5 rounded-lg border bg-white dark:bg-gray-900
           text-gray-900 dark:text-gray-100 placeholder-gray-400

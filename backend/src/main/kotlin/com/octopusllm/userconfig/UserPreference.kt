@@ -12,7 +12,7 @@ class UserPreference(
     @Column(columnDefinition = "UUID")
     val id: UUID = UUID.randomUUID(),
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @OneToOne(fetch = FetchType.LAZY, optional = false, cascade = [CascadeType.REMOVE])
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     val user: User,
 

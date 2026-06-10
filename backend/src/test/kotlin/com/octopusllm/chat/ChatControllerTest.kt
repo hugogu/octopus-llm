@@ -17,7 +17,6 @@ import com.octopusllm.userconfig.ProviderApiKeyRepository
 import com.octopusllm.userconfig.UserModelConfig
 import com.octopusllm.userconfig.UserModelConfigRepository
 import io.mockk.every
-import io.mockk.match
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
@@ -181,6 +180,80 @@ class ChatControllerTest {
             Thread.sleep(50)
         }
         error("Timed out waiting for provider responses to be persisted")
+    }
+
+    @Test
+    fun `delete session removes session and all turns`() {
+        val user = userRepository.save(
+            User(email = "delete@example.com", passwordHash = "hash", emailVerified = true),
+        )
+        val session = chatSessionRepository.save(ChatSession(user = user, title = "To Delete"))
+        val jwt = jwtTokenService.issue(user.id)
+
+        webTestClient.delete()
+            .uri("/api/v1/chat/sessions/${session.id}")
+            .header("Authorization", "Bearer $jwt")
+            .exchange()
+            .expectStatus().isNoContent
+
+        val found = chatSessionRepository.findById(session.id)
+        require(!found.isPresent) { "Expected session to be deleted" }
+    }
+
+    @Test
+    fun `delete session returns not found for other users session`() {
+        val owner = userRepository.save(
+            User(email = "owner@example.com", passwordHash = "hash", emailVerified = true),
+        )
+        val other = userRepository.save(
+            User(email = "other@example.com", passwordHash = "hash", emailVerified = true),
+        )
+        val session = chatSessionRepository.save(ChatSession(user = owner, title = "Private"))
+        val jwt = jwtTokenService.issue(other.id)
+
+        webTestClient.delete()
+            .uri("/api/v1/chat/sessions/${session.id}")
+            .header("Authorization", "Bearer $jwt")
+            .exchange()
+            .expectStatus().isNotFound
+    }
+
+    @Test
+    fun `create session with selectedModelId returns it in response`() {
+        val user = userRepository.save(
+            User(email = "model@example.com", passwordHash = "hash", emailVerified = true),
+        )
+        val jwt = jwtTokenService.issue(user.id)
+
+        webTestClient.post()
+            .uri("/api/v1/chat/sessions")
+            .header("Authorization", "Bearer $jwt")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("title" to "Model Session", "selectedModelId" to "gpt-4o"))
+            .exchange()
+            .expectStatus().isCreated
+            .expectBody()
+            .jsonPath("$.title").isEqualTo("Model Session")
+            .jsonPath("$.selectedModelId").isEqualTo("gpt-4o")
+    }
+
+    @Test
+    fun `get session returns selectedModelId`() {
+        val user = userRepository.save(
+            User(email = "get@example.com", passwordHash = "hash", emailVerified = true),
+        )
+        val session = chatSessionRepository.save(
+            ChatSession(user = user, title = "Test", selectedModelId = "claude-3"),
+        )
+        val jwt = jwtTokenService.issue(user.id)
+
+        webTestClient.get()
+            .uri("/api/v1/chat/sessions/${session.id}")
+            .header("Authorization", "Bearer $jwt")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.selectedModelId").isEqualTo("claude-3")
     }
 
     companion object {
