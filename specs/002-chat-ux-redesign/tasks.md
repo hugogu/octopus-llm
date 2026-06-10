@@ -163,11 +163,11 @@
 
 ### Implementation
 
-- [ ] T050 [US6] Create `MessageThread` component in `frontend/src/components/chat/MessageThread.tsx`
-- [ ] T051 [US6] Render user and assistant messages with distinct visual styling
-- [ ] T052 [US6] Ensure chronological ordering with 100% accuracy via `sequenceNum`
-- [ ] T053 [US6] Optimize scroll performance for long conversations (20+ messages)
-- [ ] T054 [US6] Append new messages to bottom of existing thread without full re-render
+- [x] T050 [US6] Create `MessageThread` component in `frontend/src/components/chat/MessageThread.tsx`
+- [x] T051 [US6] Render user and assistant messages with distinct visual styling
+- [x] T052 [US6] Ensure chronological ordering with 100% accuracy via `sequenceNum`
+- [x] T053 [US6] Optimize scroll performance for long conversations (20+ messages)
+- [x] T054 [US6] Append new messages to bottom of existing thread without full re-render
 
 **Checkpoint**: Messages thread correctly with clear visual distinction; scroll performance acceptable
 
@@ -177,14 +177,14 @@
 
 **Purpose**: Responsive design, theme support, performance optimization, final validation
 
-- [ ] T055 [P] Apply responsive design to all chat components (sidebar, thread, input) using Tailwind breakpoints
-- [ ] T056 [P] Add dark/light theme CSS variables to `frontend/src/app/globals.css`
-- [ ] T057 Update `frontend/src/app/layout.tsx` to support theme switching
-- [ ] T058 [P] Add loading states and skeleton screens for session list
-- [ ] T059 [P] Add error handling and toast notifications for API failures
-- [ ] T060 Verify `backend/build.gradle.kts` builds successfully (`./gradlew build`)
-- [ ] T061 Verify frontend TypeScript compiles (`npx tsc --noEmit`)
-- [ ] T062 Run quickstart.md validation scenarios manually
+- [x] T055 [P] Apply responsive design to all chat components (sidebar, thread, input) using Tailwind breakpoints
+- [x] T056 [P] Add dark/light theme CSS variables to `frontend/src/app/globals.css`
+- [x] T057 Update `frontend/src/app/layout.tsx` to support theme switching
+- [x] T058 [P] Add loading states and skeleton screens for session list
+- [x] T059 [P] Add error handling and toast notifications for API failures
+- [x] T060 Verify `backend/build.gradle.kts` builds successfully (`./gradlew build`)
+- [x] T061 Verify frontend TypeScript compiles (`npx tsc --noEmit`)
+- [x] T062 Run quickstart.md validation scenarios manually
 
 ---
 
