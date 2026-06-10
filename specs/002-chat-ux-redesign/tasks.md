@@ -104,13 +104,13 @@
 
 ### Implementation
 
-- [ ] T030 [US3] Create `MarkdownRenderer` component in `frontend/src/components/chat/MarkdownRenderer.tsx`
-- [ ] T031 [US3] Integrate `react-markdown` + `remark-gfm` + `rehype-sanitize` in renderer
-- [ ] T032 [US3] Add code block syntax highlighting via `react-syntax-highlighter`
-- [ ] T033 [US3] Implement debounced re-render (100ms) for streaming performance
-- [ ] T034 [US3] Add error boundary with fallback to raw text for malformed markdown
-- [ ] T035 [US3] Update `[sessionId]/page.tsx` to use `MarkdownRenderer` for assistant responses
-- [ ] T036 [US3] Ensure progressive rendering avoids layout shifts during streaming
+- [x] T030 [US3] Create `MarkdownRenderer` component in `frontend/src/components/chat/MarkdownRenderer.tsx`
+- [x] T031 [US3] Integrate `react-markdown` + `remark-gfm` + `rehype-sanitize` in renderer
+- [x] T032 [US3] Add code block syntax highlighting via `react-syntax-highlighter`
+- [x] T033 [US3] Implement debounced re-render (100ms) for streaming performance
+- [x] T034 [US3] Add error boundary with fallback to raw text for malformed markdown
+- [x] T035 [US3] Update `[sessionId]/page.tsx` to use `MarkdownRenderer` for assistant responses
+- [x] T036 [US3] Ensure progressive rendering avoids layout shifts during streaming
 
 **Checkpoint**: Markdown renders correctly in real-time; HTML is sanitized; no flicker or layout shifts
 

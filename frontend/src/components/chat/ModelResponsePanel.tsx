@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CapabilityMatrix } from "@/lib/types/api";
+import StreamingMarkdown from "./StreamingMarkdown";
 
 interface ModelResponsePanelProps {
   modelId: string;
@@ -80,12 +81,12 @@ export default function ModelResponsePanel({
         </div>
       )}
 
-      <div className="px-3 py-2 text-sm whitespace-pre-wrap min-h-[60px] flex-1">
+      <div className="px-3 py-2 text-sm min-h-[60px] flex-1">
         {status === "error" ? (
           <span className="text-red-600">{errorMessage ?? "An error occurred"}</span>
         ) : (
           <>
-            {text}
+            <StreamingMarkdown content={text} debounceMs={100} />
             {status === "streaming" && <span className="animate-pulse">▋</span>}
           </>
         )}

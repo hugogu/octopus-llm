@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { getSession } from "@/lib/api/chat";
 import type { ChatTurn } from "@/lib/types/api";
+import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -46,11 +47,11 @@ export default async function SessionPage({ params }: PageProps) {
                       {resp.status}
                     </span>
                   </div>
-                  <div className="px-3 py-2 text-sm whitespace-pre-wrap">
+                  <div className="px-3 py-2 text-sm">
                     {resp.status === "error" ? (
                       <span className="text-red-600">{resp.errorMessage}</span>
                     ) : (
-                      resp.responseText
+                      <MarkdownRenderer content={resp.responseText ?? ""} />
                     )}
                   </div>
                   {resp.status === "complete" && (
