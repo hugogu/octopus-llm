@@ -26,11 +26,11 @@ class CapabilityRoutingTest {
         val capturedImageModel = slot<LlmRequest>()
 
         val textAdapter = mockk<LlmAdapter>()
-        every { textAdapter.stream(capture(capturedTextOnly), any()) } returns
+        every { textAdapter.stream(any(), capture(capturedTextOnly), any()) } returns
             Flux.just(LlmStreamEvent.ModelComplete("text-only", 1, 1, 100L))
 
         val imageAdapter = mockk<LlmAdapter>()
-        every { imageAdapter.stream(capture(capturedImageModel), any()) } returns
+        every { imageAdapter.stream(any(), capture(capturedImageModel), any()) } returns
             Flux.just(LlmStreamEvent.ModelComplete("image-model", 1, 1, 100L))
 
         val registry = makeRegistry("text-only" to textAdapter, "image-model" to imageAdapter)
@@ -60,7 +60,7 @@ class CapabilityRoutingTest {
         val imageCaps = CapabilityMatrix(inputModalities = listOf("text", "image"))
 
         val imageAdapter = mockk<LlmAdapter>()
-        every { imageAdapter.stream(any(), any()) } returns Flux.just(
+        every { imageAdapter.stream(any(), any(), any()) } returns Flux.just(
             LlmStreamEvent.Token("image-model", "hello"),
             LlmStreamEvent.ModelComplete("image-model", 5, 2, 200L),
         )
@@ -82,7 +82,7 @@ class CapabilityRoutingTest {
         val textOnlyCaps = CapabilityMatrix(inputModalities = listOf("text"))
 
         val textAdapter = mockk<LlmAdapter>()
-        every { textAdapter.stream(any(), any()) } returns Flux.just(
+        every { textAdapter.stream(any(), any(), any()) } returns Flux.just(
             LlmStreamEvent.Token("text-model", "Hello!"),
             LlmStreamEvent.ModelComplete("text-model", 3, 2, 50L),
         )

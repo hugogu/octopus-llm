@@ -10,8 +10,7 @@ import type {
   SseEvent,
 } from "@/lib/types/api";
 import { getToken } from "@/lib/api/auth";
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiUrl } from "@/lib/api/base";
 
 function authHeaders(token?: string): Record<string, string> {
   const t = token ?? getToken();
@@ -22,7 +21,7 @@ export async function createSession(
   req?: CreateSessionRequest,
   token?: string,
 ): Promise<CreateSessionResponse> {
-  const res = await fetch(`${BASE}/api/v1/chat/sessions`, {
+  const res = await fetch(apiUrl("/api/v1/chat/sessions"), {
     method: "POST",
     headers: authHeaders(token),
     body: JSON.stringify(req ?? {}),
@@ -35,7 +34,7 @@ export async function listSessions(
   params?: { limit?: number; offset?: number },
   token?: string,
 ): Promise<ListSessionsResponse> {
-  const url = new URL(`${BASE}/api/v1/chat/sessions`);
+  const url = new URL(apiUrl("/api/v1/chat/sessions"));
   if (params?.limit) url.searchParams.set("limit", String(params.limit));
   if (params?.offset) url.searchParams.set("offset", String(params.offset));
   const res = await fetch(url.toString(), {
@@ -47,7 +46,7 @@ export async function listSessions(
 }
 
 export async function getSession(id: string, token?: string): Promise<GetSessionResponse> {
-  const res = await fetch(`${BASE}/api/v1/chat/sessions/${encodeURIComponent(id)}`, {
+  const res = await fetch(apiUrl(`/api/v1/chat/sessions/${encodeURIComponent(id)}`), {
     headers: authHeaders(token),
     cache: "no-store",
   });
@@ -62,7 +61,7 @@ export async function streamTurn(
   token?: string,
 ): Promise<void> {
   const res = await fetch(
-    `${BASE}/api/v1/chat/sessions/${encodeURIComponent(sessionId)}/turns`,
+    apiUrl(`/api/v1/chat/sessions/${encodeURIComponent(sessionId)}/turns`),
     {
       method: "POST",
       headers: {

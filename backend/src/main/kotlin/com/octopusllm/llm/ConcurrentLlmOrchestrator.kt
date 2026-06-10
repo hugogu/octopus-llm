@@ -37,9 +37,8 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: AdapterRegistry) {
                 Flux.empty()
             }
 
-            val streamFlux = adapter.stream(routedRequest, target.decryptedApiKey)
+            val streamFlux = adapter.stream(target.modelId, routedRequest, target.decryptedApiKey)
                 .map { event ->
-                    // Re-tag events with the actual modelId (in case adapter uses providerId)
                     when (event) {
                         is LlmStreamEvent.Token -> event.copy(modelId = target.modelId)
                         is LlmStreamEvent.ModelComplete -> event.copy(modelId = target.modelId)

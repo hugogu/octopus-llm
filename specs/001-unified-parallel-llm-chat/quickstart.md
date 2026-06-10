@@ -34,28 +34,15 @@ curl -s -X POST http://localhost:8080/api/v1/auth/register \
   -d '{"email":"test@example.com","password":"Test1234!"}'
 ```
 
-**Expected**: `201 Created` with `{"userId":"...","message":"Verification email sent..."}`
+**Expected**: `201 Created` with `{"message":"Registration successful. You may now sign in."}`
 
-### Step 2 — Verify Email (dev mode)
-
-In development, check the backend logs for the verification URL (or use a local SMTP tool
-like Mailhog at `http://localhost:8025`). Copy the token from the link.
-
-```bash
-curl -s -X POST http://localhost:8080/api/v1/auth/verify-email \
-  -H "Content-Type: application/json" \
-  -d '{"token":"<token-from-email>"}'
-```
-
-**Expected**: `200 OK` with success message.
-
-### Step 3 — Login
+### Step 2 — Login
 
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"Test1234!"}' \
-  | jq '.accessToken'
+  | jq '.token'
 ```
 
 **Expected**: A JWT string. Save this as `$TOKEN` for subsequent requests.

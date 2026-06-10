@@ -18,11 +18,11 @@ class ConcurrentLlmOrchestratorTest {
         every { adapterRegistry.getAdapter("openai") } returns openAiAdapter
         every { adapterRegistry.getAdapter("anthropic") } returns claudeAdapter
 
-        every { openAiAdapter.stream(any(), any()) } returns Flux.just(
+        every { openAiAdapter.stream(any(), any(), any()) } returns Flux.just(
             LlmStreamEvent.Token("openai", "Hello"),
             LlmStreamEvent.ModelComplete("openai", 8, 10, 120L),
         )
-        every { claudeAdapter.stream(any(), any()) } returns Flux.just(
+        every { claudeAdapter.stream(any(), any(), any()) } returns Flux.just(
             LlmStreamEvent.Token("anthropic", "Hi"),
             LlmStreamEvent.ModelComplete("anthropic", 7, 9, 140L),
         )
@@ -51,8 +51,8 @@ class ConcurrentLlmOrchestratorTest {
             }
             .verifyComplete()
 
-        verify(exactly = 1) { openAiAdapter.stream(any(), "key-openai") }
-        verify(exactly = 1) { claudeAdapter.stream(any(), "key-anthropic") }
+        verify(exactly = 1) { openAiAdapter.stream("gpt-4o", any(), "key-openai") }
+        verify(exactly = 1) { claudeAdapter.stream("claude-3-5-sonnet", any(), "key-anthropic") }
     }
 
     @Test
@@ -64,8 +64,8 @@ class ConcurrentLlmOrchestratorTest {
         every { adapterRegistry.getAdapter("openai") } returns failingAdapter
         every { adapterRegistry.getAdapter("anthropic") } returns healthyAdapter
 
-        every { failingAdapter.stream(any(), any()) } returns Flux.error(IllegalStateException("boom"))
-        every { healthyAdapter.stream(any(), any()) } returns Flux.just(
+        every { failingAdapter.stream(any(), any(), any()) } returns Flux.error(IllegalStateException("boom"))
+        every { healthyAdapter.stream(any(), any(), any()) } returns Flux.just(
             LlmStreamEvent.Token("anthropic", "still-running"),
             LlmStreamEvent.ModelComplete("anthropic", 4, 6, 90L),
         )

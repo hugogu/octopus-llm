@@ -12,7 +12,7 @@ class OpenAiCompatAdapter(
     private val baseUrl: String,
 ) : LlmAdapter {
 
-    override fun stream(request: LlmRequest, decryptedApiKey: String): Flux<LlmStreamEvent> {
+    override fun stream(modelId: String, request: LlmRequest, decryptedApiKey: String): Flux<LlmStreamEvent> {
         val startMs = System.currentTimeMillis()
 
         return Flux.create { sink ->
@@ -25,7 +25,7 @@ class OpenAiCompatAdapter(
                 val messages = buildMessages(request)
                 val params = ChatCompletionCreateParams.builder()
                     .messages(messages)
-                    .model(providerId)
+                    .model(modelId)
                     .build()
 
                 var inputTokens: Int? = null
@@ -36,7 +36,7 @@ class OpenAiCompatAdapter(
                     streamResponse.stream().forEach { chunk ->
                         val delta = chunk.choices().firstOrNull()?.delta()?.content()?.orElse(null)
                         if (delta != null && delta.isNotEmpty()) {
-                            sink.next(LlmStreamEvent.Token(providerId, delta))
+                            sink.next(LlmStreamEvent.Token(modelId, delta))
                             accumulated++
                         }
                         chunk.usage().ifPresent { usage ->
@@ -48,7 +48,7 @@ class OpenAiCompatAdapter(
 
                 sink.next(
                     LlmStreamEvent.ModelComplete(
-                        modelId = providerId,
+                        modelId = modelId,
                         inputTokens = inputTokens,
                         outputTokens = outputTokens ?: accumulated,
                         latencyMs = System.currentTimeMillis() - startMs,
@@ -56,7 +56,7 @@ class OpenAiCompatAdapter(
                 )
                 sink.complete()
             } catch (e: Exception) {
-                sink.next(LlmStreamEvent.ModelError(providerId, e.message ?: "Unknown error"))
+                sink.next(LlmStreamEvent.ModelError(modelId, e.message ?: "Unknown error"))
                 sink.complete()
             }
         }

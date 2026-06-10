@@ -1,7 +1,5 @@
 package com.octopusllm.auth
 
-import com.ninjasquad.springmockk.MockkBean
-import io.mockk.justRun
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
@@ -28,13 +26,8 @@ class AuthControllerTest {
     @Autowired
     private lateinit var emailVerificationRepository: EmailVerificationRepository
 
-    @MockkBean(relaxed = true)
-    private lateinit var emailService: EmailService
-
     @Test
     fun `register verify login and logout flow works end to end`() {
-        justRun { emailService.sendVerificationEmail(any(), any()) }
-
         val registerBody = mapOf("email" to "test@example.com", "password" to "Test1234!")
         webTestClient.post()
             .uri("/api/v1/auth/register")
@@ -43,20 +36,12 @@ class AuthControllerTest {
             .exchange()
             .expectStatus().isCreated
             .expectBody()
-            .jsonPath("$.message").isEqualTo("Registration successful. Check your email to verify.")
+            .jsonPath("$.message").isEqualTo("Registration successful. You may now sign in.")
 
         val user = userRepository.findByEmail("test@example.com")
         requireNotNull(user) { "Expected registered user to be persisted" }
-        val token = emailVerificationRepository.findAll().single().token
-
-        webTestClient.post()
-            .uri("/api/v1/auth/verify-email")
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("token" to token))
-            .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.message").isEqualTo("Email verified. You may now log in.")
+        require(user.emailVerified) { "Expected user to be verified immediately" }
+        require(emailVerificationRepository.findAll().isEmpty()) { "Expected no verification token to be created" }
 
         val loginResponse = webTestClient.post()
             .uri("/api/v1/auth/login")

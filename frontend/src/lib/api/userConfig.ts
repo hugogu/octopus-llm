@@ -5,15 +5,14 @@ import type {
   PatchModelConfigRequest,
   UserModelConfig,
 } from "@/lib/types/api";
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiUrl } from "@/lib/api/base";
 
 async function authFetch<T>(
   path: string,
   options: RequestInit,
   token: string,
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,

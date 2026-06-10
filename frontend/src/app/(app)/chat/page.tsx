@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import type { ModelDefinition, UserModelConfig, SseEvent } from "@/lib/types/api";
 import { createSession, streamTurn } from "@/lib/api/chat";
 import { listModels } from "@/lib/api/models";
@@ -14,7 +13,6 @@ import { useParallelStream } from "@/components/chat/ParallelResponseGrid";
 import { useEffect } from "react";
 
 export default function ChatPage() {
-  const router = useRouter();
   const [models, setModels] = useState<ModelDefinition[]>([]);
   const [configs, setConfigs] = useState<UserModelConfig[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);

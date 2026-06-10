@@ -9,7 +9,7 @@ import reactor.core.publisher.Flux
 class AnthropicAdapter : LlmAdapter {
     override val providerId: String = "anthropic"
 
-    override fun stream(request: LlmRequest, decryptedApiKey: String): Flux<LlmStreamEvent> {
+    override fun stream(modelId: String, request: LlmRequest, decryptedApiKey: String): Flux<LlmStreamEvent> {
         val startMs = System.currentTimeMillis()
 
         return Flux.create { sink ->
@@ -20,14 +20,13 @@ class AnthropicAdapter : LlmAdapter {
 
                 val messages = buildMessages(request)
                 val params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_3_5_SONNET_20241022)
+                    .model(Model.of(modelId))
                     .maxTokens(4096)
                     .messages(messages)
                     .build()
 
                 var inputTokens: Int? = null
                 var outputTokens: Int? = null
-                var modelId = providerId
 
                 client.messages().createStreaming(params).use { streamResponse ->
                     streamResponse.stream().forEach { event ->
@@ -35,7 +34,6 @@ class AnthropicAdapter : LlmAdapter {
                             event.isStart() -> {
                                 val start = event.asStart()
                                 inputTokens = start.message().usage().inputTokens().toInt()
-                                modelId = start.message().model().asString()
                             }
                             event.isContentBlockDelta() -> {
                                 val text = event.asContentBlockDelta().delta()
@@ -61,7 +59,7 @@ class AnthropicAdapter : LlmAdapter {
                 )
                 sink.complete()
             } catch (e: Exception) {
-                sink.next(LlmStreamEvent.ModelError(providerId, e.message ?: "Unknown error"))
+                sink.next(LlmStreamEvent.ModelError(modelId, e.message ?: "Unknown error"))
                 sink.complete()
             }
         }

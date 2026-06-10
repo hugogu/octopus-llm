@@ -7,9 +7,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
-import java.security.SecureRandom
 import java.time.Instant
-import java.util.HexFormat
 import java.util.UUID
 
 @Service
@@ -17,7 +15,6 @@ class AuthService(
     private val userRepository: UserRepository,
     private val emailVerificationRepository: EmailVerificationRepository,
     private val revokedTokenRepository: RevokedTokenRepository,
-    private val emailService: EmailService,
     private val jwtTokenService: JwtTokenService,
 ) {
     private val bcrypt = BCryptPasswordEncoder(12)
@@ -30,17 +27,9 @@ class AuthService(
         val user = User(
             email = normalizedEmail,
             passwordHash = bcrypt.encode(password),
+            emailVerified = true,
         )
         userRepository.save(user)
-
-        val token = generateToken()
-        val verification = EmailVerification(
-            user = user,
-            token = token,
-            expiresAt = Instant.now().plusSeconds(86400),
-        )
-        emailVerificationRepository.save(verification)
-        emailService.sendVerificationEmail(user.email, token)
     }.subscribeOn(Schedulers.boundedElastic()).thenReturn(Unit)
 
     @Transactional
@@ -68,9 +57,6 @@ class AuthService(
         val user = userRepository.findByEmail(email.lowercase())
             ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
 
-        if (!user.emailVerified) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Email not verified")
-        }
         if (!bcrypt.matches(password, user.passwordHash)) {
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
         }
@@ -83,9 +69,4 @@ class AuthService(
         val revoked = RevokedToken(jti = jti, userId = userId, expiresAt = exp)
         revokedTokenRepository.save(revoked)
     }.subscribeOn(Schedulers.boundedElastic()).thenReturn(Unit)
-
-    private fun generateToken(): String {
-        val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
-        return HexFormat.of().formatHex(bytes)
-    }
 }

@@ -21,7 +21,7 @@ On validation errors, the response body follows the standard error schema.
 ```
 
 Common error codes: `VALIDATION_ERROR`, `EMAIL_ALREADY_REGISTERED`, `INVALID_CREDENTIALS`,
-`EMAIL_NOT_VERIFIED`, `TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `RATE_LIMITED`.
+`TOKEN_EXPIRED`, `TOKEN_ALREADY_USED`, `RATE_LIMITED`.
 
 ---
 
@@ -44,9 +44,7 @@ Register a new account with email and password.
 **Response 201 Created:**
 ```json
 {
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "user@example.com",
-  "message": "Verification email sent. Please check your inbox."
+  "message": "Registration successful. You may now sign in."
 }
 ```
 
@@ -60,6 +58,7 @@ Register a new account with email and password.
 ## POST /api/v1/auth/verify-email
 
 Verify the user's email address using the token from the verification email.
+This endpoint remains available for older accounts created before email verification was disabled.
 
 **Request body:**
 ```json
@@ -96,18 +95,16 @@ Authenticate with email and password. Returns a session token.
 **Response 200 OK:**
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "tokenType": "Bearer",
-  "expiresIn": 3600
+  "token": "eyJhbGciOiJIUzM4NCJ9...",
+  "expiresAt": "2026-06-10T13:29:05Z"
 }
 ```
 
-The `accessToken` is a JWT. Clients include it as `Authorization: Bearer <token>` on all
+The `token` is a JWT. Clients include it as `Authorization: Bearer <token>` on all
 authenticated requests.
 
 **Error responses:**
 - `401` — `INVALID_CREDENTIALS` (email/password mismatch; generic message, no field hint)
-- `403` — `EMAIL_NOT_VERIFIED`
 - `429` — `RATE_LIMITED` (max 10 failed attempts per email per 15 minutes; lockout with backoff)
 
 ---

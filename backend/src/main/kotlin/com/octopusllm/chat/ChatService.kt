@@ -133,7 +133,7 @@ class ChatService(
                         Attachment(
                             type = m["type"] ?: "",
                             data = m["data"] ?: "",
-                            mimeType = m["mime_type"] ?: "",
+                            mimeType = m["mimeType"] ?: m["mime_type"] ?: "",
                         )
                     }
                     val llmRequest = LlmRequest(prompt = promptText, history = history, attachments = llmAttachments)

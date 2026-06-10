@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { register } from "@/lib/api/auth";
+import { useRouter } from "next/navigation";
+import { login, register } from "@/lib/api/auth";
 
 export default function RegisterForm() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,21 +22,14 @@ export default function RegisterForm() {
     setLoading(true);
     try {
       await register({ email, password });
-      setSuccess(true);
+      await login({ email, password });
+      router.replace("/chat");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed.";
       setError(msg);
     } finally {
       setLoading(false);
     }
-  }
-
-  if (success) {
-    return (
-      <p className="text-green-600">
-        Registration successful! Check your email to verify your account.
-      </p>
-    );
   }
 
   return (
@@ -73,6 +67,12 @@ export default function RegisterForm() {
       >
         {loading ? "Registering…" : "Create account"}
       </button>
+      <p className="text-sm text-center">
+        Already have an account?{" "}
+        <a href="/login" className="text-blue-600 underline">
+          Sign in
+        </a>
+      </p>
     </form>
   );
 }

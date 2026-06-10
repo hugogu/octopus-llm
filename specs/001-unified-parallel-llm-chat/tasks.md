@@ -250,8 +250,8 @@ hover a model panel header and verify full Capability Matrix is shown.
 - [x] T095 [P] Run `npx tsc --noEmit` from `frontend/` and fix ALL TypeScript errors
 - [x] T096 Run `docker compose build` from repo root and verify both service images build successfully on local platform
 - [x] T097 Run `docker compose up -d` and perform quickstart.md Scenario 1 (auth flow) against running containers; confirm `201`, email token, `200`, JWT, `401` after logout
-- [ ] T098 Run quickstart.md Scenario 3 (parallel chat) against running containers; confirm SSE events interleaved, `all_complete` final
-- [ ] T099 Run quickstart.md Scenario 4 (single model failure) against running containers; confirm `model_error` for bad-key model, `model_complete` for good model, `all_complete` final
+- [x] T098 Run quickstart.md Scenario 3 (parallel chat) against running containers; confirm SSE events interleaved, `all_complete` final
+- [x] T099 Run quickstart.md Scenario 4 (single model failure) against running containers; confirm `model_error` for bad-key model, `model_complete` for good model, `all_complete` final
 - [x] T100 [P] Review and update `specs/001-unified-parallel-llm-chat/checklists/requirements.md`; confirm all acceptance scenarios from spec.md have corresponding implemented tests or quickstart verification steps
 
 ---

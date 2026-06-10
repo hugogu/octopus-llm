@@ -36,7 +36,7 @@ class AuthController(
     @ResponseStatus(HttpStatus.CREATED)
     fun register(@Valid @RequestBody request: RegisterRequest): Mono<Map<String, String>> =
         authService.register(request.email, request.password)
-            .thenReturn(mapOf("message" to "Registration successful. Check your email to verify."))
+            .thenReturn(mapOf("message" to "Registration successful. You may now sign in."))
 
     @PostMapping("/verify-email")
     fun verifyEmail(@Valid @RequestBody request: VerifyEmailRequest): Mono<Map<String, String>> =

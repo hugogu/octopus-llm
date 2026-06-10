@@ -1,11 +1,8 @@
-"use client";
-
 import type { LoginResponse, RegisterRequest, VerifyEmailRequest } from "@/lib/types/api";
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiUrl } from "@/lib/api/base";
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -38,7 +35,7 @@ export async function login(req: { email: string; password: string }): Promise<L
 export async function logout(): Promise<void> {
   const token = getToken();
   if (!token) return;
-  await fetch(`${BASE}/api/v1/auth/logout`, {
+  await fetch(apiUrl("/api/v1/auth/logout"), {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   }).catch(() => {});
