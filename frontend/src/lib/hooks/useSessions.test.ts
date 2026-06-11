@@ -60,7 +60,7 @@ describe('useSessions', () => {
 
     await waitFor(() => {
       expect(result.current.sessions).toHaveLength(1);
-      expect(result.current.sessions[0].id).toBe('2');
+      expect(result.current.sessions[0]?.id).toBe('2');
     });
   });
 

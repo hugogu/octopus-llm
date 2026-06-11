@@ -7,41 +7,11 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { normalizeMathDelimiters } from '@/lib/markdown/math';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
-}
-
-function normalizeMathDelimiters(content: string): string {
-  const fencedBlockPattern = /(```[\s\S]*?```)/g;
-  const inlineCodePattern = /(`[^`\n]+`)/g;
-
-  return content
-    .split(fencedBlockPattern)
-    .map((segment) => {
-      if (segment.startsWith("```")) {
-        return segment;
-      }
-
-      const withDisplayMath = segment.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (_match, expression: string) => {
-        return `$$\n${expression.trim()}\n$$`;
-      });
-
-      return withDisplayMath
-        .split(inlineCodePattern)
-        .map((inlineSegment) => {
-          if (inlineSegment.startsWith("`") && inlineSegment.endsWith("`")) {
-            return inlineSegment;
-          }
-
-          return inlineSegment.replace(/\\\((.+?)\\\)/g, (_match, expression: string) => {
-            return `$${expression.trim()}$`;
-          });
-        })
-        .join("");
-    })
-    .join("");
 }
 
 export default function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {

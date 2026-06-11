@@ -75,4 +75,28 @@ describe('MarkdownRenderer', () => {
     expect(container.querySelector('.katex')).not.toBeInTheDocument();
     expect(screen.getByText('\\(x+y\\)')).toBeInTheDocument();
   });
+
+  it('renders inline latex wrapped with single dollars', () => {
+    const { container } = render(<MarkdownRenderer content={'Area: $S = \\pi r^2$'} />);
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
+
+  it('renders block latex wrapped with double dollars', () => {
+    const { container } = render(<MarkdownRenderer content={'$$\nE = mc^2\n$$'} />);
+    expect(container.querySelector('.katex-display')).toBeInTheDocument();
+  });
+
+  it('renders bare align environments as display math', () => {
+    const { container } = render(
+      <MarkdownRenderer content={'\\begin{align}\na &= b \\\\\nc &= d\n\\end{align}'} />,
+    );
+    expect(container.querySelector('.katex-display')).toBeInTheDocument();
+  });
+
+  it('renders latex inside table cells', () => {
+    const { container } = render(
+      <MarkdownRenderer content={'| 图形 | 公式 |\n|---|---|\n| 圆 | \\(S = \\pi r^2\\) |'} />,
+    );
+    expect(container.querySelector('table .katex')).toBeInTheDocument();
+  });
 });
