@@ -3,6 +3,8 @@ package com.octopusllm.llm.adapter
 import com.octopusllm.llm.*
 import com.openai.core.JsonString
 import com.openai.core.JsonValue
+import com.openai.core.Timeout
+import java.time.Duration
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
 import com.openai.models.ReasoningEffort
@@ -12,17 +14,32 @@ import reactor.core.publisher.Flux
 
 class OpenAiCompatAdapter(
     override val providerId: String,
-    private val baseUrl: String,
+    private val defaultBaseUrl: String,
 ) : LlmAdapter {
 
-    override fun stream(modelId: String, request: LlmRequest, decryptedApiKey: String): Flux<LlmStreamEvent> {
+    override fun stream(
+        modelId: String,
+        request: LlmRequest,
+        decryptedApiKey: String,
+        baseUrlOverride: String?,
+    ): Flux<LlmStreamEvent> {
         val startMs = System.currentTimeMillis()
 
         return Flux.create { sink ->
             try {
                 val client: OpenAIClient = OpenAIOkHttpClient.builder()
                     .apiKey(decryptedApiKey)
-                    .baseUrl(baseUrl)
+                    .baseUrl(baseUrlOverride ?: defaultBaseUrl)
+                    // Bound the socket so a hung provider (e.g. blackholed TLS)
+                    // fails instead of blocking the worker thread forever.
+                    .timeout(
+                        Timeout.builder()
+                            .connect(Duration.ofSeconds(15))
+                            .read(Duration.ofSeconds(120))
+                            .write(Duration.ofSeconds(30))
+                            .request(Duration.ofMinutes(10))
+                            .build(),
+                    )
                     .build()
 
                 val messages = buildMessages(request)

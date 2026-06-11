@@ -15,10 +15,11 @@ data class AddApiKeyRequest(
     @field:NotBlank val providerId: String,
     @field:NotBlank val apiKey: String,
     val label: String? = null,
+    val baseUrl: String? = null,
 )
 
-data class ApiKeyResponse(val id: UUID, val providerId: String, val label: String?, val createdAt: Instant)
-private fun ProviderApiKey.toResponse() = ApiKeyResponse(id, providerId, label, createdAt)
+data class ApiKeyResponse(val id: UUID, val providerId: String, val label: String?, val baseUrl: String?, val createdAt: Instant)
+private fun ProviderApiKey.toResponse() = ApiKeyResponse(id, providerId, label, baseUrl, createdAt)
 
 data class UpsertModelConfigRequest(
     @field:NotBlank val modelId: String,
@@ -79,7 +80,7 @@ class UserConfigController(private val service: UserConfigService) {
         @AuthenticationPrincipal principal: String,
         @Valid @RequestBody request: AddApiKeyRequest,
     ): Mono<ApiKeyResponse> =
-        service.addApiKey(userId(principal), request.providerId, request.apiKey, request.label)
+        service.addApiKey(userId(principal), request.providerId, request.apiKey, request.label, request.baseUrl)
             .map { it.toResponse() }
 
     @DeleteMapping("/api-keys/{keyId}")

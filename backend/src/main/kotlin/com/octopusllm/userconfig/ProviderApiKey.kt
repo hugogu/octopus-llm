@@ -28,6 +28,10 @@ class ProviderApiKey(
     @Column(length = 255)
     val label: String? = null,
 
+    // Overrides the provider's default API endpoint for this key
+    @Column(name = "base_url", length = 500)
+    val baseUrl: String? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 

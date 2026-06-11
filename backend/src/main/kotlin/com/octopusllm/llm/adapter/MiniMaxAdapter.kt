@@ -8,13 +8,18 @@ import reactor.core.publisher.Flux
 
 class MiniMaxAdapter : LlmAdapter {
     override val providerId: String = "minimax"
-    private val baseUrl = "https://api.minimax.chat/v1"
+    private val defaultBaseUrl = "https://api.minimax.chat/v1"
     private val mapper = ObjectMapper()
 
-    override fun stream(modelId: String, request: LlmRequest, decryptedApiKey: String): Flux<LlmStreamEvent> {
+    override fun stream(
+        modelId: String,
+        request: LlmRequest,
+        decryptedApiKey: String,
+        baseUrlOverride: String?,
+    ): Flux<LlmStreamEvent> {
         val startMs = System.currentTimeMillis()
         val client = WebClient.builder()
-            .baseUrl(baseUrl)
+            .baseUrl(baseUrlOverride ?: defaultBaseUrl)
             .defaultHeader("Authorization", "Bearer $decryptedApiKey")
             .defaultHeader("Content-Type", "application/json")
             .build()

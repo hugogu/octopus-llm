@@ -65,6 +65,7 @@ export interface ApiKeyMeta {
   id: string;
   providerId: string;
   label: string | null;
+  baseUrl: string | null;
   createdAt: string;
 }
 
@@ -72,6 +73,7 @@ export interface AddApiKeyRequest {
   providerId: string;
   apiKey: string;
   label?: string;
+  baseUrl?: string;
 }
 
 export interface UserModelConfig {

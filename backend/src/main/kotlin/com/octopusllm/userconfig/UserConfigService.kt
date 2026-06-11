@@ -28,7 +28,13 @@ class UserConfigService(
         Mono.fromCallable { apiKeyRepository.findByUserId(userId) }
             .subscribeOn(Schedulers.boundedElastic())
 
-    fun addApiKey(userId: UUID, providerId: String, rawKey: String, label: String?): Mono<ProviderApiKey> =
+    fun addApiKey(
+        userId: UUID,
+        providerId: String,
+        rawKey: String,
+        label: String?,
+        baseUrl: String? = null,
+    ): Mono<ProviderApiKey> =
         Mono.fromCallable {
             val user = userRepository.findById(userId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
@@ -40,9 +46,18 @@ class UserConfigService(
                 encryptedKey = encrypted.ciphertext,
                 keyIv = encrypted.iv,
                 label = label,
+                baseUrl = normalizeBaseUrl(baseUrl),
             )
             apiKeyRepository.save(key)
         }.subscribeOn(Schedulers.boundedElastic())
+
+    private fun normalizeBaseUrl(baseUrl: String?): String? {
+        val trimmed = baseUrl?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() } ?: return null
+        if (!trimmed.startsWith("https://") && !trimmed.startsWith("http://")) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Base URL must start with http:// or https://")
+        }
+        return trimmed
+    }
 
     fun syncProviderModels(userId: UUID, providerId: String, providerApiKeyId: UUID? = null) =
         providerModelSyncService.syncProviderModels(userId, providerId, providerApiKeyId)

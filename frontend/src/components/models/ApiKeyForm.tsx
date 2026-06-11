@@ -21,6 +21,7 @@ export default function ApiKeyForm({ models, onClose }: ApiKeyFormProps) {
   const [providerId, setProviderId] = useState(providers[0] ?? "");
   const [apiKey, setApiKey] = useState("");
   const [label, setLabel] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +32,12 @@ export default function ApiKeyForm({ models, onClose }: ApiKeyFormProps) {
     try {
       const token = getToken();
       if (!token) throw new Error("Not authenticated");
-      const createdKey = await addApiKey(token, { providerId, apiKey, label: label || undefined });
+      const createdKey = await addApiKey(token, {
+        providerId,
+        apiKey,
+        label: label || undefined,
+        baseUrl: baseUrl.trim() || undefined,
+      });
       const { models: syncedModels } = await syncProviderModels(token, {
         providerId,
         providerApiKeyId: createdKey.id,
@@ -100,6 +106,15 @@ export default function ApiKeyForm({ models, onClose }: ApiKeyFormProps) {
         value={label}
         onChange={(e) => setLabel(e.target.value)}
         helperText="Helps you identify this key"
+      />
+
+      <Input
+        type="url"
+        label="Base URL"
+        placeholder="https://api.kimi.com/coding/v1 (optional)"
+        value={baseUrl}
+        onChange={(e) => setBaseUrl(e.target.value)}
+        helperText="Override the provider's default API endpoint — needed when your key belongs to a different service address (e.g., a Kimi key instead of a Moonshot key). Leave empty to use the default."
       />
 
       <div className="flex gap-3 pt-2">

@@ -133,6 +133,7 @@ class ChatService(
                             decryptedApiKey = decryptedKey,
                             capabilityMatrix = config.model.capabilityMatrix,
                             customParams = config.customParams,
+                            baseUrl = key.baseUrl,
                         )
                     }
 

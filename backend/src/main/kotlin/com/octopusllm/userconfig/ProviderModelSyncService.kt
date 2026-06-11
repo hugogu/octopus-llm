@@ -41,7 +41,7 @@ class ProviderModelSyncService(
         Mono.fromCallable {
             val apiKey = resolveApiKey(userId, providerId, providerApiKeyId)
             val decryptedKey = encryptionService.decrypt(apiKey.encryptedKey, apiKey.keyIv)
-            val discovered = discoverModels(providerId, decryptedKey)
+            val discovered = discoverModels(providerId, decryptedKey, apiKey.baseUrl)
             upsertModels(providerId, discovered)
         }
             .subscribeOn(Schedulers.boundedElastic())
@@ -70,8 +70,12 @@ class ProviderModelSyncService(
         return key
     }
 
-    private fun discoverModels(providerId: String, decryptedApiKey: String): List<DiscoveredModel> {
-        val baseUrl = openAiCompatibleBaseUrls[providerId]
+    private fun discoverModels(
+        providerId: String,
+        decryptedApiKey: String,
+        baseUrlOverride: String?,
+    ): List<DiscoveredModel> {
+        val baseUrl = baseUrlOverride ?: openAiCompatibleBaseUrls[providerId]
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Provider does not support dynamic model discovery: $providerId")
 
         val client: OpenAIClient = OpenAIOkHttpClient.builder()

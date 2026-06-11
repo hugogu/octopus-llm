@@ -9,14 +9,20 @@ import reactor.core.publisher.Flux
 class AnthropicAdapter : LlmAdapter {
     override val providerId: String = "anthropic"
 
-    override fun stream(modelId: String, request: LlmRequest, decryptedApiKey: String): Flux<LlmStreamEvent> {
+    override fun stream(
+        modelId: String,
+        request: LlmRequest,
+        decryptedApiKey: String,
+        baseUrlOverride: String?,
+    ): Flux<LlmStreamEvent> {
         val startMs = System.currentTimeMillis()
 
         return Flux.create { sink ->
             try {
-                val client: AnthropicClient = AnthropicOkHttpClient.builder()
+                val clientBuilder = AnthropicOkHttpClient.builder()
                     .apiKey(decryptedApiKey)
-                    .build()
+                if (baseUrlOverride != null) clientBuilder.baseUrl(baseUrlOverride)
+                val client: AnthropicClient = clientBuilder.build()
 
                 val messages = buildMessages(request)
                 val params = MessageCreateParams.builder()

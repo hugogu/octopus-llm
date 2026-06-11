@@ -135,6 +135,11 @@ export default function ModelsSettingsPage({ models, apiKeys, modelConfigs }: Mo
                     <p className="mt-2 text-sm text-gray-600">
                       Use this key to sync provider models and bind them to model configs below.
                     </p>
+                    {key.baseUrl && (
+                      <p className="mt-1 truncate font-mono text-xs text-gray-500" title={key.baseUrl}>
+                        {key.baseUrl}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Added {new Date(key.createdAt).toLocaleDateString()}
                     </p>
