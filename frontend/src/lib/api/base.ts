@@ -1,6 +1,5 @@
 function getBrowserApiBase(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
-  return `${window.location.protocol}//${window.location.hostname}:8080`;
+  return window.location.origin;
 }
 
 function getServerApiBase(): string {

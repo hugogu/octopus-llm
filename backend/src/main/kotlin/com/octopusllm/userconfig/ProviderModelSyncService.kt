@@ -12,7 +12,9 @@ import org.springframework.web.server.ResponseStatusException
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.time.Instant
+import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.TimeoutException
 
 private data class DiscoveredModel(
     val id: String,
@@ -26,6 +28,8 @@ class ProviderModelSyncService(
     private val modelDefinitionRepository: ModelDefinitionRepository,
     private val encryptionService: ApiKeyEncryptionService,
 ) {
+    private val syncTimeout: Duration = Duration.ofSeconds(20)
+
     private val openAiCompatibleBaseUrls = mapOf(
         "openai" to "https://api.openai.com/v1",
         "moonshot" to "https://api.moonshot.cn/v1",
@@ -39,7 +43,15 @@ class ProviderModelSyncService(
             val decryptedKey = encryptionService.decrypt(apiKey.encryptedKey, apiKey.keyIv)
             val discovered = discoverModels(providerId, decryptedKey)
             upsertModels(providerId, discovered)
-        }.subscribeOn(Schedulers.boundedElastic())
+        }
+            .subscribeOn(Schedulers.boundedElastic())
+            .timeout(syncTimeout)
+            .onErrorMap(TimeoutException::class.java) {
+                ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT,
+                    "Loading models from $providerId timed out after ${syncTimeout.seconds}s",
+                )
+            }
 
     private fun resolveApiKey(userId: UUID, providerId: String, providerApiKeyId: UUID?): ProviderApiKey {
         val key = if (providerApiKeyId != null) {
@@ -65,13 +77,13 @@ class ProviderModelSyncService(
         val client: OpenAIClient = OpenAIOkHttpClient.builder()
             .apiKey(decryptedApiKey)
             .baseUrl(baseUrl)
+            .timeout(syncTimeout)
             .build()
 
         try {
             return client.models()
                 .list()
-                .autoPager()
-                .toList()
+                .data()
                 .asSequence()
                 .map { model -> model.id() }
                 .filter { shouldKeepDiscoveredModel(providerId, it) }
@@ -85,6 +97,14 @@ class ProviderModelSyncService(
                     )
                 }
                 .toList()
+        } catch (ex: ResponseStatusException) {
+            throw ex
+        } catch (ex: Exception) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_GATEWAY,
+                "Failed to load models from $providerId: ${ex.message ?: "provider request failed"}",
+                ex,
+            )
         } finally {
             client.close()
         }

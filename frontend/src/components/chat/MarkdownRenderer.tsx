@@ -3,7 +3,8 @@
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeSanitize from 'rehype-sanitize';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -12,7 +13,40 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+function normalizeMathDelimiters(content: string): string {
+  const fencedBlockPattern = /(```[\s\S]*?```)/g;
+  const inlineCodePattern = /(`[^`\n]+`)/g;
+
+  return content
+    .split(fencedBlockPattern)
+    .map((segment) => {
+      if (segment.startsWith("```")) {
+        return segment;
+      }
+
+      const withDisplayMath = segment.replace(/\\\[\s*([\s\S]*?)\s*\\\]/g, (_match, expression: string) => {
+        return `$$\n${expression.trim()}\n$$`;
+      });
+
+      return withDisplayMath
+        .split(inlineCodePattern)
+        .map((inlineSegment) => {
+          if (inlineSegment.startsWith("`") && inlineSegment.endsWith("`")) {
+            return inlineSegment;
+          }
+
+          return inlineSegment.replace(/\\\((.+?)\\\)/g, (_match, expression: string) => {
+            return `$${expression.trim()}$`;
+          });
+        })
+        .join("");
+    })
+    .join("");
+}
+
 export default function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+  const normalizedContent = useMemo(() => normalizeMathDelimiters(content), [content]);
+
   const components = useMemo(() => ({
     code({ node, inline, className: codeClassName, children, ...props }: any) {
       const match = /language-(\w+)/.exec(codeClassName || '');
@@ -119,11 +153,11 @@ export default function MarkdownRenderer({ content, className = '' }: MarkdownRe
   return (
     <div className={`prose dark:prose-invert max-w-none ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         components={components}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );

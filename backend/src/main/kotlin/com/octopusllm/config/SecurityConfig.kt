@@ -18,6 +18,7 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
+import java.net.URI
 
 @Configuration
 @EnableWebFluxSecurity
@@ -73,8 +74,9 @@ class SecurityConfig(
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
+        val allowedOriginsList = buildAllowedOrigins(frontendUrl)
         val config = CorsConfiguration().apply {
-            allowedOrigins = listOf(frontendUrl)
+            allowedOrigins = allowedOriginsList
             allowedMethods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             allowedHeaders = listOf("*")
             allowCredentials = true
@@ -83,5 +85,24 @@ class SecurityConfig(
         return UrlBasedCorsConfigurationSource().apply {
             registerCorsConfiguration("/**", config)
         }
+    }
+
+    private fun buildAllowedOrigins(primaryOrigin: String): List<String> {
+        val origins = linkedSetOf(primaryOrigin)
+        runCatching { URI(primaryOrigin) }.getOrNull()?.let { uri ->
+            val scheme = uri.scheme ?: return@let
+            val host = uri.host ?: return@let
+            val port = uri.port
+            val alternateHost = when (host) {
+                "localhost" -> "127.0.0.1"
+                "127.0.0.1" -> "localhost"
+                else -> null
+            }
+            if (alternateHost != null) {
+                val normalizedPort = if (port >= 0) ":$port" else ""
+                origins += "$scheme://$alternateHost$normalizedPort"
+            }
+        }
+        return origins.toList()
     }
 }

@@ -104,42 +104,51 @@ export default function ModelConfigControls({
   }
 
   return (
-    <div className="flex flex-col gap-2 min-w-40">
+    <div className="flex flex-col gap-3">
       {providerKeys.length === 0 ? (
-        <p className="text-xs text-amber-700">Add a {model.providerId} key above to enable this model.</p>
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Add a {model.providerId} key above to enable this model.
+        </p>
       ) : (
         <>
-          <select
-            value={selectedKeyId}
-            onChange={(e) => setSelectedKeyId(e.target.value)}
-            disabled={loading}
-            className="border rounded px-2 py-1 text-xs bg-white"
-          >
-            {providerKeys.map((key) => (
-              <option key={key.id} value={key.id}>
-                {key.label || `${key.providerId} key`}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={saveConfig}
-            disabled={loading || !selectedKeyId}
-            className="rounded bg-blue-600 px-2 py-1 text-xs text-white disabled:opacity-50"
-          >
-            {config ? "Save key" : "Enable model"}
-          </button>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <select
+              value={selectedKeyId}
+              onChange={(e) => setSelectedKeyId(e.target.value)}
+              disabled={loading}
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              {providerKeys.map((key) => (
+                <option key={key.id} value={key.id}>
+                  {key.label || `${key.providerId} key`}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={saveConfig}
+              disabled={loading || !selectedKeyId}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {config ? "Save" : "Enable"}
+            </button>
+          </div>
         </>
       )}
 
-      <textarea
-        value={customParamsText}
-        onChange={(e) => setCustomParamsText(e.target.value)}
-        disabled={loading}
-        rows={4}
-        className="border rounded px-2 py-1 text-[11px] font-mono bg-white"
-        placeholder='{"temperature":0.2}'
-      />
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
+          Custom Params
+        </label>
+        <textarea
+          value={customParamsText}
+          onChange={(e) => setCustomParamsText(e.target.value)}
+          disabled={loading}
+          rows={4}
+          className="min-h-[112px] w-full rounded-xl border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-800"
+          placeholder='{"temperature":0.2}'
+        />
+      </div>
 
       {config && (
         <div className="flex flex-wrap gap-2">
@@ -147,7 +156,7 @@ export default function ModelConfigControls({
             type="button"
             onClick={() => toggleEnabled(!config.isEnabled)}
             disabled={loading}
-            className="rounded border px-2 py-1 text-xs text-gray-700 disabled:opacity-50"
+            className="rounded-xl border border-gray-300 px-3 py-1.5 text-sm text-gray-700 disabled:opacity-50"
           >
             {config.isEnabled ? "Disable" : "Enable"}
           </button>
@@ -155,15 +164,17 @@ export default function ModelConfigControls({
             type="button"
             onClick={removeConfig}
             disabled={loading}
-            className="rounded border border-red-200 px-2 py-1 text-xs text-red-700 disabled:opacity-50"
+            className="rounded-xl border border-red-200 px-3 py-1.5 text-sm text-red-700 disabled:opacity-50"
           >
             Remove
           </button>
         </div>
       )}
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <p className="text-[11px] text-gray-400">Custom params are sent as provider request body fields when supported.</p>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <p className="text-xs leading-5 text-gray-500">
+        Custom params are merged into the provider request body when supported.
+      </p>
     </div>
   );
 }

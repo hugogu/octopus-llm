@@ -59,4 +59,20 @@ describe('MarkdownRenderer', () => {
     render(<MarkdownRenderer content="<script>alert('xss')</script>" />);
     expect(screen.queryByText("alert('xss')")).not.toBeInTheDocument();
   });
+
+  it('renders inline latex wrapped with \\( \\)', () => {
+    const { container } = render(<MarkdownRenderer content={"Euler: \\(e^{i\\pi}+1=0\\)"} />);
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+  });
+
+  it('renders block latex wrapped with \\[ \\]', () => {
+    const { container } = render(<MarkdownRenderer content={"\\[\n\\int_0^1 x^2 dx\n\\]"} />);
+    expect(container.querySelector('.katex-display')).toBeInTheDocument();
+  });
+
+  it('does not parse latex delimiters inside code fences', () => {
+    const { container } = render(<MarkdownRenderer content={"```tex\n\\(x+y\\)\n```"} />);
+    expect(container.querySelector('.katex')).not.toBeInTheDocument();
+    expect(screen.getByText('\\(x+y\\)')).toBeInTheDocument();
+  });
 });
