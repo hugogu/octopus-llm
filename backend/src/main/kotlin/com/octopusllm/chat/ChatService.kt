@@ -105,6 +105,13 @@ class ChatService(
                     )
                     turnRepository.save(turn)
 
+                    // Title the session from its first prompt; keep updatedAt fresh for sidebar ordering
+                    if (session.title == null) {
+                        session.title = promptText.trim().take(60)
+                    }
+                    session.updatedAt = Instant.now()
+                    sessionRepository.save(session)
+
                     // (3) Decrypt API keys and build dispatch targets
                     val modelConfigs = modelConfigRepository.findByUserId(userId)
                         .filter { config ->
@@ -154,12 +161,14 @@ class ChatService(
 
         // Accumulate tokens in memory; INSERT ProviderResponse on terminal event
         val tokenBuffers = ConcurrentHashMap<String, StringBuilder>()
+        val reasoningBuffers = ConcurrentHashMap<String, StringBuilder>()
         val startTimes = ConcurrentHashMap<String, Long>()
         val startMs = System.currentTimeMillis()
 
         return setupMono.flatMapMany { (turn, targets, llmRequest) ->
             targets.forEach { t ->
                 tokenBuffers[t.modelId] = StringBuilder()
+                reasoningBuffers[t.modelId] = StringBuilder()
                 startTimes[t.modelId] = System.currentTimeMillis()
             }
 
@@ -173,6 +182,7 @@ class ChatService(
                 .doOnNext { event ->
                     when (event) {
                         is LlmStreamEvent.Token -> tokenBuffers[event.modelId]?.append(event.delta)
+                        is LlmStreamEvent.Reasoning -> reasoningBuffers[event.modelId]?.append(event.delta)
                         is LlmStreamEvent.ModelComplete -> {
                             Mono.fromCallable {
                                 responseRepository.save(
@@ -181,6 +191,7 @@ class ChatService(
                                         modelId = event.modelId,
                                         status = "complete",
                                         responseText = tokenBuffers[event.modelId]?.toString(),
+                                        reasoningText = reasoningBuffers[event.modelId]?.toString()?.ifBlank { null },
                                         inputTokens = event.inputTokens,
                                         outputTokens = event.outputTokens,
                                         latencyMs = event.latencyMs.toInt(),

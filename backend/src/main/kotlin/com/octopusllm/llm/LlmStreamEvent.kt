@@ -2,6 +2,7 @@ package com.octopusllm.llm
 
 sealed class LlmStreamEvent {
     data class Token(val modelId: String, val delta: String) : LlmStreamEvent()
+    data class Reasoning(val modelId: String, val delta: String) : LlmStreamEvent()
     data class ModelComplete(
         val modelId: String,
         val inputTokens: Int?,

@@ -42,7 +42,14 @@ class MiniMaxAdapter : LlmAdapter {
         val delta = json.path("choices").get(0)?.path("delta")?.path("content")?.asText()
         val finishReason = json.path("choices").get(0)?.path("finish_reason")?.asText()
 
-        return if (!delta.isNullOrEmpty()) {
+        val reasoningDelta = json.path("choices").get(0)?.path("delta")?.path("reasoning_content")?.asText()
+        val reasoningEvents = if (!reasoningDelta.isNullOrEmpty()) {
+            Flux.just<LlmStreamEvent>(LlmStreamEvent.Reasoning(modelId, reasoningDelta))
+        } else {
+            Flux.empty()
+        }
+
+        return reasoningEvents.concatWith(if (!delta.isNullOrEmpty()) {
             if (finishReason == "stop") {
                 val inputTokens = json.path("usage").path("prompt_tokens").asInt().takeIf { it > 0 }
                 val outputTokens = json.path("usage").path("completion_tokens").asInt().takeIf { it > 0 }
@@ -59,7 +66,7 @@ class MiniMaxAdapter : LlmAdapter {
             Flux.just(LlmStreamEvent.ModelComplete(modelId, inputTokens, outputTokens, System.currentTimeMillis() - startMs))
         } else {
             Flux.empty()
-        }
+        })
     }
 
     private fun buildBody(modelId: String, request: LlmRequest): Map<String, Any> {

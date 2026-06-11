@@ -91,7 +91,7 @@ describe('SessionSidebar', () => {
       />
     );
     
-    const session1 = screen.getByText('Session 1').closest('div[class*="bg-blue-50"]');
+    const session1 = screen.getByText('Session 1').closest('div[class*="shadow-sm"]');
     expect(session1).toBeInTheDocument();
   });
 });

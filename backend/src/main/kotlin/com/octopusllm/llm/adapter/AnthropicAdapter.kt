@@ -36,10 +36,14 @@ class AnthropicAdapter : LlmAdapter {
                                 inputTokens = start.message().usage().inputTokens().toInt()
                             }
                             event.isContentBlockDelta() -> {
-                                val text = event.asContentBlockDelta().delta()
-                                    .text().map { it.text() }.orElse(null)
+                                val blockDelta = event.asContentBlockDelta().delta()
+                                val text = blockDelta.text().map { it.text() }.orElse(null)
                                 if (!text.isNullOrEmpty()) {
                                     sink.next(LlmStreamEvent.Token(modelId, text))
+                                }
+                                val thinking = blockDelta.thinking().map { it.thinking() }.orElse(null)
+                                if (!thinking.isNullOrEmpty()) {
+                                    sink.next(LlmStreamEvent.Reasoning(modelId, thinking))
                                 }
                             }
                             event.isDelta() -> {

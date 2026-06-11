@@ -45,6 +45,7 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: AdapterRegistry) {
                 .map { event ->
                     when (event) {
                         is LlmStreamEvent.Token -> event.copy(modelId = target.modelId)
+                        is LlmStreamEvent.Reasoning -> event.copy(modelId = target.modelId)
                         is LlmStreamEvent.ModelComplete -> event.copy(modelId = target.modelId)
                         is LlmStreamEvent.ModelError -> event.copy(modelId = target.modelId)
                         is LlmStreamEvent.CapabilityNotice -> event.copy(modelId = target.modelId)

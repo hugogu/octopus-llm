@@ -162,6 +162,7 @@ export interface ProviderResponse {
   modelId: string;
   status: "complete" | "error";
   responseText: string | null;
+  reasoningText: string | null;
   errorMessage: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -199,6 +200,7 @@ export type SseEvent =
   | { event: "turn_created"; turnId: string; sequenceNum: number }
   | { event: "capability_notice"; modelId: string; notice: string }
   | { event: "token"; modelId: string; delta: string }
+  | { event: "reasoning"; modelId: string; delta: string }
   | { event: "model_complete"; modelId: string; inputTokens: number; outputTokens: number; latencyMs: number }
   | { event: "model_error"; modelId: string; error: string }
   | { event: "all_complete" };

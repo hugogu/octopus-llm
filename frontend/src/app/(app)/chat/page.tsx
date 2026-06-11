@@ -20,11 +20,24 @@ import ChatInput from "@/components/chat/ChatInput";
 import ModelResponsePanel from "@/components/chat/ModelResponsePanel";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 import SessionSidebar from "@/components/chat/SessionSidebar";
-import { useParallelStream } from "@/components/chat/ParallelResponseGrid";
+import { useParallelStream } from "@/lib/hooks/useParallelStream";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { useSessions } from "@/lib/hooks/useSessions";
+import {
+  conversationToMarkdown,
+  conversationFilename,
+  downloadTextFile,
+} from "@/lib/utils/exportConversation";
+import { Download, Link as LinkIcon, Check } from "lucide-react";
 
 const SELECTED_MODELS_STORAGE_KEY = "octopus:selected-model-ids";
+
+// Fills the row with as many response columns as fit; wraps beyond that.
+const responseGridStyle = {
+  display: "grid",
+  gap: "0.75rem",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))",
+} as const;
 
 interface DraftTurnState {
   promptText: string;
@@ -225,18 +238,18 @@ export default function ChatPage() {
 
   const renderTurn = useCallback((turn: ChatTurn) => (
     <section key={turn.id} className="space-y-3">
-      <div className="ml-auto max-w-3xl rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-sm">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-300">You</p>
+      <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
         <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+      <div style={responseGridStyle}>
         {turn.responses.map((resp) => (
           <ModelResponsePanel
             key={`${turn.id}:${resp.modelId}`}
             modelId={resp.modelId}
             displayName={displayNames[resp.modelId] ?? resp.modelId}
             text={resp.responseText ?? ""}
+            reasoning={resp.reasoningText ?? ""}
             status={resp.status === "complete" ? "complete" : "error"}
             errorMessage={resp.errorMessage ?? undefined}
             inputTokens={resp.inputTokens ?? undefined}
@@ -251,8 +264,15 @@ export default function ChatPage() {
 
   const hasConversation = (activeSession?.turns.length ?? 0) > 0 || draftTurn !== null;
 
+  const handleExport = useCallback(() => {
+    if (!activeSession) return;
+    const markdown = conversationToMarkdown(activeSession, displayNames);
+    const title = currentSessionMeta?.title ?? activeSession.title;
+    downloadTextFile(conversationFilename(title), markdown);
+  }, [activeSession, currentSessionMeta, displayNames]);
+
   return (
-    <div className="flex h-screen max-h-screen">
+    <div className="flex h-screen max-h-screen bg-[#faf9f5]">
       <SessionSidebar
         sessions={sessions}
         currentSessionId={sessionId}
@@ -263,23 +283,35 @@ export default function ChatPage() {
       />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="border-b bg-white px-4 py-3">
+        <header className="border-b border-stone-200 bg-[#faf9f5] px-6 py-3">
           <div className="flex items-center justify-between gap-4">
-            <div>
-              <h1 className="font-bold text-lg text-gray-950">Octopus LLM</h1>
-              <p className="text-sm text-gray-500">
-                {currentSessionMeta?.title || activeSession?.title || (sessionId ? "Conversation loaded" : "Compare selected models in one thread")}
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold text-stone-900">
+                {currentSessionMeta?.title || activeSession?.title || "New conversation"}
+              </h1>
+              <p className="truncate text-xs text-stone-500">
+                {sessionId
+                  ? "Compare selected models in one thread"
+                  : "Pick models below and start a conversation"}
               </p>
             </div>
-            {sessionId ? (
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
-                Continuing current conversation
-              </span>
-            ) : null}
+            {sessionId && (
+              <div className="flex shrink-0 items-center gap-1">
+                <ShareLinkButton />
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
-        <div className="border-b bg-gray-50/80 px-4 py-3">
+        <div className="border-b border-stone-200 bg-white/60 px-6 py-3">
           <ModelSelectorPanel
             models={models}
             configs={configs}
@@ -294,8 +326,8 @@ export default function ChatPage() {
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-gradient-to-b from-gray-50 to-white px-4">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6">
+          <div className="flex w-full flex-col gap-6 py-6">
             {sessionLoading ? (
               <div className="space-y-4">
                 <div className="ml-auto h-24 max-w-3xl animate-pulse rounded-2xl bg-gray-200" />
@@ -310,12 +342,11 @@ export default function ChatPage() {
 
                 {draftTurn ? (
                   <section className="space-y-3">
-                    <div className="ml-auto max-w-3xl rounded-2xl bg-gray-900 px-4 py-3 text-white shadow-sm">
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-300">You</p>
+                    <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
                       <MarkdownRenderer content={draftTurn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    <div style={responseGridStyle}>
                       {draftTurn.selectedModelIds.map((id) => {
                         const state = panelStates[id];
                         return (
@@ -324,6 +355,7 @@ export default function ChatPage() {
                             modelId={id}
                             displayName={displayNames[id] ?? id}
                             text={state?.text ?? ""}
+                            reasoning={state?.reasoning ?? ""}
                             status={state?.status ?? "idle"}
                             errorMessage={state?.errorMessage}
                             inputTokens={state?.inputTokens}
@@ -339,20 +371,20 @@ export default function ChatPage() {
                 ) : null}
               </>
             ) : selectedIds.length === 0 ? (
-              <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-dashed border-gray-300 bg-white/80 px-8 text-center text-sm text-gray-500">
+              <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-white/70 px-8 text-center text-sm text-stone-500">
                 Pick at least one model, then start a conversation.
               </div>
             ) : (
-              <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-dashed border-gray-300 bg-white/80 px-8 text-center">
+              <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-white/70 px-8 text-center">
                 <div className="max-w-xl space-y-3">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-400">
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-400">
                     Ready to chat
                   </p>
                   <MarkdownRenderer
                     content={`Selected models: ${selectedIds.map((id) => `**${displayNames[id] ?? id}**`).join(", ")}`}
                     className="text-sm"
                   />
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-stone-500">
                     Ask a question below and responses will stream into this same conversation view.
                   </p>
                 </div>
@@ -361,10 +393,35 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div className="border-t bg-white px-4 py-3">
+        <div className="border-t border-stone-200 bg-[#faf9f5] px-6 py-3">
           <ChatInput onSubmit={handleSubmit} disabled={streaming} supportsAttachments={supportsAttachments} />
         </div>
       </div>
     </div>
+  );
+}
+
+function ShareLinkButton() {
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleShare}
+      className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
+      {copied ? "Link copied" : "Share"}
+    </button>
   );
 }

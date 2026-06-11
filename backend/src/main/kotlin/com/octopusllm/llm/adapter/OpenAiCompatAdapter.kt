@@ -1,6 +1,7 @@
 package com.octopusllm.llm.adapter
 
 import com.octopusllm.llm.*
+import com.openai.core.JsonString
 import com.openai.core.JsonValue
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
@@ -37,10 +38,18 @@ class OpenAiCompatAdapter(
 
                 client.chat().completions().createStreaming(params).use { streamResponse ->
                     streamResponse.stream().forEach { chunk ->
-                        val delta = chunk.choices().firstOrNull()?.delta()?.content()?.orElse(null)
+                        val chunkDelta = chunk.choices().firstOrNull()?.delta()
+                        val delta = chunkDelta?.content()?.orElse(null)
                         if (delta != null && delta.isNotEmpty()) {
                             sink.next(LlmStreamEvent.Token(modelId, delta))
                             accumulated++
+                        }
+                        // DeepSeek-style reasoning channel, not part of the OpenAI schema
+                        val reasoningDelta = chunkDelta?._additionalProperties()
+                            ?.let { props -> props["reasoning_content"] ?: props["reasoning"] }
+                            ?.let { (it as? JsonString)?.value }
+                        if (!reasoningDelta.isNullOrEmpty()) {
+                            sink.next(LlmStreamEvent.Reasoning(modelId, reasoningDelta))
                         }
                         chunk.usage().ifPresent { usage ->
                             inputTokens = usage.promptTokens().toInt()

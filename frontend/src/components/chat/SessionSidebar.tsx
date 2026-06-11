@@ -50,12 +50,12 @@ export default function SessionSidebar({
   };
 
   return (
-    <div className="w-64 h-full flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-800">
+    <div className="w-64 h-full flex flex-col border-r border-stone-200 bg-[#f5f4ee]">
+      <div className="p-3">
         <Button
           onClick={onNewSession}
           fullWidth
-          className="justify-center"
+          className="justify-center !bg-[#c96442] hover:!bg-[#b55538]"
         >
           <Plus className="w-4 h-4 mr-2" />
           New Chat
@@ -83,17 +83,17 @@ export default function SessionSidebar({
                 key={session.id}
                 className={`group flex items-center gap-2 p-2.5 rounded-lg cursor-pointer transition-colors ${
                   currentSessionId === session.id
-                    ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-800 border border-transparent'
+                    ? 'bg-white border border-stone-200 shadow-sm'
+                    : 'hover:bg-white/70 border border-transparent'
                 }`}
                 onClick={() => onSelectSession(session.id)}
               >
-                <MessageSquare className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <MessageSquare className="w-4 h-4 text-stone-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                  <p className="text-sm font-medium text-stone-800 truncate">
                     {session.title || 'New Chat'}
                   </p>
-                  <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center gap-1 text-xs text-stone-400">
                     <Clock className="w-3 h-3" />
                     {formatDate(session.updatedAt)}
                   </div>

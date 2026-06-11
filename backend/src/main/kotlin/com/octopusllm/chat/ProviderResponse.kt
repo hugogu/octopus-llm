@@ -26,6 +26,9 @@ class ProviderResponse(
     @Column(name = "response_text", columnDefinition = "TEXT")
     val responseText: String? = null,
 
+    @Column(name = "reasoning_text", columnDefinition = "TEXT")
+    val reasoningText: String? = null,
+
     @Column(name = "error_message", columnDefinition = "TEXT")
     val errorMessage: String? = null,
 

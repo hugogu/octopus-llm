@@ -29,10 +29,10 @@ data class SessionResponse(val id: UUID, val title: String?, val selectedModelId
 private fun ChatSession.toResponse() = SessionResponse(id, title, selectedModelId, createdAt, updatedAt)
 
 data class ProviderResponseDto(
-    val modelId: String, val status: String, val responseText: String?,
+    val modelId: String, val status: String, val responseText: String?, val reasoningText: String?,
     val errorMessage: String?, val inputTokens: Int?, val outputTokens: Int?, val latencyMs: Int,
 )
-private fun ProviderResponse.toDto() = ProviderResponseDto(modelId, status, responseText, errorMessage, inputTokens, outputTokens, latencyMs)
+private fun ProviderResponse.toDto() = ProviderResponseDto(modelId, status, responseText, reasoningText, errorMessage, inputTokens, outputTokens, latencyMs)
 
 data class TurnDto(
     val id: UUID, val sequenceNum: Int, val promptText: String,
@@ -121,6 +121,8 @@ class ChatController(
                 else """{"event":"capability_notice","modelId":"${event.modelId}","notice":"${event.notice}"}"""
             is LlmStreamEvent.Token ->
                 mapper.writeValueAsString(mapOf("event" to "token", "modelId" to event.modelId, "delta" to event.delta))
+            is LlmStreamEvent.Reasoning ->
+                mapper.writeValueAsString(mapOf("event" to "reasoning", "modelId" to event.modelId, "delta" to event.delta))
             is LlmStreamEvent.ModelComplete ->
                 mapper.writeValueAsString(mapOf(
                     "event" to "model_complete", "modelId" to event.modelId,
