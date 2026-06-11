@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import SettingsLayout, { SettingsSection, EmptyState } from '@/components/models/SettingsLayout';
 import ApiKeyForm from '@/components/models/ApiKeyForm';
+import ApiKeyBaseUrlEditor from '@/components/models/ApiKeyBaseUrlEditor';
 import CustomModelForm from '@/components/models/CustomModelForm';
 import ModelCard from '@/components/models/ModelCard';
 import ModelConfigControls from '@/components/models/ModelConfigControls';
@@ -135,11 +136,7 @@ export default function ModelsSettingsPage({ models, apiKeys, modelConfigs }: Mo
                     <p className="mt-2 text-sm text-gray-600">
                       Use this key to sync provider models and bind them to model configs below.
                     </p>
-                    {key.baseUrl && (
-                      <p className="mt-1 truncate font-mono text-xs text-gray-500" title={key.baseUrl}>
-                        {key.baseUrl}
-                      </p>
-                    )}
+                    <ApiKeyBaseUrlEditor keyId={key.id} baseUrl={key.baseUrl} />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Added {new Date(key.createdAt).toLocaleDateString()}
                     </p>

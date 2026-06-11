@@ -51,6 +51,21 @@ class UserConfigService(
             apiKeyRepository.save(key)
         }.subscribeOn(Schedulers.boundedElastic())
 
+    fun patchApiKey(userId: UUID, keyId: UUID, baseUrl: String?): Mono<ProviderApiKey> =
+        Mono.fromCallable {
+            val key = apiKeyRepository.findById(keyId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "API key not found")
+            }
+            if (key.user.id != userId) throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+            if (baseUrl != null) {
+                key.baseUrl = normalizeBaseUrl(baseUrl)
+                key.updatedAt = Instant.now()
+                apiKeyRepository.save(key)
+            } else {
+                key
+            }
+        }.subscribeOn(Schedulers.boundedElastic())
+
     private fun normalizeBaseUrl(baseUrl: String?): String? {
         val trimmed = baseUrl?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() } ?: return null
         if (!trimmed.startsWith("https://") && !trimmed.startsWith("http://")) {

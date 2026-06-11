@@ -45,6 +45,17 @@ export async function addApiKey(token: string, req: AddApiKeyRequest): Promise<A
   }, token);
 }
 
+export async function patchApiKey(
+  token: string,
+  keyId: string,
+  req: { baseUrl: string },
+): Promise<ApiKeyMeta> {
+  return authFetch(`/api/v1/user/api-keys/${encodeURIComponent(keyId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(req),
+  }, token);
+}
+
 export async function deleteApiKey(token: string, keyId: string): Promise<void> {
   return authFetch(`/api/v1/user/api-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" }, token);
 }

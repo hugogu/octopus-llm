@@ -21,6 +21,9 @@ data class AddApiKeyRequest(
 data class ApiKeyResponse(val id: UUID, val providerId: String, val label: String?, val baseUrl: String?, val createdAt: Instant)
 private fun ProviderApiKey.toResponse() = ApiKeyResponse(id, providerId, label, baseUrl, createdAt)
 
+// baseUrl: null leaves it unchanged, empty string clears the override
+data class PatchApiKeyRequest(val baseUrl: String? = null)
+
 data class UpsertModelConfigRequest(
     @field:NotBlank val modelId: String,
     @field:NotNull val providerApiKeyId: UUID,
@@ -82,6 +85,14 @@ class UserConfigController(private val service: UserConfigService) {
     ): Mono<ApiKeyResponse> =
         service.addApiKey(userId(principal), request.providerId, request.apiKey, request.label, request.baseUrl)
             .map { it.toResponse() }
+
+    @PatchMapping("/api-keys/{keyId}")
+    fun patchApiKey(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable keyId: UUID,
+        @RequestBody request: PatchApiKeyRequest,
+    ): Mono<ApiKeyResponse> =
+        service.patchApiKey(userId(principal), keyId, request.baseUrl).map { it.toResponse() }
 
     @DeleteMapping("/api-keys/{keyId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

@@ -30,11 +30,11 @@ class ProviderApiKey(
 
     // Overrides the provider's default API endpoint for this key
     @Column(name = "base_url", length = 500)
-    val baseUrl: String? = null,
+    var baseUrl: String? = null,
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: Instant = Instant.now(),
+    var updatedAt: Instant = Instant.now(),
 )
