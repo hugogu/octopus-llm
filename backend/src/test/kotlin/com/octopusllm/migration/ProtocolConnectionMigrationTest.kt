@@ -80,7 +80,7 @@ class ProtocolConnectionMigrationTest {
                         id,provider_id,display_name,capability_matrix,is_active,source
                     ) VALUES (
                         'migration-model','openai','Migration Model',
-                        '{"input_modalities":["text"],"output_modalities":["text"],"supports_streaming":true,"supports_function_calling":false,"supports_system_prompt":true,"supports_video_input":false}',
+                        '{"input_modalities":["text"],"output_modalities":["text"],"supports_streaming":true,"supports_function_calling":false,"supports_system_prompt":true,"supports_video_input":false,"extras":{"custom_key":true}}',
                         true,'CUSTOM'
                     )
                     """.trimIndent(),
@@ -129,7 +129,7 @@ class ProtocolConnectionMigrationTest {
 
         Flyway.configure()
             .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
-            .target("17")
+            .target("18")
             .load()
             .migrate()
 
@@ -152,7 +152,7 @@ class ProtocolConnectionMigrationTest {
                 }
             }
             database.prepareStatement(
-                "SELECT model_id,is_enabled,custom_params::text FROM configured_models WHERE id=?",
+                "SELECT model_id,is_enabled,custom_params::text,capability_overrides::text FROM configured_models WHERE id=?",
             ).use {
                 it.setObject(1, configuredModelId)
                 it.executeQuery().use { result ->
@@ -160,6 +160,9 @@ class ProtocolConnectionMigrationTest {
                     assertEquals("migration-model", result.getString("model_id"))
                     assertFalse(result.getBoolean("is_enabled"))
                     assertTrue(result.getString("custom_params").contains("0.25"))
+                    val overrides = result.getString("capability_overrides")
+                    assertFalse(overrides.contains("extras"), "Migrated capability overrides must not contain legacy 'extras' key")
+                    assertTrue(overrides.contains("input_modalities"))
                 }
             }
             database.createStatement().use { statement ->
