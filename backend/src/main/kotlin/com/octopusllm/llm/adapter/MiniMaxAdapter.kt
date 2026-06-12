@@ -3,11 +3,13 @@ package com.octopusllm.llm.adapter
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.octopusllm.llm.*
+import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Flux
 
+@Component
 class MiniMaxAdapter : LlmAdapter {
-    override val providerId: String = "minimax"
+    override val protocolId: String = "minimax"
     private val defaultBaseUrl = "https://api.minimax.chat/v1"
     private val mapper = ObjectMapper()
 

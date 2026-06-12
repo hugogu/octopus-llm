@@ -1,13 +1,17 @@
 package com.octopusllm.llm.adapter
 
 import com.anthropic.client.AnthropicClient
-import com.anthropic.client.okhttp.AnthropicOkHttpClient
+import com.anthropic.client.AnthropicClientImpl
+import com.anthropic.backends.AnthropicBackend
+import com.anthropic.core.ClientOptions
 import com.anthropic.models.messages.*
 import com.octopusllm.llm.*
+import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 
+@Component
 class AnthropicAdapter : LlmAdapter {
-    override val providerId: String = "anthropic"
+    override val protocolId: String = "anthropic"
 
     override fun stream(
         modelId: String,
@@ -19,55 +23,64 @@ class AnthropicAdapter : LlmAdapter {
 
         return Flux.create { sink ->
             try {
-                val clientBuilder = AnthropicOkHttpClient.builder()
+                val backendBuilder = AnthropicBackend.builder()
                     .apiKey(decryptedApiKey)
-                if (baseUrlOverride != null) clientBuilder.baseUrl(baseUrlOverride)
-                val client: AnthropicClient = clientBuilder.build()
+                if (baseUrlOverride != null) backendBuilder.baseUrl(baseUrlOverride)
+                val backend = backendBuilder.build()
+                val client: AnthropicClient = AnthropicClientImpl(
+                    ClientOptions.builder()
+                        .httpClient(NoRedirectAnthropicTransport(backend))
+                        .build(),
+                )
 
-                val messages = buildMessages(request)
-                val params = MessageCreateParams.builder()
-                    .model(Model.of(modelId))
-                    .maxTokens(4096)
-                    .messages(messages)
-                    .build()
+                try {
+                    val messages = buildMessages(request)
+                    val params = MessageCreateParams.builder()
+                        .model(Model.of(modelId))
+                        .maxTokens(4096)
+                        .messages(messages)
+                        .build()
 
-                var inputTokens: Int? = null
-                var outputTokens: Int? = null
+                    var inputTokens: Int? = null
+                    var outputTokens: Int? = null
 
-                client.messages().createStreaming(params).use { streamResponse ->
-                    streamResponse.stream().forEach { event ->
-                        when {
-                            event.isStart() -> {
-                                val start = event.asStart()
-                                inputTokens = start.message().usage().inputTokens().toInt()
-                            }
-                            event.isContentBlockDelta() -> {
-                                val blockDelta = event.asContentBlockDelta().delta()
-                                val text = blockDelta.text().map { it.text() }.orElse(null)
-                                if (!text.isNullOrEmpty()) {
-                                    sink.next(LlmStreamEvent.Token(modelId, text))
+                    client.messages().createStreaming(params).use { streamResponse ->
+                        streamResponse.stream().forEach { event ->
+                            when {
+                                event.isStart() -> {
+                                    val start = event.asStart()
+                                    inputTokens = start.message().usage().inputTokens().toInt()
                                 }
-                                val thinking = blockDelta.thinking().map { it.thinking() }.orElse(null)
-                                if (!thinking.isNullOrEmpty()) {
-                                    sink.next(LlmStreamEvent.Reasoning(modelId, thinking))
+                                event.isContentBlockDelta() -> {
+                                    val blockDelta = event.asContentBlockDelta().delta()
+                                    val text = blockDelta.text().map { it.text() }.orElse(null)
+                                    if (!text.isNullOrEmpty()) {
+                                        sink.next(LlmStreamEvent.Token(modelId, text))
+                                    }
+                                    val thinking = blockDelta.thinking().map { it.thinking() }.orElse(null)
+                                    if (!thinking.isNullOrEmpty()) {
+                                        sink.next(LlmStreamEvent.Reasoning(modelId, thinking))
+                                    }
                                 }
-                            }
-                            event.isDelta() -> {
-                                outputTokens = event.asDelta().usage().outputTokens().toInt()
+                                event.isDelta() -> {
+                                    outputTokens = event.asDelta().usage().outputTokens().toInt()
+                                }
                             }
                         }
                     }
-                }
 
-                sink.next(
-                    LlmStreamEvent.ModelComplete(
-                        modelId = modelId,
-                        inputTokens = inputTokens,
-                        outputTokens = outputTokens,
-                        latencyMs = System.currentTimeMillis() - startMs,
-                    ),
-                )
-                sink.complete()
+                    sink.next(
+                        LlmStreamEvent.ModelComplete(
+                            modelId = modelId,
+                            inputTokens = inputTokens,
+                            outputTokens = outputTokens,
+                            latencyMs = System.currentTimeMillis() - startMs,
+                        ),
+                    )
+                    sink.complete()
+                } finally {
+                    client.close()
+                }
             } catch (e: Exception) {
                 sink.next(LlmStreamEvent.ModelError(modelId, e.message ?: "Unknown error"))
                 sink.complete()

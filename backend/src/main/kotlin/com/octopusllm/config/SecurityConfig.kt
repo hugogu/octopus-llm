@@ -38,9 +38,8 @@ class SecurityConfig(
             .authorizeExchange { exchanges ->
                 exchanges
                     .pathMatchers("/api/v1/auth/**").permitAll()
-                    .pathMatchers("/api/v1/models/**").permitAll()
-                    .pathMatchers("/api/v1/providers").permitAll()
                     .pathMatchers("/api/v1/health").permitAll()
+                    .pathMatchers("/api/v2/protocols", "/api/v2/catalogue").permitAll()
                     .anyExchange().authenticated()
             }
             .exceptionHandling {

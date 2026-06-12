@@ -1,38 +1,37 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, Download, Link as LinkIcon } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type {
-  Attachment,
-  ChatTurn,
-  GetSessionResponse,
-  ModelDefinition,
-  UserModelConfig,
-  ApiKeyMeta,
-  SseEvent,
-} from "@/lib/types/api";
-import { createSession, getSession, streamTurn } from "@/lib/api/chat";
-import { listModels } from "@/lib/api/models";
-import { listModelConfigs, listApiKeys } from "@/lib/api/userConfig";
-import { getToken } from "@/lib/api/auth";
-import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import ChatInput from "@/components/chat/ChatInput";
-import ModelResponsePanel from "@/components/chat/ModelResponsePanel";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
+import ModelResponsePanel from "@/components/chat/ModelResponsePanel";
+import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import SessionSidebar from "@/components/chat/SessionSidebar";
+import { getToken } from "@/lib/api/auth";
+import {
+  createSessionV2,
+  getSessionV2,
+  streamTurnV2,
+} from "@/lib/api/chatV2";
+import { listConfiguredModels } from "@/lib/api/connections";
 import { useParallelStream } from "@/lib/hooks/useParallelStream";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { useSessions } from "@/lib/hooks/useSessions";
+import type {
+  Attachment,
+  ChatTurnV2,
+  ConfiguredModelV2,
+  GetSessionResponseV2,
+  SseEventV2,
+} from "@/lib/types/api";
 import {
-  conversationToMarkdown,
   conversationFilename,
+  conversationToMarkdown,
   downloadTextFile,
 } from "@/lib/utils/exportConversation";
-import { Download, Link as LinkIcon, Check } from "lucide-react";
 
-const SELECTED_MODELS_STORAGE_KEY = "octopus:selected-model-ids";
-
-// Fills the row with as many response columns as fit; wraps beyond that.
+const SELECTED_MODELS_STORAGE_KEY = "octopus:selected-configured-model-ids";
 const responseGridStyle = {
   display: "grid",
   gap: "0.75rem",
@@ -41,142 +40,127 @@ const responseGridStyle = {
 
 interface DraftTurnState {
   promptText: string;
-  selectedModelIds: string[];
+  selectedConfiguredModelIds: string[];
 }
 
 export default function ChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const querySessionId = searchParams.get("session");
-  const [models, setModels] = useState<ModelDefinition[]>([]);
-  const [configs, setConfigs] = useState<UserModelConfig[]>([]);
-  const [apiKeys, setApiKeys] = useState<ApiKeyMeta[]>([]);
+  const [models, setModels] = useState<ConfiguredModelV2[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [activeSession, setActiveSession] = useState<GetSessionResponse | null>(null);
+  const [activeSession, setActiveSession] = useState<GetSessionResponseV2 | null>(null);
   const [sessionLoading, setSessionLoading] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [draftTurn, setDraftTurn] = useState<DraftTurnState | null>(null);
   const initializedSelectionRef = useRef(false);
   const { models: panelStates, streaming, reset, handleEvent } = useParallelStream();
   const { preferences, setLastSelectedModel } = usePreferences();
   const { sessions, loading: sessionsLoading, loadSessions, removeSession } = useSessions();
 
-  const loadData = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
-    try {
-      const [{ models: ms }, { modelConfigs }, { apiKeys: keys }] = await Promise.all([
-        listModels(),
-        listModelConfigs(token),
-        listApiKeys(token),
-      ]);
+  const enabledModels = useMemo(() => models.filter((model) => model.isEnabled), [models]);
+  const modelsById = useMemo(
+    () => Object.fromEntries(models.map((model) => [model.id, model])),
+    [models],
+  );
 
-      setModels(ms);
-      setConfigs(modelConfigs);
-      setApiKeys(keys);
-    } catch (err) {
-      console.error(err);
+  const loadModels = useCallback(async () => {
+    const token = getToken();
+    if (!token) {
+      setModelsLoading(false);
+      return;
+    }
+    setModelsLoading(true);
+    try {
+      const response = await listConfiguredModels(token, undefined, 0, 100);
+      setModels(response.items);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load configured models");
+    } finally {
+      setModelsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    queueMicrotask(() => void loadModels());
+  }, [loadModels]);
 
   useEffect(() => {
-    if (initializedSelectionRef.current) return;
-
-    const enabled = configs.filter((c) => c.isEnabled).map((c) => c.modelId);
-    if (enabled.length === 0) return;
-
-    const storedSelectionRaw = window.localStorage.getItem(SELECTED_MODELS_STORAGE_KEY);
-    if (storedSelectionRaw !== null) {
-      try {
-        const storedSelection = JSON.parse(storedSelectionRaw);
-        if (Array.isArray(storedSelection)) {
-          setSelectedIds(storedSelection.filter((id): id is string => (
-            typeof id === "string" && enabled.includes(id)
-          )));
-          initializedSelectionRef.current = true;
-          return;
+    queueMicrotask(() => {
+      if (initializedSelectionRef.current || enabledModels.length === 0) return;
+      const enabledIds = new Set(enabledModels.map((model) => model.id));
+      const stored = window.localStorage.getItem(SELECTED_MODELS_STORAGE_KEY);
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setSelectedIds(parsed.filter((id): id is string => typeof id === "string" && enabledIds.has(id)));
+            initializedSelectionRef.current = true;
+            return;
+          }
+        } catch {
+          window.localStorage.removeItem(SELECTED_MODELS_STORAGE_KEY);
         }
-      } catch {
-        window.localStorage.removeItem(SELECTED_MODELS_STORAGE_KEY);
       }
-    }
 
-    const lastModelId = preferences?.lastSelectedModelId;
-    if (lastModelId && enabled.includes(lastModelId)) {
-      setSelectedIds([lastModelId]);
-    } else {
-      setSelectedIds(enabled.slice(0, 3));
-    }
-    initializedSelectionRef.current = true;
-  }, [configs, preferences]);
+      const preferred = preferences?.lastSelectedConfiguredModelId;
+      setSelectedIds(preferred && enabledIds.has(preferred) ? [preferred] : enabledModels.slice(0, 3).map((m) => m.id));
+      initializedSelectionRef.current = true;
+    });
+  }, [enabledModels, preferences]);
 
   useEffect(() => {
     if (!initializedSelectionRef.current) return;
-
-    const enabled = new Set(configs.filter((c) => c.isEnabled).map((c) => c.modelId));
-    setSelectedIds((current) => {
-      const filtered = current.filter((id) => enabled.has(id));
-      return filtered.length === current.length ? current : filtered;
+    queueMicrotask(() => {
+      const enabledIds = new Set(enabledModels.map((model) => model.id));
+      setSelectedIds((current) => current.filter((id) => enabledIds.has(id)));
     });
-  }, [configs]);
+  }, [enabledModels]);
 
   useEffect(() => {
     if (!initializedSelectionRef.current) return;
     window.localStorage.setItem(SELECTED_MODELS_STORAGE_KEY, JSON.stringify(selectedIds));
   }, [selectedIds]);
 
-  const loadSessionData = useCallback(async (sid: string) => {
+  const loadSessionData = useCallback(async (id: string) => {
     const token = getToken();
     if (!token) return;
-
     setSessionLoading(true);
     try {
-      const session = await getSession(sid, token);
+      const session = await getSessionV2(id, token);
       setActiveSession(session);
-
-      const enabledSet = new Set(configs.filter((config) => config.isEnabled).map((config) => config.modelId));
-      const latestSelection = session.turns.at(-1)?.selectedModelIds.filter((id) => enabledSet.has(id)) ?? [];
-      if (latestSelection.length > 0) {
-        setSelectedIds(latestSelection);
-      }
-    } catch (err) {
-      console.error("Failed to load session:", err);
+      const enabledIds = new Set(enabledModels.map((model) => model.id));
+      const priorSelection = session.turns.at(-1)?.selectedConfiguredModelIds.filter((modelId) => enabledIds.has(modelId)) ?? [];
+      if (priorSelection.length > 0) setSelectedIds(priorSelection);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Failed to load conversation");
     } finally {
       setSessionLoading(false);
     }
-  }, [configs]);
+  }, [enabledModels]);
 
   useEffect(() => {
-    if (!querySessionId) {
-      setSessionId(null);
-      setActiveSession(null);
-      setDraftTurn(null);
-      setSessionLoading(false);
-      reset([]);
-      return;
-    }
-
-    setSessionId(querySessionId);
-    void loadSessionData(querySessionId);
-  }, [querySessionId, loadSessionData, reset]);
-
-  const displayNames = Object.fromEntries(
-    models.map((m) => [m.id, m.displayName]),
-  );
-  const capabilityMatrices = Object.fromEntries(
-    models.map((m) => [m.id, m.capabilityMatrix]),
-  );
+    queueMicrotask(() => {
+      if (!querySessionId) {
+        setSessionId(null);
+        setActiveSession(null);
+        setDraftTurn(null);
+        reset([]);
+        return;
+      }
+      setSessionId(querySessionId);
+      void loadSessionData(querySessionId);
+    });
+  }, [loadSessionData, querySessionId, reset]);
 
   const supportsAttachments = selectedIds.some((id) => {
-    const model = models.find((m) => m.id === id);
-    const caps = model?.capabilityMatrix;
-    return caps?.input_modalities.some((mod) => mod === "image" || mod === "video");
+    const modalities = modelsById[id]?.capabilityMatrix.input_modalities ?? [];
+    return modalities.includes("image") || modalities.includes("video");
   });
-
   const currentSessionMeta = sessionId
     ? sessions.find((session) => session.id === sessionId)
     : null;
@@ -189,87 +173,85 @@ export default function ChatPage() {
     router.replace("/chat");
   }, [reset, router]);
 
-  const handleSelectSession = useCallback((sid: string) => {
+  const handleSelectSession = useCallback((id: string) => {
     setDraftTurn(null);
     reset([]);
-    router.replace(`/chat?session=${encodeURIComponent(sid)}`);
+    router.replace(`/chat?session=${encodeURIComponent(id)}`);
   }, [reset, router]);
 
-  const handleDeleteSession = useCallback(async (sid: string) => {
-    await removeSession(sid);
-    if (sid === sessionId) {
-      handleNewSession();
-    }
-  }, [removeSession, sessionId, handleNewSession]);
+  const handleDeleteSession = useCallback(async (id: string) => {
+    await removeSession(id);
+    if (id === sessionId) handleNewSession();
+  }, [handleNewSession, removeSession, sessionId]);
 
   const handleSubmit = useCallback(async (promptText: string, attachments: Attachment[]) => {
     if (selectedIds.length === 0) return;
     reset(selectedIds);
-    setDraftTurn({ promptText, selectedModelIds: selectedIds });
-
+    setDraftTurn({ promptText, selectedConfiguredModelIds: [...selectedIds] });
     try {
-      let sid = sessionId;
-      if (!sid) {
-        const session = await createSession({ selectedModelId: selectedIds[0] });
-        sid = session.id;
-        setSessionId(sid);
-        setActiveSession({ id: sid, title: session.title, turns: [] });
-        router.replace(`/chat?session=${encodeURIComponent(sid)}`);
+      let id = sessionId;
+      if (!id) {
+        const session = await createSessionV2();
+        id = session.id;
+        setSessionId(id);
+        setActiveSession({ id, title: session.title, turns: [] });
+        router.replace(`/chat?session=${encodeURIComponent(id)}`);
         await loadSessions();
       }
 
-      await streamTurn(
-        sid,
-        { promptText, selectedModelIds: selectedIds, attachments },
-        (event: SseEvent) => handleEvent(event),
+      await streamTurnV2(
+        id,
+        {
+          promptText,
+          selectedConfiguredModelIds: selectedIds,
+          attachments,
+          clientRequestId: crypto.randomUUID(),
+        },
+        (event: SseEventV2) => handleEvent(event),
       );
-
       const token = getToken();
-      if (token) {
-        const session = await getSession(sid, token);
-        setActiveSession(session);
-      }
+      if (token) setActiveSession(await getSessionV2(id, token));
       setDraftTurn(null);
       await loadSessions();
-    } catch (err) {
-      console.error("Stream error:", err);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Chat request failed");
     }
-  }, [selectedIds, sessionId, reset, handleEvent, loadSessions, router]);
+  }, [handleEvent, loadSessions, reset, router, selectedIds, sessionId]);
 
-  const renderTurn = useCallback((turn: ChatTurn) => (
+  const renderTurn = useCallback((turn: ChatTurnV2) => (
     <section key={turn.id} className="space-y-3">
       <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
         <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
       </div>
-
       <div style={responseGridStyle}>
-        {turn.responses.map((resp) => (
+        {turn.responses.map((response) => (
           <ModelResponsePanel
-            key={`${turn.id}:${resp.modelId}`}
-            modelId={resp.modelId}
-            displayName={displayNames[resp.modelId] ?? resp.modelId}
-            text={resp.responseText ?? ""}
-            reasoning={resp.reasoningText ?? ""}
-            status={resp.status === "complete" ? "complete" : "error"}
-            errorMessage={resp.errorMessage ?? undefined}
-            inputTokens={resp.inputTokens ?? undefined}
-            outputTokens={resp.outputTokens ?? undefined}
-            latencyMs={resp.latencyMs}
-            capabilityMatrix={capabilityMatrices[resp.modelId]}
+            key={`${turn.id}:${response.configuredModelId}`}
+            modelId={response.modelId}
+            displayName={response.modelDisplayName}
+            connectionLabel={response.connectionLabel}
+            text={response.responseText ?? ""}
+            reasoning={response.reasoningText ?? ""}
+            status={response.status}
+            errorMessage={response.errorMessage ?? undefined}
+            inputTokens={response.inputTokens ?? undefined}
+            outputTokens={response.outputTokens ?? undefined}
+            latencyMs={response.latencyMs}
+            capabilityMatrix={modelsById[response.configuredModelId]?.capabilityMatrix}
           />
         ))}
       </div>
     </section>
-  ), [capabilityMatrices, displayNames]);
+  ), [modelsById]);
 
   const hasConversation = (activeSession?.turns.length ?? 0) > 0 || draftTurn !== null;
-
   const handleExport = useCallback(() => {
     if (!activeSession) return;
-    const markdown = conversationToMarkdown(activeSession, displayNames);
-    const title = currentSessionMeta?.title ?? activeSession.title;
-    downloadTextFile(conversationFilename(title), markdown);
-  }, [activeSession, currentSessionMeta, displayNames]);
+    downloadTextFile(
+      conversationFilename(currentSessionMeta?.title ?? activeSession.title),
+      conversationToMarkdown(activeSession),
+    );
+  }, [activeSession, currentSessionMeta]);
 
   return (
     <div className="flex h-screen max-h-screen bg-[#faf9f5]">
@@ -281,79 +263,65 @@ export default function ChatPage() {
         onNewSession={handleNewSession}
         loading={sessionsLoading}
       />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-stone-200 bg-[#faf9f5] px-6 py-3">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="border-b border-stone-200 px-6 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <h1 className="truncate text-base font-semibold text-stone-900">
                 {currentSessionMeta?.title || activeSession?.title || "New conversation"}
               </h1>
-              <p className="truncate text-xs text-stone-500">
-                {sessionId
-                  ? "Compare selected models in one thread"
-                  : "Pick models below and start a conversation"}
-              </p>
+              <p className="truncate text-xs text-stone-500">Compare configured endpoints in one thread</p>
             </div>
-            {sessionId && (
+            {sessionId ? (
               <div className="flex shrink-0 items-center gap-1">
                 <ShareLinkButton />
-                <button
-                  type="button"
-                  onClick={handleExport}
-                  className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Export
+                <button type="button" onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
+                  <Download className="h-3.5 w-3.5" /> Export
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         </header>
 
         <div className="border-b border-stone-200 bg-white/60 px-6 py-3">
           <ModelSelectorPanel
             models={models}
-            configs={configs}
-            apiKeys={apiKeys}
             selectedIds={selectedIds}
             onChange={(ids) => {
               setSelectedIds(ids);
-              void setLastSelectedModel(ids[0] ?? null).catch((err) => {
-                console.error("Failed to save model preference:", err);
-              });
+              void setLastSelectedModel(ids[0] ?? null);
             }}
           />
         </div>
 
         <div className="flex-1 overflow-y-auto px-6">
           <div className="flex w-full flex-col gap-6 py-6">
-            {sessionLoading ? (
+            {loadError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>
+            ) : null}
+            {sessionLoading || modelsLoading ? (
               <div className="space-y-4">
-                <div className="ml-auto h-24 max-w-3xl animate-pulse rounded-2xl bg-gray-200" />
-                <div className="grid gap-3 xl:grid-cols-2">
-                  <div className="h-52 animate-pulse rounded-2xl bg-gray-200" />
-                  <div className="h-52 animate-pulse rounded-2xl bg-gray-200" />
-                </div>
+                <div className="ml-auto h-24 max-w-3xl animate-pulse rounded-2xl bg-stone-200" />
+                <div className="h-52 animate-pulse rounded-2xl bg-stone-200" />
               </div>
             ) : hasConversation ? (
               <>
                 {activeSession?.turns.map(renderTurn)}
-
                 {draftTurn ? (
                   <section className="space-y-3">
                     <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
                       <MarkdownRenderer content={draftTurn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
                     </div>
-
                     <div style={responseGridStyle}>
-                      {draftTurn.selectedModelIds.map((id) => {
+                      {draftTurn.selectedConfiguredModelIds.map((id) => {
+                        const model = modelsById[id];
                         const state = panelStates[id];
                         return (
                           <ModelResponsePanel
                             key={`draft:${id}`}
-                            modelId={id}
-                            displayName={displayNames[id] ?? id}
+                            modelId={model?.modelId ?? id}
+                            displayName={model?.displayName ?? id}
+                            connectionLabel={model?.connectionLabel}
                             text={state?.text ?? ""}
                             reasoning={state?.reasoning ?? ""}
                             status={state?.status ?? "idle"}
@@ -362,7 +330,7 @@ export default function ChatPage() {
                             outputTokens={state?.outputTokens}
                             latencyMs={state?.latencyMs}
                             capabilityNotice={state?.capabilityNotice}
-                            capabilityMatrix={capabilityMatrices[id]}
+                            capabilityMatrix={model?.capabilityMatrix}
                           />
                         );
                       })}
@@ -372,21 +340,16 @@ export default function ChatPage() {
               </>
             ) : selectedIds.length === 0 ? (
               <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-white/70 px-8 text-center text-sm text-stone-500">
-                Pick at least one model, then start a conversation.
+                Configure and select at least one model to start chatting.
               </div>
             ) : (
               <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-white/70 px-8 text-center">
                 <div className="max-w-xl space-y-3">
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-400">
-                    Ready to chat
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-400">Ready to chat</p>
+                  <p className="text-sm text-stone-600">
+                    {selectedIds.map((id) => modelsById[id]?.displayName ?? id).join(", ")}
                   </p>
-                  <MarkdownRenderer
-                    content={`Selected models: ${selectedIds.map((id) => `**${displayNames[id] ?? id}**`).join(", ")}`}
-                    className="text-sm"
-                  />
-                  <p className="text-sm text-stone-500">
-                    Ask a question below and responses will stream into this same conversation view.
-                  </p>
+                  <p className="text-sm text-stone-500">Responses will stream into this conversation.</p>
                 </div>
               </div>
             )}
@@ -394,7 +357,7 @@ export default function ChatPage() {
         </div>
 
         <div className="border-t border-stone-200 bg-[#faf9f5] px-6 py-3">
-          <ChatInput onSubmit={handleSubmit} disabled={streaming} supportsAttachments={supportsAttachments} />
+          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} />
         </div>
       </div>
     </div>
@@ -403,23 +366,13 @@ export default function ChatPage() {
 
 function ShareLinkButton() {
   const [copied, setCopied] = useState(false);
-
   const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy link:", err);
-    }
+    await navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
   };
-
   return (
-    <button
-      type="button"
-      onClick={handleShare}
-      className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-50 hover:text-stone-900"
-    >
+    <button type="button" onClick={handleShare} className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
       {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
       {copied ? "Link copied" : "Share"}
     </button>

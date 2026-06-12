@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { UserPreferences } from '@/lib/types/api';
+import type { UpdatePreferencesRequestV2, UserPreferencesV2 } from '@/lib/types/api';
 import { getPreferences, updatePreferences } from '@/lib/api/userConfig';
 import { getToken } from '@/lib/api/auth';
 
 export function usePreferences() {
-  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferencesV2 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,10 +28,10 @@ export function usePreferences() {
   }, []);
 
   useEffect(() => {
-    loadPreferences();
+    queueMicrotask(() => void loadPreferences());
   }, [loadPreferences]);
 
-  const savePreferences = useCallback(async (updates: import("@/lib/types/api").UpdatePreferencesRequest) => {
+  const savePreferences = useCallback(async (updates: UpdatePreferencesRequestV2) => {
     try {
       const token = getToken();
       if (!token) throw new Error('Not authenticated');
@@ -46,8 +46,8 @@ export function usePreferences() {
     }
   }, []);
 
-  const setLastSelectedModel = useCallback(async (modelId: string | null) => {
-    return savePreferences({ lastSelectedModelId: modelId ?? undefined });
+  const setLastSelectedModel = useCallback(async (configuredModelId: string | null) => {
+    return savePreferences({ lastSelectedConfiguredModelId: configuredModelId });
   }, [savePreferences]);
 
   return {

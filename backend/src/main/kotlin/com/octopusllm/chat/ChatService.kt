@@ -2,9 +2,16 @@ package com.octopusllm.chat
 
 import com.octopusllm.auth.UserRepository
 import com.octopusllm.config.DuplicateRequestException
-import com.octopusllm.llm.*
-import com.octopusllm.userconfig.ApiKeyEncryptionService
-import com.octopusllm.userconfig.UserModelConfigRepository
+import com.octopusllm.connection.ConfiguredModelService
+import com.octopusllm.connection.ConnectionService
+import com.octopusllm.llm.Attachment
+import com.octopusllm.llm.ConcurrentLlmOrchestrator
+import com.octopusllm.llm.HistoryTurn
+import com.octopusllm.llm.LlmRequest
+import com.octopusllm.llm.LlmStreamEvent
+import com.octopusllm.llm.ModelDispatchTarget
+import com.octopusllm.model.ProtocolDefinitions
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -22,202 +29,229 @@ class ChatService(
     private val turnRepository: ChatTurnRepository,
     private val responseRepository: ProviderResponseRepository,
     private val userRepository: UserRepository,
-    private val modelConfigRepository: UserModelConfigRepository,
-    private val encryptionService: ApiKeyEncryptionService,
+    private val configuredModelService: ConfiguredModelService,
+    private val connectionService: ConnectionService,
     private val orchestrator: ConcurrentLlmOrchestrator,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
-    fun createSession(userId: UUID, title: String?, selectedModelId: String? = null): Mono<ChatSession> =
-        Mono.fromCallable {
+    fun createSession(userId: UUID, title: String?): Mono<ChatSession> =
+        blocking {
             val user = userRepository.findById(userId).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
             }
-            sessionRepository.save(ChatSession(user = user, title = title, selectedModelId = selectedModelId))
-        }.subscribeOn(Schedulers.boundedElastic())
+            sessionRepository.save(ChatSession(user = user, title = title))
+        }
 
     fun listSessions(userId: UUID, limit: Int, offset: Int): Mono<Pair<List<ChatSession>, Long>> =
-        Mono.fromCallable {
-            val page = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId, PageRequest.of(offset / limit, limit))
+        blocking {
+            if (limit !in 1..100 || offset < 0) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pagination")
+            }
+            val page = sessionRepository.findByUserIdOrderByCreatedAtDesc(
+                userId,
+                PageRequest.of(offset / limit, limit),
+            )
             page.content to page.totalElements
-        }.subscribeOn(Schedulers.boundedElastic())
+        }
 
-    fun getSession(sessionId: UUID, userId: UUID): Mono<Pair<ChatSession, List<Pair<ChatTurn, List<ProviderResponse>>>>> =
-        Mono.fromCallable {
-            val session = sessionRepository.findById(sessionId).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
-            }
-            if (session.user.id != userId) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+    fun getSession(
+        sessionId: UUID,
+        userId: UUID,
+    ): Mono<Pair<ChatSession, List<Pair<ChatTurn, List<ProviderResponse>>>>> =
+        blocking {
+            val session = requireSession(sessionId, userId)
             val turns = turnRepository.findBySessionIdOrderBySequenceNum(sessionId)
-            val turnsWithResponses = turns.map { turn ->
-                turn to responseRepository.findByTurnId(turn.id)
-            }
-            session to turnsWithResponses
-        }.subscribeOn(Schedulers.boundedElastic())
+            session to turns.map { turn -> turn to responseRepository.findByTurnId(turn.id) }
+        }
 
     fun deleteSession(sessionId: UUID, userId: UUID): Mono<Unit> =
-        Mono.fromCallable {
-            val session = sessionRepository.findById(sessionId).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
-            }
-            if (session.user.id != userId) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
-            sessionRepository.delete(session)
-        }.subscribeOn(Schedulers.boundedElastic()).thenReturn(Unit)
+        blocking {
+            sessionRepository.delete(requireSession(sessionId, userId))
+            Unit
+        }
 
     fun submitTurn(
         sessionId: UUID,
         userId: UUID,
         promptText: String,
-        selectedModelIds: List<String>,
+        selectedConfiguredModelIds: List<UUID>,
         attachments: List<Map<String, String>>,
         clientRequestId: String?,
     ): Flux<LlmStreamEvent> {
-        // (0) Idempotency check
-        val idempotencyCheck: Mono<Void> = if (clientRequestId != null) {
-            Mono.fromCallable {
-                turnRepository.findByClientRequestId(clientRequestId)
-            }.subscribeOn(Schedulers.boundedElastic()).flatMap { existing ->
-                if (existing != null) Mono.error(DuplicateRequestException(existing.id.toString()))
-                else Mono.empty()
-            }
-        } else {
-            Mono.empty()
-        }
-
-        // Persist turn + start streaming
-        val setupMono: Mono<Triple<ChatTurn, List<ModelDispatchTarget>, LlmRequest>> =
-            idempotencyCheck.then(
-                Mono.fromCallable {
-                    // (1) Validate session ownership
-                    val session = sessionRepository.findById(sessionId).orElseThrow {
-                        ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+        val setup: Mono<Triple<ChatTurn, List<ModelDispatchTarget>, LlmRequest>> =
+            blocking {
+                if (clientRequestId != null) {
+                    turnRepository.findByClientRequestId(clientRequestId)?.let {
+                        throw DuplicateRequestException(it.id.toString())
                     }
-                    if (session.user.id != userId) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+                }
+                val session = requireSession(sessionId, userId)
+                val models = configuredModelService.requireOwned(userId, selectedConfiguredModelIds)
+                if (models.any { !it.isEnabled }) {
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "One or more configured models are disabled")
+                }
 
-                    // (2) Persist ChatTurn
-                    val seqNum = turnRepository.countBySessionId(sessionId).toInt() + 1
-                    val turn = ChatTurn(
+                val sequence = turnRepository.countBySessionId(sessionId).toInt() + 1
+                val turn = turnRepository.save(
+                    ChatTurn(
                         session = session,
-                        sequenceNum = seqNum,
+                        sequenceNum = sequence,
                         promptText = promptText,
                         attachments = attachments.ifEmpty { null },
-                        selectedModelIds = selectedModelIds.toTypedArray(),
+                        selectedModelIds = models.map { it.modelId }.toTypedArray(),
+                        selectedConfiguredModelIds = models.map { it.id }.toTypedArray(),
                         clientRequestId = clientRequestId,
+                    ),
+                )
+
+                if (session.title == null) session.title = promptText.trim().take(60)
+                session.updatedAt = Instant.now()
+                sessionRepository.save(session)
+
+                val targets = models.map { model ->
+                    val connection = model.connection
+                    val protocol = ProtocolDefinitions.require(connection.protocol)
+                    ModelDispatchTarget(
+                        configuredModelId = model.id,
+                        modelId = model.modelId,
+                        protocol = connection.protocol,
+                        decryptedApiKey = connectionService.decryptAndValidate(connection),
+                        capabilityMatrix = ProtocolDefinitions.mergeCapabilities(
+                            protocol.baseline,
+                            model.capabilityOverrides,
+                        ),
+                        customParams = model.customParams,
+                        baseUrl = connection.baseUrl,
+                        displayName = model.displayName,
+                        connectionLabel = connection.label,
                     )
-                    turnRepository.save(turn)
+                }
 
-                    // Title the session from its first prompt; keep updatedAt fresh for sidebar ordering
-                    if (session.title == null) {
-                        session.title = promptText.trim().take(60)
-                    }
-                    session.updatedAt = Instant.now()
-                    sessionRepository.save(session)
-
-                    // (3) Decrypt API keys and build dispatch targets
-                    val modelConfigs = modelConfigRepository.findByUserId(userId)
-                        .filter { config ->
-                            config.isEnabled &&
-                                config.providerApiKey != null &&
-                                config.model.id in selectedModelIds
-                        }
-                    if (modelConfigs.size != selectedModelIds.size) {
-                        val missing = selectedModelIds - modelConfigs.map { it.model.id }.toSet()
-                        throw ResponseStatusException(HttpStatus.FORBIDDEN, "Models not enabled for user: $missing")
-                    }
-
-                    val targets = modelConfigs.map { config ->
-                        val key = config.providerApiKey!!
-                        val decryptedKey = encryptionService.decrypt(key.encryptedKey, key.keyIv)
-                        ModelDispatchTarget(
-                            modelId = config.model.id,
-                            providerId = config.model.providerId,
-                            decryptedApiKey = decryptedKey,
-                            capabilityMatrix = config.model.capabilityMatrix,
-                            customParams = config.customParams,
-                            baseUrl = key.baseUrl,
-                        )
-                    }
-
-                    // (4) Build LlmRequest with prior turns as history
-                    val priorTurns = turnRepository.findBySessionIdOrderBySequenceNum(sessionId)
-                        .dropLast(1) // exclude the turn we just saved
-                    val history = priorTurns.flatMap { prior ->
-                        val responses = responseRepository.findByTurnId(prior.id)
-                        listOf(
-                            HistoryTurn(role = "user", text = prior.promptText),
-                        ) + responses.filter { it.status == "complete" && it.responseText != null }
-                            .map { r -> HistoryTurn(role = "assistant", text = r.responseText!!) }
-                    }
-                    val llmAttachments = attachments.map { m ->
+                val priorTurns = turnRepository.findBySessionIdOrderBySequenceNum(sessionId).dropLast(1)
+                val history = priorTurns.flatMap { prior ->
+                    listOf(HistoryTurn(role = "user", text = prior.promptText)) +
+                        responseRepository.findByTurnId(prior.id)
+                            .filter { it.status == "complete" && it.responseText != null }
+                            .map { HistoryTurn(role = "assistant", text = requireNotNull(it.responseText)) }
+                }
+                val request = LlmRequest(
+                    prompt = promptText,
+                    history = history,
+                    attachments = attachments.map {
                         Attachment(
-                            type = m["type"] ?: "",
-                            data = m["data"] ?: "",
-                            mimeType = m["mimeType"] ?: m["mime_type"] ?: "",
+                            type = it["type"].orEmpty(),
+                            data = it["data"].orEmpty(),
+                            mimeType = it["mimeType"] ?: it["mime_type"].orEmpty(),
                         )
-                    }
-                    val llmRequest = LlmRequest(prompt = promptText, history = history, attachments = llmAttachments)
-
-                    Triple(turn, targets, llmRequest)
-                }.subscribeOn(Schedulers.boundedElastic())
-            )
-
-        // Accumulate tokens in memory; INSERT ProviderResponse on terminal event
-        val tokenBuffers = ConcurrentHashMap<String, StringBuilder>()
-        val reasoningBuffers = ConcurrentHashMap<String, StringBuilder>()
-        val startTimes = ConcurrentHashMap<String, Long>()
-        val startMs = System.currentTimeMillis()
-
-        return setupMono.flatMapMany { (turn, targets, llmRequest) ->
-            targets.forEach { t ->
-                tokenBuffers[t.modelId] = StringBuilder()
-                reasoningBuffers[t.modelId] = StringBuilder()
-                startTimes[t.modelId] = System.currentTimeMillis()
+                    },
+                )
+                Triple(turn, targets, request)
             }
 
-            val turnCreatedEvent = LlmStreamEvent.CapabilityNotice(
-                "__system__",
-                """{"event":"turn_created","turnId":"${turn.id}","sequenceNum":${turn.sequenceNum}}""",
+        val textBuffers = ConcurrentHashMap<UUID, StringBuilder>()
+        val reasoningBuffers = ConcurrentHashMap<UUID, StringBuilder>()
+        val startTimes = ConcurrentHashMap<UUID, Long>()
+
+        return setup.flatMapMany { (turn, targets, request) ->
+            val targetById = targets.associateBy { it.configuredModelId }
+            targets.forEach {
+                textBuffers[it.configuredModelId] = StringBuilder()
+                reasoningBuffers[it.configuredModelId] = StringBuilder()
+                startTimes[it.configuredModelId] = System.currentTimeMillis()
+            }
+
+            val turnCreated = LlmStreamEvent.CapabilityNotice(
+                modelId = "__system__",
+                notice = """{"event":"turn_created","turnId":"${turn.id}","sequenceNum":${turn.sequenceNum}}""",
             )
 
-            // We use CapabilityNotice with __system__ as a sentinel to carry turn_created JSON
-            val llmFlux = orchestrator.stream(targets, llmRequest)
+            val modelEvents = orchestrator.stream(targets, request)
                 .doOnNext { event ->
+                    val configuredModelId = configuredModelId(event) ?: return@doOnNext
+                    val target = targetById[configuredModelId] ?: return@doOnNext
                     when (event) {
-                        is LlmStreamEvent.Token -> tokenBuffers[event.modelId]?.append(event.delta)
-                        is LlmStreamEvent.Reasoning -> reasoningBuffers[event.modelId]?.append(event.delta)
-                        is LlmStreamEvent.ModelComplete -> {
-                            Mono.fromCallable {
-                                responseRepository.save(
-                                    ProviderResponse(
-                                        turn = turn,
-                                        modelId = event.modelId,
-                                        status = "complete",
-                                        responseText = tokenBuffers[event.modelId]?.toString(),
-                                        reasoningText = reasoningBuffers[event.modelId]?.toString()?.ifBlank { null },
-                                        inputTokens = event.inputTokens,
-                                        outputTokens = event.outputTokens,
-                                        latencyMs = event.latencyMs.toInt(),
-                                    ),
-                                )
-                            }.subscribeOn(Schedulers.boundedElastic()).subscribe()
-                        }
-                        is LlmStreamEvent.ModelError -> {
-                            Mono.fromCallable {
-                                responseRepository.save(
-                                    ProviderResponse(
-                                        turn = turn,
-                                        modelId = event.modelId,
-                                        status = "error",
-                                        errorMessage = event.error,
-                                        latencyMs = (System.currentTimeMillis() - (startTimes[event.modelId] ?: startMs)).toInt(),
-                                    ),
-                                )
-                            }.subscribeOn(Schedulers.boundedElastic()).subscribe()
-                        }
-                        else -> {}
+                        is LlmStreamEvent.Token -> textBuffers[configuredModelId]?.append(event.delta)
+                        is LlmStreamEvent.Reasoning -> reasoningBuffers[configuredModelId]?.append(event.delta)
+                        is LlmStreamEvent.ModelComplete -> persistResponse(
+                            ProviderResponse(
+                                turn = turn,
+                                configuredModelId = configuredModelId,
+                                modelId = target.modelId,
+                                modelDisplayName = target.displayName,
+                                protocol = target.protocol,
+                                connectionLabel = target.connectionLabel,
+                                status = "complete",
+                                responseText = textBuffers[configuredModelId]?.toString(),
+                                reasoningText = reasoningBuffers[configuredModelId]?.toString()?.ifBlank { null },
+                                inputTokens = event.inputTokens,
+                                outputTokens = event.outputTokens,
+                                latencyMs = event.latencyMs.toInt(),
+                            ),
+                            userId,
+                        )
+                        is LlmStreamEvent.ModelError -> persistResponse(
+                            ProviderResponse(
+                                turn = turn,
+                                configuredModelId = configuredModelId,
+                                modelId = target.modelId,
+                                modelDisplayName = target.displayName,
+                                protocol = target.protocol,
+                                connectionLabel = target.connectionLabel,
+                                status = "error",
+                                errorMessage = event.error,
+                                latencyMs = (
+                                    System.currentTimeMillis() -
+                                        (startTimes[configuredModelId] ?: System.currentTimeMillis())
+                                    ).toInt(),
+                            ),
+                            userId,
+                        )
+                        is LlmStreamEvent.CapabilityNotice -> Unit
                     }
                 }
 
-            Flux.concat(Flux.just(turnCreatedEvent), llmFlux)
+            Flux.concat(Flux.just(turnCreated), modelEvents)
         }
     }
+
+    private fun persistResponse(response: ProviderResponse, userId: UUID) {
+        Mono.fromCallable { responseRepository.save(response) }
+            .subscribeOn(Schedulers.boundedElastic())
+            .doOnSuccess {
+                log.info(
+                    "llm_call user={} protocol={} configuredModelId={} modelId={} latencyMs={} inputTokens={} outputTokens={} status={}",
+                    userId.toString().take(8),
+                    response.protocol,
+                    response.configuredModelId,
+                    response.modelId,
+                    response.latencyMs,
+                    response.inputTokens,
+                    response.outputTokens,
+                    response.status,
+                )
+            }
+            .subscribe()
+    }
+
+    private fun configuredModelId(event: LlmStreamEvent): UUID? = when (event) {
+        is LlmStreamEvent.Token -> event.configuredModelId
+        is LlmStreamEvent.Reasoning -> event.configuredModelId
+        is LlmStreamEvent.ModelComplete -> event.configuredModelId
+        is LlmStreamEvent.ModelError -> event.configuredModelId
+        is LlmStreamEvent.CapabilityNotice -> event.configuredModelId
+    }
+
+    private fun requireSession(sessionId: UUID, userId: UUID): ChatSession {
+        val session = sessionRepository.findById(sessionId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+        }
+        if (session.user.id != userId) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+        }
+        return session
+    }
+
+    private fun <T> blocking(block: () -> T): Mono<T> =
+        Mono.fromCallable(block).subscribeOn(Schedulers.boundedElastic())
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { SseEvent } from '@/lib/types/api';
+import type { SseEventV2 } from '@/lib/types/api';
 
 export interface ModelStreamState {
   text: string;
@@ -32,7 +32,7 @@ export function useParallelStream() {
     setTurnId(null);
   }, []);
 
-  const handleEvent = useCallback((event: SseEvent) => {
+  const handleEvent = useCallback((event: SseEventV2) => {
     if (event.event === 'turn_created') {
       setTurnId(event.turnId);
       setStreaming(true);
@@ -46,34 +46,34 @@ export function useParallelStream() {
     } else if (event.event === 'capability_notice') {
       setModels((prev) => ({
         ...prev,
-        [event.modelId]: {
-          ...(prev[event.modelId] ?? { ...emptyState(), status: 'streaming' }),
+        [event.configuredModelId]: {
+          ...(prev[event.configuredModelId] ?? { ...emptyState(), status: 'streaming' }),
           capabilityNotice: event.notice,
         },
       }));
     } else if (event.event === 'reasoning') {
       setModels((prev) => ({
         ...prev,
-        [event.modelId]: {
-          ...(prev[event.modelId] ?? { ...emptyState(), status: 'streaming' }),
-          reasoning: (prev[event.modelId]?.reasoning ?? '') + event.delta,
+        [event.configuredModelId]: {
+          ...(prev[event.configuredModelId] ?? { ...emptyState(), status: 'streaming' }),
+          reasoning: (prev[event.configuredModelId]?.reasoning ?? '') + event.delta,
           status: 'streaming',
         },
       }));
     } else if (event.event === 'token') {
       setModels((prev) => ({
         ...prev,
-        [event.modelId]: {
-          ...(prev[event.modelId] ?? { ...emptyState(), status: 'streaming' }),
-          text: (prev[event.modelId]?.text ?? '') + event.delta,
+        [event.configuredModelId]: {
+          ...(prev[event.configuredModelId] ?? { ...emptyState(), status: 'streaming' }),
+          text: (prev[event.configuredModelId]?.text ?? '') + event.delta,
           status: 'streaming',
         },
       }));
     } else if (event.event === 'model_complete') {
       setModels((prev) => ({
         ...prev,
-        [event.modelId]: {
-          ...(prev[event.modelId] ?? { ...emptyState(), status: 'complete' }),
+        [event.configuredModelId]: {
+          ...(prev[event.configuredModelId] ?? { ...emptyState(), status: 'complete' }),
           status: 'complete',
           inputTokens: event.inputTokens,
           outputTokens: event.outputTokens,
@@ -83,8 +83,8 @@ export function useParallelStream() {
     } else if (event.event === 'model_error') {
       setModels((prev) => ({
         ...prev,
-        [event.modelId]: {
-          ...(prev[event.modelId] ?? { ...emptyState(), status: 'error' }),
+        [event.configuredModelId]: {
+          ...(prev[event.configuredModelId] ?? { ...emptyState(), status: 'error' }),
           status: 'error',
           errorMessage: event.error,
         },

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useSessions } from './useSessions';
-import * as chatApi from '@/lib/api/chat';
+import * as chatApi from '@/lib/api/chatV2';
 import * as authApi from '@/lib/api/auth';
 
 describe('useSessions', () => {
@@ -11,12 +11,12 @@ describe('useSessions', () => {
 
   it('loads sessions on mount', async () => {
     const mockSessions = [
-      { id: '1', title: 'Session 1', selectedModelId: 'gpt-4', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
-      { id: '2', title: 'Session 2', selectedModelId: null, createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
+      { id: '1', title: 'Session 1', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+      { id: '2', title: 'Session 2', createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
     ];
     
     vi.spyOn(authApi, 'getToken').mockReturnValue('test-token');
-    vi.spyOn(chatApi, 'listSessions').mockResolvedValue({ sessions: mockSessions, total: 2 });
+    vi.spyOn(chatApi, 'listSessionsV2').mockResolvedValue({ items: mockSessions, page: 0, size: 50, totalElements: 2, totalPages: 1 });
 
     const { result } = renderHook(() => useSessions());
 
@@ -42,13 +42,13 @@ describe('useSessions', () => {
 
   it('deletes session', async () => {
     const mockSessions = [
-      { id: '1', title: 'Session 1', selectedModelId: 'gpt-4', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
-      { id: '2', title: 'Session 2', selectedModelId: null, createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
+      { id: '1', title: 'Session 1', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+      { id: '2', title: 'Session 2', createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
     ];
     
     vi.spyOn(authApi, 'getToken').mockReturnValue('test-token');
-    vi.spyOn(chatApi, 'listSessions').mockResolvedValue({ sessions: mockSessions, total: 2 });
-    vi.spyOn(chatApi, 'deleteSession').mockResolvedValue(undefined);
+    vi.spyOn(chatApi, 'listSessionsV2').mockResolvedValue({ items: mockSessions, page: 0, size: 50, totalElements: 2, totalPages: 1 });
+    vi.spyOn(chatApi, 'deleteSessionV2').mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useSessions());
 
@@ -66,11 +66,11 @@ describe('useSessions', () => {
 
   it('reloads sessions', async () => {
     const mockSessions = [
-      { id: '1', title: 'Session 1', selectedModelId: 'gpt-4', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+      { id: '1', title: 'Session 1', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
     ];
     
     vi.spyOn(authApi, 'getToken').mockReturnValue('test-token');
-    vi.spyOn(chatApi, 'listSessions').mockResolvedValue({ sessions: mockSessions, total: 1 });
+    vi.spyOn(chatApi, 'listSessionsV2').mockResolvedValue({ items: mockSessions, page: 0, size: 50, totalElements: 1, totalPages: 1 });
 
     const { result } = renderHook(() => useSessions());
 
@@ -80,9 +80,9 @@ describe('useSessions', () => {
 
     const newSessions = [
       ...mockSessions,
-      { id: '2', title: 'Session 2', selectedModelId: null, createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
+      { id: '2', title: 'Session 2', createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
     ];
-    vi.spyOn(chatApi, 'listSessions').mockResolvedValue({ sessions: newSessions, total: 2 });
+    vi.spyOn(chatApi, 'listSessionsV2').mockResolvedValue({ items: newSessions, page: 0, size: 50, totalElements: 2, totalPages: 1 });
 
     await result.current.loadSessions();
 
@@ -93,7 +93,7 @@ describe('useSessions', () => {
 
   it('handles API errors', async () => {
     vi.spyOn(authApi, 'getToken').mockReturnValue('test-token');
-    vi.spyOn(chatApi, 'listSessions').mockRejectedValue(new Error('Network error'));
+    vi.spyOn(chatApi, 'listSessionsV2').mockRejectedValue(new Error('Network error'));
 
     const { result } = renderHook(() => useSessions());
 

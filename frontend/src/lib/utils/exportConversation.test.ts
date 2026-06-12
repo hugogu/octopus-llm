@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { conversationToMarkdown, conversationFilename } from './exportConversation';
-import type { GetSessionResponse } from '@/lib/types/api';
+import type { GetSessionResponseV2 } from '@/lib/types/api';
 
-const session: GetSessionResponse = {
+const session: GetSessionResponseV2 = {
   id: 's1',
   title: '几何面积公式',
   turns: [
@@ -10,12 +10,16 @@ const session: GetSessionResponse = {
       id: 't1',
       sequenceNum: 1,
       promptText: '给出圆的面积公式',
-      attachments: [],
       selectedModelIds: ['m1', 'm2'],
+      selectedConfiguredModelIds: ['cm1', 'cm2'],
       createdAt: '2026-06-11T00:00:00Z',
       responses: [
         {
+          configuredModelId: 'cm1',
           modelId: 'm1',
+          modelDisplayName: 'Model One',
+          protocol: 'openai-compatible',
+          connectionLabel: 'Primary',
           status: 'complete',
           responseText: '$S = \\pi r^2$',
           reasoningText: '用户要圆面积……',
@@ -25,7 +29,11 @@ const session: GetSessionResponse = {
           latencyMs: 1200,
         },
         {
+          configuredModelId: 'cm2',
           modelId: 'm2',
+          modelDisplayName: 'Model Two',
+          protocol: 'anthropic',
+          connectionLabel: null,
           status: 'error',
           responseText: null,
           reasoningText: null,
@@ -41,11 +49,11 @@ const session: GetSessionResponse = {
 
 describe('conversationToMarkdown', () => {
   it('includes title, prompt, and responses with display names', () => {
-    const md = conversationToMarkdown(session, { m1: 'Model One' });
+    const md = conversationToMarkdown(session);
     expect(md).toContain('# 几何面积公式');
     expect(md).toContain('## You');
     expect(md).toContain('给出圆的面积公式');
-    expect(md).toContain('### Model One');
+    expect(md).toContain('### Model One (Primary)');
     expect(md).toContain('$S = \\pi r^2$');
   });
 
@@ -60,9 +68,9 @@ describe('conversationToMarkdown', () => {
     expect(md).toContain('> ⚠️ Error: rate limited');
   });
 
-  it('falls back to modelId when no display name', () => {
+  it('uses immutable snapshot names instead of current configuration', () => {
     const md = conversationToMarkdown(session);
-    expect(md).toContain('### m1');
+    expect(md).toContain('### Model Two');
   });
 });
 

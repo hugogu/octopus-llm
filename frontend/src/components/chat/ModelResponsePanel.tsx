@@ -11,6 +11,7 @@ import CopyButton from "@/components/ui/CopyButton";
 interface ModelResponsePanelProps {
   modelId: string;
   displayName?: string;
+  connectionLabel?: string | null;
   text: string;
   reasoning?: string;
   status: "idle" | "streaming" | "complete" | "error";
@@ -25,6 +26,7 @@ interface ModelResponsePanelProps {
 export default function ModelResponsePanel({
   modelId,
   displayName,
+  connectionLabel,
   text,
   reasoning = "",
   status,
@@ -52,9 +54,10 @@ export default function ModelResponsePanel({
                     : "bg-stone-300"
             }`}
           />
-          <span className="truncate text-sm font-semibold text-stone-800">
-            {displayName ?? modelId}
-          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-stone-800">{displayName ?? modelId}</p>
+            {connectionLabel ? <p className="truncate text-[11px] text-stone-400">{connectionLabel}</p> : null}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {status === "complete" && (

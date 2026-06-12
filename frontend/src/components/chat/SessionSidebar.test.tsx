@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import SessionSidebar from './SessionSidebar';
-import type { ChatSession } from '@/lib/types/api';
+import type { ChatSessionV2 } from '@/lib/types/api';
 
 describe('SessionSidebar', () => {
-  const mockSessions: ChatSession[] = [
-    { id: '1', title: 'Session 1', selectedModelId: 'gpt-4', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
-    { id: '2', title: 'Session 2', selectedModelId: null, createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
+  const mockSessions: ChatSessionV2[] = [
+    { id: '1', title: 'Session 1', createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z' },
+    { id: '2', title: 'Session 2', createdAt: '2024-01-02T00:00:00Z', updatedAt: '2024-01-02T00:00:00Z' },
   ];
 
   it('renders session list', () => {

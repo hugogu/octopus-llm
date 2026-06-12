@@ -19,6 +19,9 @@ class UserPreference(
     @Column(name = "last_selected_model_id", length = 255)
     var lastSelectedModelId: String? = null,
 
+    @Column(name = "last_selected_configured_model_id")
+    var lastSelectedConfiguredModelId: UUID? = null,
+
     @Column(name = "theme_preference", length = 50)
     var themePreference: String = "system",
 

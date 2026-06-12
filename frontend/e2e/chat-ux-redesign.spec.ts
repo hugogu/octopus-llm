@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 // Helper function to register and login a test user
-async function loginUser(page: any) {
+async function loginUser(page: Page) {
   // Go to register page
   await page.goto("/register");
   

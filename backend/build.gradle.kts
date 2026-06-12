@@ -51,6 +51,7 @@ dependencies {
     // LLM SDKs
     implementation("com.openai:openai-java:2.1.0")
     implementation("com.anthropic:anthropic-java:1.2.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // ZhiPu (GLM) uses OpenAI-compatible REST API — no separate SDK needed
 
     // Testing

@@ -1,0 +1,221 @@
+package com.octopusllm.chat
+
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.octopusllm.llm.LlmStreamEvent
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.codec.ServerSentEvent
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
+import java.time.Instant
+import java.util.UUID
+
+data class CreateSessionRequestV2(val title: String? = null)
+
+data class SubmitTurnRequestV2(
+    @field:NotBlank val promptText: String,
+    @field:NotEmpty val selectedConfiguredModelIds: List<UUID>,
+    val clientRequestId: String? = null,
+    val attachments: List<Map<String, String>> = emptyList(),
+)
+
+data class SessionResponseV2(
+    val id: UUID,
+    val title: String?,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+)
+
+data class ProviderResponseDtoV2(
+    val configuredModelId: UUID,
+    val modelId: String,
+    val modelDisplayName: String,
+    val protocol: String,
+    val connectionLabel: String?,
+    val status: String,
+    val responseText: String?,
+    val reasoningText: String?,
+    val errorMessage: String?,
+    val inputTokens: Int?,
+    val outputTokens: Int?,
+    val latencyMs: Int,
+)
+
+data class TurnDtoV2(
+    val id: UUID,
+    val sequenceNum: Int,
+    val promptText: String,
+    val selectedModelIds: List<String>,
+    val selectedConfiguredModelIds: List<UUID>,
+    val responses: List<ProviderResponseDtoV2>,
+    val createdAt: Instant,
+)
+
+@RestController
+@RequestMapping("/api/v2/chat/sessions")
+class ChatControllerV2(
+    private val chatService: ChatService,
+    private val mapper: ObjectMapper,
+) {
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    fun create(
+        @AuthenticationPrincipal principal: String,
+        @RequestBody(required = false) request: CreateSessionRequestV2?,
+    ): Mono<SessionResponseV2> =
+        chatService.createSession(userId(principal), request?.title).map(::sessionResponse)
+
+    @GetMapping
+    fun list(
+        @AuthenticationPrincipal principal: String,
+        @RequestParam(defaultValue = "25") size: Int,
+        @RequestParam(defaultValue = "0") page: Int,
+    ): Mono<Map<String, Any>> =
+        chatService.listSessions(userId(principal), size, page * size).map { (sessions, total) ->
+            mapOf(
+                "items" to sessions.map(::sessionResponse),
+                "page" to page,
+                "size" to size,
+                "totalElements" to total,
+                "totalPages" to if (total == 0L) 0 else ((total + size - 1) / size).toInt(),
+            )
+        }
+
+    @GetMapping("/{sessionId}")
+    fun get(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable sessionId: UUID,
+    ): Mono<Map<String, Any?>> =
+        chatService.getSession(sessionId, userId(principal)).map { (session, turns) ->
+            mapOf(
+                "id" to session.id,
+                "title" to session.title,
+                "turns" to turns.map { (turn, responses) ->
+                    TurnDtoV2(
+                        id = turn.id,
+                        sequenceNum = turn.sequenceNum,
+                        promptText = turn.promptText,
+                        selectedModelIds = turn.selectedModelIds.toList(),
+                        selectedConfiguredModelIds = turn.selectedConfiguredModelIds.toList(),
+                        responses = responses.map(::responseDto),
+                        createdAt = turn.createdAt,
+                    )
+                },
+            )
+        }
+
+    @DeleteMapping("/{sessionId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun delete(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable sessionId: UUID,
+    ): Mono<Void> = chatService.deleteSession(sessionId, userId(principal)).then()
+
+    @PostMapping("/{sessionId}/turns", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun submit(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable sessionId: UUID,
+        @Valid @RequestBody request: SubmitTurnRequestV2,
+    ): Flux<ServerSentEvent<String>> =
+        chatService.submitTurn(
+            sessionId,
+            userId(principal),
+            request.promptText,
+            request.selectedConfiguredModelIds,
+            request.attachments,
+            request.clientRequestId,
+        )
+            .map(::toSse)
+            .concatWithValues(
+                ServerSentEvent.builder<String>()
+                    .data("""{"event":"all_complete"}""")
+                    .build(),
+            )
+
+    private fun toSse(event: LlmStreamEvent): ServerSentEvent<String> {
+        val data = when (event) {
+            is LlmStreamEvent.CapabilityNotice ->
+                if (event.modelId == "__system__") {
+                    event.notice
+                } else {
+                    mapper.writeValueAsString(
+                        mapOf(
+                            "event" to "capability_notice",
+                            "configuredModelId" to event.configuredModelId,
+                            "modelId" to event.modelId,
+                            "notice" to event.notice,
+                        ),
+                    )
+                }
+            is LlmStreamEvent.Token -> mapper.writeValueAsString(
+                mapOf(
+                    "event" to "token",
+                    "configuredModelId" to event.configuredModelId,
+                    "modelId" to event.modelId,
+                    "delta" to event.delta,
+                ),
+            )
+            is LlmStreamEvent.Reasoning -> mapper.writeValueAsString(
+                mapOf(
+                    "event" to "reasoning",
+                    "configuredModelId" to event.configuredModelId,
+                    "modelId" to event.modelId,
+                    "delta" to event.delta,
+                ),
+            )
+            is LlmStreamEvent.ModelComplete -> mapper.writeValueAsString(
+                mapOf(
+                    "event" to "model_complete",
+                    "configuredModelId" to event.configuredModelId,
+                    "modelId" to event.modelId,
+                    "inputTokens" to event.inputTokens,
+                    "outputTokens" to event.outputTokens,
+                    "latencyMs" to event.latencyMs,
+                ),
+            )
+            is LlmStreamEvent.ModelError -> mapper.writeValueAsString(
+                mapOf(
+                    "event" to "model_error",
+                    "configuredModelId" to event.configuredModelId,
+                    "modelId" to event.modelId,
+                    "error" to event.error,
+                ),
+            )
+        }
+        return ServerSentEvent.builder<String>().data(data).build()
+    }
+
+    private fun sessionResponse(session: ChatSession) =
+        SessionResponseV2(session.id, session.title, session.createdAt, session.updatedAt)
+
+    private fun responseDto(response: ProviderResponse) =
+        ProviderResponseDtoV2(
+            configuredModelId = response.configuredModelId,
+            modelId = response.modelId,
+            modelDisplayName = response.modelDisplayName,
+            protocol = response.protocol,
+            connectionLabel = response.connectionLabel,
+            status = response.status,
+            responseText = response.responseText,
+            reasoningText = response.reasoningText,
+            errorMessage = response.errorMessage,
+            inputTokens = response.inputTokens,
+            outputTokens = response.outputTokens,
+            latencyMs = response.latencyMs,
+        )
+
+    private fun userId(principal: String) = UUID.fromString(principal)
+}

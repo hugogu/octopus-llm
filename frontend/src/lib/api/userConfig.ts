@@ -1,23 +1,8 @@
-import type {
-  ApiKeyMeta,
-  AddApiKeyRequest,
-  CreateCustomModelRequest,
-  ListModelsResponse,
-  SyncProviderModelsRequest,
-  UpsertModelConfigRequest,
-  PatchModelConfigRequest,
-  UserModelConfig,
-  UserPreferences,
-  UpdatePreferencesRequest,
-} from "@/lib/types/api";
 import { apiUrl } from "@/lib/api/base";
+import type { UpdatePreferencesRequestV2, UserPreferencesV2 } from "@/lib/types/api";
 
-async function authFetch<T>(
-  path: string,
-  options: RequestInit,
-  token: string,
-): Promise<T> {
-  const res = await fetch(apiUrl(path), {
+async function authFetch<T>(path: string, options: RequestInit, token: string): Promise<T> {
+  const response = await fetch(apiUrl(path), {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -26,109 +11,37 @@ async function authFetch<T>(
     },
     cache: "no-store",
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText })) as { message?: string };
-    throw Object.assign(new Error(err.message ?? "Request failed"), { status: res.status });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: response.statusText })) as {
+      message?: string;
+    };
+    throw Object.assign(new Error(error.message ?? "Request failed"), { status: response.status });
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  return response.json() as Promise<T>;
 }
 
-export async function listApiKeys(token: string): Promise<{ apiKeys: ApiKeyMeta[] }> {
-  return authFetch("/api/v1/user/api-keys", { method: "GET" }, token);
+export function getPreferences(token: string): Promise<UserPreferencesV2> {
+  return authFetch("/api/v2/user/preferences", { method: "GET" }, token);
 }
 
-export async function addApiKey(token: string, req: AddApiKeyRequest): Promise<ApiKeyMeta> {
-  return authFetch("/api/v1/user/api-keys", {
-    method: "POST",
-    body: JSON.stringify(req),
-  }, token);
-}
-
-export async function patchApiKey(
+export function updatePreferences(
   token: string,
-  keyId: string,
-  req: { baseUrl: string },
-): Promise<ApiKeyMeta> {
-  return authFetch(`/api/v1/user/api-keys/${encodeURIComponent(keyId)}`, {
-    method: "PATCH",
-    body: JSON.stringify(req),
-  }, token);
+  request: UpdatePreferencesRequestV2,
+): Promise<UserPreferencesV2> {
+  return authFetch(
+    "/api/v2/user/preferences",
+    { method: "PUT", body: JSON.stringify(request) },
+    token,
+  );
 }
 
-export async function deleteApiKey(token: string, keyId: string): Promise<void> {
-  return authFetch(`/api/v1/user/api-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" }, token);
-}
-
-export async function listModelConfigs(token: string): Promise<{ modelConfigs: UserModelConfig[] }> {
-  return authFetch("/api/v1/user/model-configs", { method: "GET" }, token);
-}
-
-export async function addModelConfig(
+export function patchPreferences(
   token: string,
-  req: UpsertModelConfigRequest,
-): Promise<UserModelConfig> {
-  return authFetch("/api/v1/user/model-configs", {
-    method: "POST",
-    body: JSON.stringify(req),
-  }, token);
-}
-
-export async function patchModelConfig(
-  token: string,
-  configId: string,
-  req: PatchModelConfigRequest,
-): Promise<UserModelConfig> {
-  return authFetch(`/api/v1/user/model-configs/${encodeURIComponent(configId)}`, {
-    method: "PATCH",
-    body: JSON.stringify(req),
-  }, token);
-}
-
-export async function deleteModelConfig(token: string, configId: string): Promise<void> {
-  return authFetch(`/api/v1/user/model-configs/${encodeURIComponent(configId)}`, { method: "DELETE" }, token);
-}
-
-export async function syncProviderModels(
-  token: string,
-  req: SyncProviderModelsRequest,
-): Promise<ListModelsResponse> {
-  return authFetch("/api/v1/user/provider-models/sync", {
-    method: "POST",
-    body: JSON.stringify(req),
-  }, token);
-}
-
-export async function createCustomModel(
-  token: string,
-  req: CreateCustomModelRequest,
-): Promise<UserModelConfig> {
-  return authFetch("/api/v1/user/custom-models", {
-    method: "POST",
-    body: JSON.stringify(req),
-  }, token);
-}
-
-export async function getPreferences(token: string): Promise<UserPreferences> {
-  return authFetch("/api/v1/user/preferences", { method: "GET" }, token);
-}
-
-export async function updatePreferences(
-  token: string,
-  req: UpdatePreferencesRequest,
-): Promise<UserPreferences> {
-  return authFetch("/api/v1/user/preferences", {
-    method: "PUT",
-    body: JSON.stringify(req),
-  }, token);
-}
-
-export async function patchPreferences(
-  token: string,
-  req: UpdatePreferencesRequest,
-): Promise<UserPreferences> {
-  return authFetch("/api/v1/user/preferences", {
-    method: "PATCH",
-    body: JSON.stringify(req),
-  }, token);
+  request: UpdatePreferencesRequestV2,
+): Promise<UserPreferencesV2> {
+  return authFetch(
+    "/api/v2/user/preferences",
+    { method: "PATCH", body: JSON.stringify(request) },
+    token,
+  );
 }

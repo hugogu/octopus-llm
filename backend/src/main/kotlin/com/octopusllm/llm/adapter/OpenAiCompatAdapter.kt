@@ -3,19 +3,19 @@ package com.octopusllm.llm.adapter
 import com.octopusllm.llm.*
 import com.openai.core.JsonString
 import com.openai.core.JsonValue
-import com.openai.core.Timeout
-import java.time.Duration
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import com.openai.client.OpenAIClient
-import com.openai.client.okhttp.OpenAIOkHttpClient
+import com.openai.client.OpenAIClientImpl
+import com.openai.core.ClientOptions
 import com.openai.models.ReasoningEffort
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.chat.completions.ChatCompletionMessageParam
+import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 
-class OpenAiCompatAdapter(
-    override val providerId: String,
-    private val defaultBaseUrl: String,
-) : LlmAdapter {
+@Component
+class OpenAiCompatAdapter : LlmAdapter {
+    override val protocolId: String = "openai-compatible"
 
     override fun stream(
         modelId: String,
@@ -27,63 +27,61 @@ class OpenAiCompatAdapter(
 
         return Flux.create { sink ->
             try {
-                val client: OpenAIClient = OpenAIOkHttpClient.builder()
-                    .apiKey(decryptedApiKey)
-                    .baseUrl(baseUrlOverride ?: defaultBaseUrl)
-                    // Bound the socket so a hung provider (e.g. blackholed TLS)
-                    // fails instead of blocking the worker thread forever.
-                    .timeout(
-                        Timeout.builder()
-                            .connect(Duration.ofSeconds(15))
-                            .read(Duration.ofSeconds(120))
-                            .write(Duration.ofSeconds(30))
-                            .request(Duration.ofMinutes(10))
-                            .build(),
-                    )
-                    .build()
+                val baseUrl = requireNotNull(baseUrlOverride) { "baseUrlOverride is required" }
+                val client: OpenAIClient = OpenAIClientImpl(
+                    ClientOptions.builder()
+                        .apiKey(decryptedApiKey)
+                        .baseUrl(baseUrl)
+                        .httpClient(NoRedirectOpenAiTransport(baseUrl.toHttpUrl()))
+                        .build(),
+                )
 
-                val messages = buildMessages(request)
-                val paramsBuilder = ChatCompletionCreateParams.builder()
-                    .messages(messages)
-                    .model(modelId)
-                applyCustomParams(paramsBuilder, request.customParams)
-                val params = paramsBuilder.build()
+                try {
+                    val messages = buildMessages(request)
+                    val paramsBuilder = ChatCompletionCreateParams.builder()
+                        .messages(messages)
+                        .model(modelId)
+                    applyCustomParams(paramsBuilder, request.customParams)
+                    val params = paramsBuilder.build()
 
-                var inputTokens: Int? = null
-                var outputTokens: Int? = null
-                var accumulated = 0
+                    var inputTokens: Int? = null
+                    var outputTokens: Int? = null
+                    var accumulated = 0
 
-                client.chat().completions().createStreaming(params).use { streamResponse ->
-                    streamResponse.stream().forEach { chunk ->
-                        val chunkDelta = chunk.choices().firstOrNull()?.delta()
-                        val delta = chunkDelta?.content()?.orElse(null)
-                        if (delta != null && delta.isNotEmpty()) {
-                            sink.next(LlmStreamEvent.Token(modelId, delta))
-                            accumulated++
-                        }
-                        // DeepSeek-style reasoning channel, not part of the OpenAI schema
-                        val reasoningDelta = chunkDelta?._additionalProperties()
-                            ?.let { props -> props["reasoning_content"] ?: props["reasoning"] }
-                            ?.let { (it as? JsonString)?.value }
-                        if (!reasoningDelta.isNullOrEmpty()) {
-                            sink.next(LlmStreamEvent.Reasoning(modelId, reasoningDelta))
-                        }
-                        chunk.usage().ifPresent { usage ->
-                            inputTokens = usage.promptTokens().toInt()
-                            outputTokens = usage.completionTokens().toInt()
+                    client.chat().completions().createStreaming(params).use { streamResponse ->
+                        streamResponse.stream().forEach { chunk ->
+                            val chunkDelta = chunk.choices().firstOrNull()?.delta()
+                            val delta = chunkDelta?.content()?.orElse(null)
+                            if (delta != null && delta.isNotEmpty()) {
+                                sink.next(LlmStreamEvent.Token(modelId, delta))
+                                accumulated++
+                            }
+                            // DeepSeek-style reasoning channel, not part of the OpenAI schema
+                            val reasoningDelta = chunkDelta?._additionalProperties()
+                                ?.let { props -> props["reasoning_content"] ?: props["reasoning"] }
+                                ?.let { (it as? JsonString)?.value }
+                            if (!reasoningDelta.isNullOrEmpty()) {
+                                sink.next(LlmStreamEvent.Reasoning(modelId, reasoningDelta))
+                            }
+                            chunk.usage().ifPresent { usage ->
+                                inputTokens = usage.promptTokens().toInt()
+                                outputTokens = usage.completionTokens().toInt()
+                            }
                         }
                     }
-                }
 
-                sink.next(
-                    LlmStreamEvent.ModelComplete(
-                        modelId = modelId,
-                        inputTokens = inputTokens,
-                        outputTokens = outputTokens ?: accumulated,
-                        latencyMs = System.currentTimeMillis() - startMs,
-                    ),
-                )
-                sink.complete()
+                    sink.next(
+                        LlmStreamEvent.ModelComplete(
+                            modelId = modelId,
+                            inputTokens = inputTokens,
+                            outputTokens = outputTokens ?: accumulated,
+                            latencyMs = System.currentTimeMillis() - startMs,
+                        ),
+                    )
+                    sink.complete()
+                } finally {
+                    client.close()
+                }
             } catch (e: Exception) {
                 sink.next(LlmStreamEvent.ModelError(modelId, e.message ?: "Unknown error"))
                 sink.complete()

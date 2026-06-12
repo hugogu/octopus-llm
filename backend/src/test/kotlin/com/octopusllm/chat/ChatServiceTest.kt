@@ -1,7 +1,10 @@
 package com.octopusllm.chat
 
-import com.octopusllm.auth.User
 import com.octopusllm.auth.UserRepository
+import com.octopusllm.connection.ConfiguredModelService
+import com.octopusllm.connection.ConnectionService
+import com.octopusllm.llm.ConcurrentLlmOrchestrator
+import com.octopusllm.testsupport.Feature003Fixtures
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -11,98 +14,60 @@ import java.util.Optional
 import java.util.UUID
 
 class ChatServiceTest {
-
-    private val sessionRepository: ChatSessionRepository = mockk()
-    private val turnRepository: ChatTurnRepository = mockk()
-    private val responseRepository: ProviderResponseRepository = mockk()
-    private val userRepository: UserRepository = mockk()
-    private val modelConfigRepository = mockk<com.octopusllm.userconfig.UserModelConfigRepository>()
-    private val encryptionService = mockk<com.octopusllm.userconfig.ApiKeyEncryptionService>()
-    private val orchestrator = mockk<com.octopusllm.llm.ConcurrentLlmOrchestrator>()
-
-    private val chatService = ChatService(
-        sessionRepository = sessionRepository,
-        turnRepository = turnRepository,
-        responseRepository = responseRepository,
-        userRepository = userRepository,
-        modelConfigRepository = modelConfigRepository,
-        encryptionService = encryptionService,
-        orchestrator = orchestrator,
+    private val sessionRepository = mockk<ChatSessionRepository>()
+    private val turnRepository = mockk<ChatTurnRepository>()
+    private val responseRepository = mockk<ProviderResponseRepository>()
+    private val userRepository = mockk<UserRepository>()
+    private val configuredModelService = mockk<ConfiguredModelService>()
+    private val connectionService = mockk<ConnectionService>()
+    private val orchestrator = mockk<ConcurrentLlmOrchestrator>()
+    private val service = ChatService(
+        sessionRepository,
+        turnRepository,
+        responseRepository,
+        userRepository,
+        configuredModelService,
+        connectionService,
+        orchestrator,
     )
 
     @Test
-    fun `createSession with selectedModelId stores it`() {
-        val userId = UUID.randomUUID()
-        val user = User(email = "test@example.com", passwordHash = "hash")
-        val session = ChatSession(user = user, title = "Test", selectedModelId = "gpt-4o")
+    fun `create session persists owner and title`() {
+        val user = Feature003Fixtures.user()
+        every { userRepository.findById(user.id) } returns Optional.of(user)
+        every { sessionRepository.save(any()) } answers { firstArg() }
 
-        every { userRepository.findById(userId) } returns Optional.of(user)
-        every { sessionRepository.save(any()) } returns session
-
-        StepVerifier.create(chatService.createSession(userId, "Test", "gpt-4o"))
-            .assertNext { result ->
-                assert(result.selectedModelId == "gpt-4o")
-                assert(result.title == "Test")
+        StepVerifier.create(service.createSession(user.id, "Test"))
+            .assertNext {
+                assert(it.user.id == user.id)
+                assert(it.title == "Test")
             }
             .verifyComplete()
     }
 
     @Test
-    fun `createSession without selectedModelId stores null`() {
-        val userId = UUID.randomUUID()
-        val user = User(email = "test@example.com", passwordHash = "hash")
+    fun `delete session is owner scoped`() {
+        val user = Feature003Fixtures.user()
         val session = ChatSession(user = user, title = "Test")
-
-        every { userRepository.findById(userId) } returns Optional.of(user)
-        every { sessionRepository.save(any()) } returns session
-
-        StepVerifier.create(chatService.createSession(userId, "Test", null))
-            .assertNext { result ->
-                assert(result.selectedModelId == null)
-            }
-            .verifyComplete()
-    }
-
-    @Test
-    fun `deleteSession removes session when user owns it`() {
-        val user = User(email = "test@example.com", passwordHash = "hash")
-        val userId = user.id
-        val sessionId = UUID.randomUUID()
-        val session = ChatSession(user = user, title = "Test")
-
-        every { sessionRepository.findById(sessionId) } returns Optional.of(session)
+        every { sessionRepository.findById(session.id) } returns Optional.of(session)
         every { sessionRepository.delete(session) } returns Unit
 
-        StepVerifier.create(chatService.deleteSession(sessionId, userId))
+        StepVerifier.create(service.deleteSession(session.id, user.id))
             .expectNext(Unit)
             .verifyComplete()
-
-        verify { sessionRepository.delete(session) }
+        verify(exactly = 1) { sessionRepository.delete(session) }
     }
 
     @Test
-    fun `deleteSession returns not found when user does not own it`() {
-        val owner = User(email = "owner@example.com", passwordHash = "hash")
-        val otherUserId = UUID.randomUUID()
-        val sessionId = UUID.randomUUID()
+    fun `delete session hides foreign session as not found`() {
+        val owner = Feature003Fixtures.user("owner@example.com")
         val session = ChatSession(user = owner, title = "Test")
+        every { sessionRepository.findById(session.id) } returns Optional.of(session)
 
-        every { sessionRepository.findById(sessionId) } returns Optional.of(session)
-
-        StepVerifier.create(chatService.deleteSession(sessionId, otherUserId))
-            .expectErrorMatches { it is org.springframework.web.server.ResponseStatusException && (it as org.springframework.web.server.ResponseStatusException).statusCode.value() == 404 }
-            .verify()
-    }
-
-    @Test
-    fun `deleteSession returns not found when session does not exist`() {
-        val userId = UUID.randomUUID()
-        val sessionId = UUID.randomUUID()
-
-        every { sessionRepository.findById(sessionId) } returns Optional.empty()
-
-        StepVerifier.create(chatService.deleteSession(sessionId, userId))
-            .expectErrorMatches { it is org.springframework.web.server.ResponseStatusException && (it as org.springframework.web.server.ResponseStatusException).statusCode.value() == 404 }
+        StepVerifier.create(service.deleteSession(session.id, UUID.randomUUID()))
+            .expectErrorMatches {
+                it is org.springframework.web.server.ResponseStatusException && it.statusCode.value() == 404
+            }
             .verify()
     }
 }

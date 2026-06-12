@@ -17,8 +17,20 @@ class ProviderResponse(
     @JoinColumn(name = "turn_id", nullable = false)
     val turn: ChatTurn,
 
-    @Column(name = "model_id", nullable = false, length = 100)
+    @Column(name = "model_id", nullable = false, length = 255)
     val modelId: String,
+
+    @Column(name = "configured_model_id", nullable = false)
+    val configuredModelId: UUID,
+
+    @Column(name = "model_display_name", nullable = false, length = 255)
+    val modelDisplayName: String,
+
+    @Column(nullable = false, length = 50)
+    val protocol: String,
+
+    @Column(name = "connection_label", length = 255)
+    val connectionLabel: String? = null,
 
     @Column(nullable = false, length = 50)
     val status: String, // "complete" or "error"

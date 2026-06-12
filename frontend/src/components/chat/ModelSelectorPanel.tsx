@@ -1,47 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { UserModelConfig, ModelDefinition, ApiKeyMeta } from "@/lib/types/api";
-import ModelList from "@/components/models/ModelList";
+import { useMemo, useState } from "react";
+import type { ConfiguredModelV2 } from "@/lib/types/api";
 
 interface ModelSelectorPanelProps {
-  models: ModelDefinition[];
-  configs: UserModelConfig[];
-  apiKeys?: ApiKeyMeta[];
+  models: ConfiguredModelV2[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
 }
 
 export default function ModelSelectorPanel({
   models,
-  configs,
-  apiKeys = [],
   selectedIds,
   onChange,
 }: ModelSelectorPanelProps) {
   const [expanded, setExpanded] = useState(selectedIds.length === 0);
-  const hasManualToggleRef = useRef(false);
 
   const enabledModels = useMemo(() => {
-    const enabledIds = new Set(configs.filter((config) => config.isEnabled).map((config) => config.modelId));
-    return models.filter((model) => enabledIds.has(model.id));
-  }, [configs, models]);
+    return models.filter((model) => model.isEnabled);
+  }, [models]);
 
   const selectedModels = useMemo(() => {
     const selectedSet = new Set(selectedIds);
     return enabledModels.filter((model) => selectedSet.has(model.id));
   }, [enabledModels, selectedIds]);
 
-  useEffect(() => {
-    if (selectedIds.length === 0) {
-      setExpanded(true);
-      return;
-    }
-
-    if (!hasManualToggleRef.current) {
-      setExpanded(false);
-    }
-  }, [selectedIds.length]);
+  const pickerExpanded = expanded || selectedIds.length === 0;
 
   function toggle(id: string) {
     if (selectedIds.includes(id)) {
@@ -95,25 +79,46 @@ export default function ModelSelectorPanel({
           <button
             type="button"
             onClick={() => {
-              hasManualToggleRef.current = true;
               setExpanded((current) => !current);
             }}
             className="inline-flex items-center rounded-full bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-gray-700"
           >
-            {expanded ? "Hide picker" : "Change models"}
+            {pickerExpanded ? "Hide picker" : "Change models"}
           </button>
         </div>
       </div>
 
-      {expanded ? (
+      {pickerExpanded ? (
         <div className="mt-3 border-t border-gray-100 pt-3">
-          <ModelList
-            models={models}
-            configs={configs}
-            apiKeys={apiKeys}
-            selectedIds={selectedIds}
-            onToggle={toggle}
-          />
+          {enabledModels.length === 0 ? (
+            <p className="py-3 text-sm text-gray-500">
+              No enabled models. Configure one in Settings.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {enabledModels.map((model) => {
+                const selected = selectedIds.includes(model.id);
+                return (
+                  <button
+                    key={model.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggle(model.id)}
+                    className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                      selected
+                        ? "border-[#c96442] bg-[#c96442] text-white shadow-sm"
+                        : "border-stone-300 bg-white text-stone-700 hover:border-stone-500"
+                    }`}
+                  >
+                    <span className="font-medium">{model.displayName}</span>
+                    <span className={`ml-1.5 text-xs ${selected ? "text-orange-100" : "text-stone-400"}`}>
+                      {model.connectionLabel ?? model.protocol}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : null}
     </section>

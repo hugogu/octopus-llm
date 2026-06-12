@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { MessageSquare, Trash2, Plus, Clock } from 'lucide-react';
-import type { ChatSession } from '@/lib/types/api';
+import type { ChatSessionV2 } from '@/lib/types/api';
 import Button from '@/components/ui/Button';
 
 interface SessionSidebarProps {
-  sessions: ChatSession[];
+  sessions: ChatSessionV2[];
   currentSessionId?: string | null;
   onSelectSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;

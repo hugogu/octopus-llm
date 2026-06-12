@@ -1,19 +1,20 @@
-import type { GetSessionResponse } from '@/lib/types/api';
+import type { GetSessionResponseV2 } from '@/lib/types/api';
 
 /**
  * Renders a chat session (all turns and per-model responses) as a single
  * Markdown document suitable for download or sharing.
  */
 export function conversationToMarkdown(
-  session: GetSessionResponse,
-  displayNames: Record<string, string> = {},
+  session: GetSessionResponseV2,
 ): string {
   const lines: string[] = [`# ${session.title ?? 'Conversation'}`, ''];
 
   for (const turn of session.turns) {
     lines.push(`## You`, '', turn.promptText, '');
     for (const response of turn.responses) {
-      const name = displayNames[response.modelId] ?? response.modelId;
+      const name = response.connectionLabel
+        ? `${response.modelDisplayName} (${response.connectionLabel})`
+        : response.modelDisplayName;
       lines.push(`### ${name}`, '');
       if (response.status === 'error') {
         lines.push(`> ⚠️ Error: ${response.errorMessage ?? 'Unknown error'}`, '');

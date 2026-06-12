@@ -30,7 +30,7 @@ export interface LoginResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Models API — contracts/models-api.md
+// Shared model capabilities
 // ---------------------------------------------------------------------------
 
 export interface CapabilityMatrix {
@@ -44,168 +44,11 @@ export interface CapabilityMatrix {
   [key: string]: unknown;
 }
 
-export interface ModelDefinition {
-  id: string;
-  providerId: string;
-  displayName: string;
-  capabilityMatrix: CapabilityMatrix;
-  isActive: boolean;
-  source: "CATALOGUE" | "DISCOVERED" | "CUSTOM";
-}
-
-export interface ListModelsResponse {
-  models: ModelDefinition[];
-}
-
-// ---------------------------------------------------------------------------
-// User Config API — contracts/user-config-api.md
-// ---------------------------------------------------------------------------
-
-export interface ApiKeyMeta {
-  id: string;
-  providerId: string;
-  label: string | null;
-  baseUrl: string | null;
-  createdAt: string;
-}
-
-export interface AddApiKeyRequest {
-  providerId: string;
-  apiKey: string;
-  label?: string;
-  baseUrl?: string;
-}
-
-export interface UserModelConfig {
-  id: string;
-  modelId: string;
-  providerApiKeyId: string | null;
-  isEnabled: boolean;
-  customParams: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface UpsertModelConfigRequest {
-  modelId: string;
-  providerApiKeyId: string;
-  isEnabled?: boolean;
-  customParams?: Record<string, unknown>;
-}
-
-export interface PatchModelConfigRequest {
-  providerApiKeyId?: string;
-  isEnabled?: boolean;
-  customParams?: Record<string, unknown>;
-}
-
-export interface SyncProviderModelsRequest {
-  providerId: string;
-  providerApiKeyId?: string;
-}
-
-export interface CreateCustomModelRequest {
-  providerId: string;
-  modelId: string;
-  displayName?: string;
-  providerApiKeyId: string;
-  isEnabled?: boolean;
-  customParams?: Record<string, unknown>;
-  capabilityMatrix?: CapabilityMatrix;
-}
-
-// ---------------------------------------------------------------------------
-// Chat API — contracts/chat-api.md
-// ---------------------------------------------------------------------------
-
-export interface UserPreferences {
-  lastSelectedModelId: string | null;
-  themePreference: string;
-  sidebarCollapsed: boolean;
-}
-
-export interface UpdatePreferencesRequest {
-  lastSelectedModelId?: string;
-  themePreference?: string;
-  sidebarCollapsed?: boolean;
-}
-
-export interface ChatSession {
-  id: string;
-  title: string | null;
-  selectedModelId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface CreateSessionRequest {
-  title?: string;
-  selectedModelId?: string;
-}
-
-export interface CreateSessionResponse {
-  id: string;
-  title: string | null;
-  createdAt: string;
-}
-
-export interface ListSessionsResponse {
-  sessions: ChatSession[];
-  total: number;
-}
-
 export interface Attachment {
   type: string;
   data: string;
   mimeType: string;
 }
-
-export interface ProviderResponse {
-  modelId: string;
-  status: "complete" | "error";
-  responseText: string | null;
-  reasoningText: string | null;
-  errorMessage: string | null;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  latencyMs: number;
-}
-
-export interface ChatTurn {
-  id: string;
-  sequenceNum: number;
-  promptText: string;
-  attachments: Attachment[];
-  selectedModelIds: string[];
-  responses: ProviderResponse[];
-  createdAt: string;
-}
-
-export interface GetSessionResponse {
-  id: string;
-  title: string | null;
-  turns: ChatTurn[];
-}
-
-export interface SubmitTurnRequest {
-  promptText: string;
-  selectedModelIds: string[];
-  clientRequestId?: string;
-  attachments?: Attachment[];
-}
-
-// ---------------------------------------------------------------------------
-// SSE event types (chat streaming)
-// ---------------------------------------------------------------------------
-
-export type SseEvent =
-  | { event: "turn_created"; turnId: string; sequenceNum: number }
-  | { event: "capability_notice"; modelId: string; notice: string }
-  | { event: "token"; modelId: string; delta: string }
-  | { event: "reasoning"; modelId: string; delta: string }
-  | { event: "model_complete"; modelId: string; inputTokens: number; outputTokens: number; latencyMs: number }
-  | { event: "model_error"; modelId: string; error: string }
-  | { event: "all_complete" };
 
 // ---------------------------------------------------------------------------
 // Error response
@@ -216,3 +59,165 @@ export interface ApiError {
   message: string;
   details?: Record<string, unknown>;
 }
+
+export interface PageResponse<T> {
+  items: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+// ---------------------------------------------------------------------------
+// API v2 — protocol, connection, configured model, and chat
+// ---------------------------------------------------------------------------
+
+export interface ProtocolDefinitionV2 {
+  id: string;
+  displayName: string;
+  defaultBaseUrl: string | null;
+  capabilities: CapabilityMatrix;
+}
+
+export interface CatalogueEntryV2 {
+  protocol: string;
+  providerLabel: string;
+  modelId: string;
+  displayName: string;
+  suggestedBaseUrl: string;
+  capabilityOverrides: Record<string, unknown>;
+  customParams: Record<string, unknown>;
+}
+
+export interface ConnectionV2 {
+  id: string;
+  protocol: string;
+  label: string | null;
+  baseUrl: string;
+  hasKey: boolean;
+  modelCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddConnectionRequestV2 {
+  protocol: string;
+  label?: string;
+  baseUrl: string;
+  apiKey: string;
+}
+
+export interface PatchConnectionRequestV2 {
+  label?: string;
+  baseUrl?: string;
+}
+
+export interface ConfiguredModelV2 {
+  id: string;
+  connectionId: string;
+  connectionLabel: string | null;
+  protocol: string;
+  baseUrl: string;
+  modelId: string;
+  displayName: string;
+  capabilityOverrides: Record<string, unknown>;
+  capabilityMatrix: CapabilityMatrix;
+  customParams: Record<string, unknown>;
+  isEnabled: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddConfiguredModelRequestV2 {
+  connectionId: string;
+  modelId: string;
+  displayName: string;
+  capabilityOverrides?: Record<string, unknown>;
+  customParams?: Record<string, unknown>;
+  isEnabled?: boolean;
+}
+
+export interface PatchConfiguredModelRequestV2 {
+  displayName?: string;
+  isEnabled?: boolean;
+  capabilityOverrides?: Record<string, unknown>;
+  customParams?: Record<string, unknown>;
+  sortOrder?: number;
+}
+
+export interface UserPreferencesV2 {
+  lastSelectedConfiguredModelId: string | null;
+  themePreference: string;
+  sidebarCollapsed: boolean;
+}
+
+export interface UpdatePreferencesRequestV2 {
+  lastSelectedConfiguredModelId?: string | null;
+  themePreference?: string;
+  sidebarCollapsed?: boolean;
+}
+
+export interface ChatSessionV2 {
+  id: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProviderResponseV2 {
+  configuredModelId: string;
+  modelId: string;
+  modelDisplayName: string;
+  protocol: string;
+  connectionLabel: string | null;
+  status: "complete" | "error";
+  responseText: string | null;
+  reasoningText: string | null;
+  errorMessage: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  latencyMs: number;
+}
+
+export interface ChatTurnV2 {
+  id: string;
+  sequenceNum: number;
+  promptText: string;
+  selectedModelIds: string[];
+  selectedConfiguredModelIds: string[];
+  responses: ProviderResponseV2[];
+  createdAt: string;
+}
+
+export interface GetSessionResponseV2 {
+  id: string;
+  title: string | null;
+  turns: ChatTurnV2[];
+}
+
+export interface SubmitTurnRequestV2 {
+  promptText: string;
+  selectedConfiguredModelIds: string[];
+  clientRequestId?: string;
+  attachments?: Attachment[];
+}
+
+type ModelSseIdentity = {
+  configuredModelId: string;
+  modelId: string;
+};
+
+export type SseEventV2 =
+  | { event: "turn_created"; turnId: string; sequenceNum: number }
+  | (ModelSseIdentity & { event: "capability_notice"; notice: string })
+  | (ModelSseIdentity & { event: "token"; delta: string })
+  | (ModelSseIdentity & { event: "reasoning"; delta: string })
+  | (ModelSseIdentity & {
+      event: "model_complete";
+      inputTokens: number;
+      outputTokens: number;
+      latencyMs: number;
+    })
+  | (ModelSseIdentity & { event: "model_error"; error: string })
+  | { event: "all_complete" };

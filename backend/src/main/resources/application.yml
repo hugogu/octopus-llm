@@ -44,3 +44,5 @@ app:
     master-key: ${ENCRYPTION_MASTER_KEY}
   frontend:
     url: ${FRONTEND_URL:http://localhost:3000}
+  connections:
+    allow-local-http: ${ALLOW_LOCAL_CONNECTION_HTTP:false}

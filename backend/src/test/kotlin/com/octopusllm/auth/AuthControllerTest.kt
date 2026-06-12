@@ -57,7 +57,7 @@ class AuthControllerTest {
         require(!bearer.isNullOrBlank()) { "Expected to extract JWT from login response body" }
 
         webTestClient.post()
-            .uri("/api/v1/chat/sessions")
+            .uri("/api/v2/chat/sessions")
             .header("Authorization", "Bearer $bearer")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(mapOf("title" to "auth-check"))

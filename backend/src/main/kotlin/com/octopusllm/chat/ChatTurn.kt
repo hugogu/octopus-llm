@@ -33,6 +33,10 @@ class ChatTurn(
     @Column(name = "selected_model_ids", nullable = false, columnDefinition = "TEXT[]")
     val selectedModelIds: Array<String>,
 
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "selected_configured_model_ids", nullable = false, columnDefinition = "UUID[]")
+    val selectedConfiguredModelIds: Array<UUID> = emptyArray(),
+
     @Column(name = "client_request_id", length = 100)
     val clientRequestId: String? = null,
 

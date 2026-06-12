@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -11,17 +11,26 @@ export default function Input({
   error,
   helperText,
   className = '',
+  id,
+  name,
   ...props
 }: InputProps) {
+  const generatedId = useId();
+  const inputId = id || name || generatedId;
+  const descriptionId = error || helperText ? `${inputId}-description` : undefined;
+
   return (
     <div className="w-full">
       {label && (
-        <label htmlFor={props.id || props.name} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+        <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
           {label}
         </label>
       )}
       <input
-        id={props.id || props.name}
+        id={inputId}
+        name={name}
+        aria-describedby={descriptionId}
+        aria-invalid={error ? true : undefined}
         className={`
           w-full px-3.5 py-2.5 rounded-lg border bg-white dark:bg-gray-900
           text-gray-900 dark:text-gray-100 placeholder-gray-400
@@ -36,10 +45,10 @@ export default function Input({
         {...props}
       />
       {error && (
-        <p className="mt-1.5 text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p id={descriptionId} className="mt-1.5 text-sm text-red-600 dark:text-red-400">{error}</p>
       )}
       {helperText && !error && (
-        <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{helperText}</p>
+        <p id={descriptionId} className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{helperText}</p>
       )}
     </div>
   );

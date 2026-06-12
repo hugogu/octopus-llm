@@ -1,5 +1,6 @@
 package com.octopusllm.config
 
+import com.octopusllm.api.v2.ApiErrorResponse
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.FieldError
@@ -7,12 +8,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.server.ResponseStatusException
 import reactor.core.publisher.Mono
-
-data class ApiErrorResponse(
-    val code: String,
-    val message: String,
-    val details: Map<String, Any> = emptyMap(),
-)
 
 class DuplicateRequestException(val turnId: String) : RuntimeException("Duplicate client request ID")
 
@@ -29,10 +24,16 @@ class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(DuplicateRequestException::class)
-    fun handleDuplicateRequest(ex: DuplicateRequestException): Mono<ResponseEntity<Map<String, String>>> {
+    fun handleDuplicateRequest(ex: DuplicateRequestException): Mono<ResponseEntity<ApiErrorResponse>> {
         return Mono.just(
             ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(mapOf("turnId" to ex.turnId)),
+                .body(
+                    ApiErrorResponse(
+                        code = "DUPLICATE_REQUEST",
+                        message = ex.message ?: "Duplicate client request ID",
+                        details = mapOf("turnId" to ex.turnId),
+                    ),
+                ),
         )
     }
 

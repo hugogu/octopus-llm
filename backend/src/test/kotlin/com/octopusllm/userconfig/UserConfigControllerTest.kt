@@ -61,12 +61,12 @@ class UserConfigControllerTest {
         val (_, token) = createUserAndToken()
 
         webTestClient.get()
-            .uri("/api/v1/user/preferences")
+            .uri("/api/v2/user/preferences")
             .header("Authorization", "Bearer $token")
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.lastSelectedModelId").isEmpty
+            .jsonPath("$.lastSelectedConfiguredModelId").isEmpty
             .jsonPath("$.themePreference").isEqualTo("system")
             .jsonPath("$.sidebarCollapsed").isEqualTo(false)
     }
@@ -74,23 +74,25 @@ class UserConfigControllerTest {
     @Test
     fun `put preferences updates all fields`() {
         val (user, token) = createUserAndToken()
-        userPreferenceRepository.save(UserPreference(user = user, lastSelectedModelId = "old-model"))
+        val oldModelId = java.util.UUID.randomUUID()
+        val newModelId = java.util.UUID.randomUUID()
+        userPreferenceRepository.save(UserPreference(user = user, lastSelectedConfiguredModelId = oldModelId))
 
         val updateBody = mapOf(
-            "lastSelectedModelId" to "gpt-4o",
+            "lastSelectedConfiguredModelId" to newModelId,
             "themePreference" to "dark",
             "sidebarCollapsed" to true,
         )
 
         webTestClient.put()
-            .uri("/api/v1/user/preferences")
+            .uri("/api/v2/user/preferences")
             .header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(updateBody)
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.lastSelectedModelId").isEqualTo("gpt-4o")
+            .jsonPath("$.lastSelectedConfiguredModelId").isEqualTo(newModelId.toString())
             .jsonPath("$.themePreference").isEqualTo("dark")
             .jsonPath("$.sidebarCollapsed").isEqualTo(true)
     }
@@ -101,23 +103,24 @@ class UserConfigControllerTest {
         userPreferenceRepository.save(
             UserPreference(
                 user = user,
-                lastSelectedModelId = "old-model",
+                lastSelectedConfiguredModelId = java.util.UUID.randomUUID(),
                 themePreference = "light",
                 sidebarCollapsed = false,
             ),
         )
 
-        val patchBody = mapOf("lastSelectedModelId" to "claude-3")
+        val newModelId = java.util.UUID.randomUUID()
+        val patchBody = mapOf("lastSelectedConfiguredModelId" to newModelId)
 
         webTestClient.patch()
-            .uri("/api/v1/user/preferences")
+            .uri("/api/v2/user/preferences")
             .header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(patchBody)
             .exchange()
             .expectStatus().isOk
             .expectBody()
-            .jsonPath("$.lastSelectedModelId").isEqualTo("claude-3")
+            .jsonPath("$.lastSelectedConfiguredModelId").isEqualTo(newModelId.toString())
             .jsonPath("$.themePreference").isEqualTo("light")
             .jsonPath("$.sidebarCollapsed").isEqualTo(false)
     }
@@ -129,18 +132,18 @@ class UserConfigControllerTest {
         val updateBody = mapOf("themePreference" to "invalid-theme")
 
         webTestClient.put()
-            .uri("/api/v1/user/preferences")
+            .uri("/api/v2/user/preferences")
             .header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(updateBody)
             .exchange()
-            .expectStatus().is5xxServerError
+            .expectStatus().isBadRequest
     }
 
     @Test
     fun `get preferences without auth returns unauthorized`() {
         webTestClient.get()
-            .uri("/api/v1/user/preferences")
+            .uri("/api/v2/user/preferences")
             .exchange()
             .expectStatus().isUnauthorized
     }

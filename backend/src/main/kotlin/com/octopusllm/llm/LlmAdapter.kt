@@ -3,7 +3,7 @@ package com.octopusllm.llm
 import reactor.core.publisher.Flux
 
 interface LlmAdapter {
-    val providerId: String
+    val protocolId: String
     fun stream(
         modelId: String,
         request: LlmRequest,

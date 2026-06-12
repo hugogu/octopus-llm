@@ -1,394 +1,181 @@
-# Spec 003 — Protocol / Connection / ConfiguredModel Redesign
+# Design: Protocol, Connection, and Configured Model
 
-**Date:** 2026-06-12  
-**Branch:** 003-protocol-connection-model  
-**Status:** Draft
-
----
+**Date:** 2026-06-12
+**Branch:** `003-protocol-connection-model`
+**Status:** Approved for task generation
+**Canonical requirements:** [spec.md](./spec.md)
+**Implementation architecture:** [plan.md](./plan.md)
 
 ## Problem
 
-The current model-configuration layer has three intertwined issues:
+The current design conflates provider branding, wire protocol, credentials, and model identity:
 
-1. **Provider is an overloaded concept.** "OpenAI", "Moonshot", and "Kimi" are all OpenAI-compatible endpoints — identical wire protocol, different base URLs. The current schema forces three separate provider entries, three sync flows, and confuses users who just want to point a key at a URL.
-
-2. **Adding a model ID requires adding a new DB record to a shared table.** `model_definitions` is a global catalogue that mixes CATALOGUE seeds, DISCOVERED rows, and CUSTOM entries. A user wanting to try a new model-id on an existing endpoint must file a new `UserModelConfig` row — and has no way to delete it.
-
-3. **`ProviderModelSyncService` is fragile.** Discovery via live API calls creates phantom models, fails silently when providers change their list endpoint, and leaves stale rows. Its only purpose is populating `model_definitions` with strings the user could type themselves.
-
----
-
-## Goals
-
-- Introduce **Protocol** as the wire-level abstraction replacing provider as the primary grouping.
-- Introduce **Connection** (replaces `provider_api_keys`) — one endpoint URL + one encrypted key.
-- Introduce **ConfiguredModel** (replaces `user_model_configs` + per-user `model_definitions`) — a model-id string bound to a connection, fully owned by the user, deletable.
-- Delete `ProviderModelSyncService` and its database discovery path.
-- Redesign the Settings page to reflect the new three-level structure.
-
----
-
-## Non-goals
-
-- Migrating existing data. Tables are dropped and recreated (clean rebuild).
-- Multi-user / multi-tenant beyond current user scoping.
-- Custom protocol implementation — protocols are a closed, code-level enumeration.
-
----
+- OpenAI-compatible endpoints require duplicated provider-specific adapter configuration.
+- User-entered model IDs become global `model_definitions` rows.
+- Live model discovery creates stale or unavailable catalogue entries.
+- A model ID string cannot distinguish the same model used through two connections.
 
 ## Domain Model
 
-### Protocol (static code constants — no DB table)
+### Protocol Definition
 
-A protocol is a wire format. There are exactly three, defined in a Kotlin `object`:
+A static code definition identifies a wire protocol and its conservative defaults. Supported initial IDs are:
 
-| Id | Description | Adapter class |
-|----|-------------|---------------|
-| `openai-compatible` | OpenAI Chat Completions API, including reasoning via `_additionalProperties` | `OpenAiCompatAdapter` |
-| `anthropic` | Anthropic Messages API with native thinking blocks | `AnthropicAdapter` |
-| `minimax` | MiniMax proprietary SSE format | `MinimaxAdapter` |
+- `openai-compatible`
+- `anthropic`
+- `minimax`
 
-Each protocol carries a **capability baseline** — the set of capabilities guaranteed by the wire format (e.g. `openai-compatible` supports streaming, function calls, vision; `anthropic` supports thinking). Individual models can override the baseline.
+The protocol definition does not claim model-specific features. Vision, reasoning, function calling, video, and context length are supplied by catalogue or user overrides.
 
-Provider names (openai, moonshot, deepseek, kimi, zhipu, anthropic, minimax …) become **display labels** on Connections, not first-class entities. The catalogue still groups suggested models under human-readable provider names, but this is cosmetic.
+Each `LlmAdapter` declares `protocolId`. `ProtocolAdapterRegistry` receives adapters through Spring injection and rejects duplicate registrations. The orchestrator resolves adapters only through this registry.
 
-### Connection (DB table: `connections`)
+### Connection
 
-One connection = one (base URL, API key, protocol) triple.
+A connection is a user-owned protocol endpoint and credential:
 
-```
-id            UUID PK
-user_id       UUID FK → users
-protocol      VARCHAR(50) NOT NULL  -- 'openai-compatible' | 'anthropic' | 'minimax'
-label         VARCHAR(255)          -- user-chosen, e.g. "My Kimi key"
-base_url      VARCHAR(500) NOT NULL -- e.g. "https://api.moonshot.cn/v1"
-encrypted_key BYTEA NOT NULL
-key_iv        BYTEA NOT NULL
-created_at    TIMESTAMPTZ
-updated_at    TIMESTAMPTZ
-```
-
-A single user can have multiple connections to the same protocol (e.g. a personal OpenAI key and a work Azure-OpenAI endpoint).
-
-### ConfiguredModel (DB table: `configured_models`)
-
-One row = one model available to the user in the chat picker.
-
-```
-id                    UUID PK
-user_id               UUID FK → users
-connection_id         UUID FK → connections ON DELETE CASCADE
-model_id              VARCHAR(255) NOT NULL  -- literal string sent in API calls, e.g. "kimi-k2"
-display_name          VARCHAR(255) NOT NULL  -- shown in UI
-capability_overrides  JSONB NOT NULL DEFAULT '{}'
-custom_params         JSONB NOT NULL DEFAULT '{}'
-is_enabled            BOOLEAN NOT NULL DEFAULT TRUE
-sort_order            INT NOT NULL DEFAULT 0
-created_at            TIMESTAMPTZ
-updated_at            TIMESTAMPTZ
+```text
+id             UUID primary key
+user_id        UUID not null
+protocol       varchar(50) not null
+label          varchar(255)
+base_url       varchar(500) not null
+encrypted_key  bytea not null
+key_iv         bytea not null
+created_at     timestamptz not null
+updated_at     timestamptz not null
+unique(user_id, id)
 ```
 
-`capability_overrides` is merged on top of the protocol baseline at runtime. Only keys present in the override object are replaced.
+Responses expose `hasKey` but no key-derived text. Key rotation updates encrypted key material without replacing the connection.
 
-Users can **delete** any `ConfiguredModel` row. Deleting a `Connection` cascades to all its `ConfiguredModel` rows.
+### Configured Model
 
-### Catalogue (static Kotlin object — no DB table)
+A configured model is the operational model identity:
 
-`ModelCatalogue` replaces the seeded `model_definitions` table. It is a Kotlin `object` that returns a list of catalogue entries:
-
-```kotlin
-data class CatalogueEntry(
-    val modelId: String,
-    val displayName: String,
-    val protocol: String,
-    val suggestedBaseUrl: String,
-    val providerLabel: String,      // cosmetic grouping label, e.g. "Moonshot"
-    val capabilityOverrides: Map<String, Any?> = emptyMap(),
-    val customParams: Map<String, Any?> = emptyMap(),
-)
+```text
+id                    UUID primary key
+user_id               UUID not null
+connection_id         UUID not null
+model_id              varchar(255) not null
+display_name          varchar(255) not null
+capability_overrides  jsonb not null default '{}'
+custom_params         jsonb not null default '{}'
+is_enabled            boolean not null default true
+sort_order            integer not null default 0
+created_at            timestamptz not null
+updated_at            timestamptz not null
+foreign key (user_id, connection_id) references connections(user_id, id)
 ```
 
-The catalogue is used only to pre-fill the "Add model" form. It is not authoritative — users can type any model-id.
+Duplicate `model_id` values are allowed. UUID identifies the selected configuration and stream; `model_id` remains the literal provider request value.
 
-`ProviderModelSyncService` is **deleted**.
+### Immutable Provider Response Snapshot
 
----
+Historical responses retain:
 
-## Database Migration
-
-The migration is a **clean rebuild** — drop old tables, create new ones. No data migration.
-
-Migration `V017__protocol_connection_model_rebuild.sql`, executed in this order:
-
-1. `ALTER TABLE provider_responses DROP CONSTRAINT IF EXISTS provider_responses_model_id_fkey` — `provider_responses.model_id` holds a FK to `model_definitions(id)`; PostgreSQL refuses to drop `model_definitions` until this FK is removed. The column is kept as a plain `VARCHAR` for historical logging.
-2. `ALTER TABLE user_preferences DROP COLUMN IF EXISTS last_selected_model_id` — stored a model-id string which has no equivalent in the new scheme; the "last selected model" feature is re-added in a later migration using `configured_model_id UUID`.
-3. `ALTER TABLE chat_sessions DROP COLUMN IF EXISTS selected_model_id` — same stale-string problem; re-added later as `UUID`.
-4. Drop tables (in FK-safe order): `user_model_configs`, `model_definitions`, `provider_api_keys`
-5. Create `connections`
-6. Create `configured_models`
-
-All Flyway migrations prior to V017 remain intact for history.
-
----
-
-## Backend Changes
-
-### New packages / files
-
-| File | Purpose |
-|------|---------|
-| `model/Protocol.kt` | Sealed class + object with 3 instances; capability baseline per protocol |
-| `model/ModelCatalogue.kt` | Static catalogue entries |
-| `connection/Connection.kt` | JPA entity for `connections` |
-| `connection/ConnectionRepository.kt` | Spring Data |
-| `connection/ConfiguredModel.kt` | JPA entity for `configured_models` |
-| `connection/ConfiguredModelRepository.kt` | Spring Data |
-| `connection/ConnectionService.kt` | CRUD + key encryption/decryption |
-| `connection/ConnectionController.kt` | REST endpoints |
-
-### Deleted files
-
-- `userconfig/ProviderApiKey.kt`, `ProviderApiKeyRepository.kt`, `ProviderModelSyncService.kt`
-- `userconfig/UserModelConfig.kt`, `UserModelConfigRepository.kt`
-- `model/ModelDefinition.kt`, `ModelDefinitionRepository.kt`, `ModelCatalogueService.kt`
-- `model/ModelCatalogueController.kt` (replaced by `ConnectionController`)
-- `llm/ProviderDefaults.kt` (replaced by `Protocol` object)
-
-### REST API
-
-All endpoints are under `/api/v1/`.
-
-#### Protocols (public, no auth)
-
-```
-GET /protocols
-→ { protocols: [{ id, displayName, defaultBaseUrl, capabilities }] }
+```text
+configured_model_id       UUID not null
+model_id                  varchar(255) not null
+model_display_name        varchar(255) not null
+protocol                  varchar(50) not null
+connection_label          varchar(255)
+unique(turn_id, configured_model_id)
 ```
 
-#### Connections (auth required)
+`configured_model_id` is intentionally not a cascading FK. Configuration deletion cannot modify historical attribution.
 
-```
-GET    /connections                    → { connections: [...ConnectionResponse] }
-POST   /connections                    ← AddConnectionRequest
-PATCH  /connections/{id}               ← PatchConnectionRequest
-DELETE /connections/{id}               → 204
-```
+## API Design
 
-`AddConnectionRequest`:
-```json
-{
-  "protocol": "openai-compatible",
-  "label": "My Kimi key",
-  "baseUrl": "https://api.kimi.com/v1",
-  "apiKey": "sk-..."
-}
-```
+Breaking resources use `/api/v2`.
 
-`PatchConnectionRequest` (all fields optional):
-```json
-{ "label": "Renamed", "baseUrl": "https://..." }
-```
+### Public
 
-`ConnectionResponse`:
-```json
-{
-  "id": "uuid",
-  "protocol": "openai-compatible",
-  "label": "My Kimi key",
-  "baseUrl": "https://api.kimi.com/v1",
-  "maskedKey": "sk-...••••",
-  "modelCount": 3,
-  "createdAt": "...",
-  "updatedAt": "..."
-}
-```
+- `GET /api/v2/protocols`
+- `GET /api/v2/catalogue`
 
-#### Configured Models (auth required)
+### Authenticated
 
-```
-GET    /configured-models              → { models: [...ConfiguredModelResponse] }
-POST   /configured-models              ← AddModelRequest
-PATCH  /configured-models/{id}         ← PatchModelRequest
-DELETE /configured-models/{id}         → 204
-```
+- `GET|POST /api/v2/connections`
+- `PATCH|DELETE /api/v2/connections/{id}`
+- `PUT /api/v2/connections/{id}/key`
+- `GET|POST /api/v2/configured-models`
+- `PATCH|DELETE /api/v2/configured-models/{id}`
+- `/api/v2/chat/sessions/**`
 
-`AddModelRequest`:
-```json
-{
-  "connectionId": "uuid",
-  "modelId": "kimi-k2",
-  "displayName": "Kimi K2",
-  "capabilityOverrides": { "maxContextTokens": 131072 },
-  "customParams": {},
-  "isEnabled": true
-}
-```
+All collection endpoints use `{items, page, size, totalElements, totalPages}`, default size 25, maximum size 100, and deterministic ordering.
 
-`PatchModelRequest` (all fields optional):
-```json
-{ "displayName": "Kimi K2 Pro", "isEnabled": false, "capabilityOverrides": {}, "sortOrder": 2 }
-```
+Affected v1 model, configuration, and chat endpoints are removed in a coordinated backend/frontend major-version cutover. Unaffected v1 authentication endpoints may remain available.
 
-`ConfiguredModelResponse`:
-```json
-{
-  "id": "uuid",
-  "connectionId": "uuid",
-  "protocol": "openai-compatible",
-  "baseUrl": "https://api.kimi.com/v1",
-  "modelId": "kimi-k2",
-  "displayName": "Kimi K2",
-  "capabilityOverrides": {},
-  "customParams": {},
-  "isEnabled": true,
-  "sortOrder": 0,
-  "createdAt": "...",
-  "updatedAt": "..."
-}
-```
+## Endpoint Security
 
-`GET /configured-models` accepts an optional query parameter:
-- `?enabled=true` — returns only enabled models (used by the chat picker)
+Connection URLs are normalized and validated:
 
-#### Catalogue (public, no auth)
+- HTTPS is required in production.
+- Userinfo and fragments are rejected.
+- All DNS answers must be public unicast addresses.
+- Private, loopback, link-local, multicast, unspecified, carrier-grade NAT, benchmarking, documentation, and metadata destinations are rejected.
+- Redirects are disabled unless the adapter explicitly requires them; every redirect is revalidated.
+- Local HTTP requires an explicit development-only property and a loopback hostname.
 
-```
-GET /catalogue
-→ { entries: [...CatalogueEntry] }
-  optionally: ?protocol=openai-compatible
-```
+The endpoint is revalidated immediately before dispatch to reduce DNS rebinding risk. Production deployment should also apply network egress policy.
 
-### Orchestrator changes
+Owner-scoped repository methods return 404 for missing and foreign resources. Authentication is required before key decryption or provider dispatch.
 
-`ConcurrentLlmOrchestrator` currently uses `AdapterRegistry` (a Spring `@Component` with a `Map<String, LlmAdapter>`) to look up an adapter by `providerId`. After this change:
+## Capability Merge
 
-- **`AdapterRegistry` is deleted.** `OpenAiCompatAdapter`, `AnthropicAdapter`, and `MinimaxAdapter` are directly injected as constructor parameters into the orchestrator.
-- **`OpenAiCompatAdapter` no longer receives a `defaultBaseUrl` at construction time** — the base URL always comes from `Connection.baseUrl` at runtime via the `baseUrlOverride` parameter (which already exists on the `stream()` method).
-- The adapter lookup switches from `providerId` to `protocol` via a `when` expression in the orchestrator.
+Known override keys are type-validated and merged onto protocol defaults. A patch value of `null` removes a stored key. Omitted keys remain unchanged. Unknown keys are preserved for forward compatibility but do not influence routing unless an adapter explicitly consumes them.
 
-`ModelDispatchTarget` fields:
-- `configuredModelId: UUID` (for logging / response attribution)
-- `modelId: String` (the API model string sent in API calls)
-- `protocol: String`
-- `baseUrl: String`
-- `decryptedApiKey: String`
-- `capabilityMatrix: CapabilityMatrix` (merged: protocol baseline + overrides)
-- `customParams: Map<String, Any?>`
+The same merge semantics apply independently to `customParams`.
 
-```kotlin
-private fun adapterFor(protocol: String): LlmAdapter = when (protocol) {
-    "openai-compatible" -> openAiCompatAdapter
-    "anthropic" -> anthropicAdapter
-    "minimax" -> minimaxAdapter
-    else -> throw IllegalArgumentException("Unknown protocol: $protocol")
-}
-```
+## Migration
 
-### Chat service changes
+`V017__protocol_connection_model_migration.sql` runs transactionally:
 
-`ChatService.submitTurn()` currently accepts a list of `modelId` strings and resolves them through `UserModelConfig` → `ModelDefinition` → `ProviderApiKey`. After this change:
+1. Create `connections`, `configured_models`, and migration audit structures.
+2. Copy each provider key to a connection, preserving encrypted key and IV bytes.
+3. Map provider IDs to protocols and calculate effective base URLs.
+4. Copy usable user model configs to configured models.
+5. Add and backfill response snapshot columns.
+6. Add `selected_configured_model_ids` to chat turns and map rows where possible.
+7. Validate migrated counts and ownership consistency.
+8. Replace response uniqueness with `(turn_id, configured_model_id)`.
+9. Remove obsolete FKs/tables only after validation succeeds.
 
-- `SubmitTurnRequest.selectedModelIds: List<String>` → **`selectedConfiguredModelIds: List<UUID>`** (breaking change to the REST contract; frontend chat picker is updated in sync).
-- The service resolves each UUID through `ConfiguredModel` → `Connection` to obtain `modelId`, `protocol`, `baseUrl`, and the decrypted key.
-- `chat_turns.selected_model_ids TEXT[]` **keeps its current type** — the service stores the resolved model-id strings (e.g. `"kimi-k2"`) into this column, preserving the historical record. No schema change required for this column.
+Historical prompts and response payloads are never deleted or updated beyond adding attribution snapshots.
 
----
+## UI
 
-## Frontend Changes
+`/settings/models` is the single management entry point:
 
-### Deleted components
+- Connection cards show label, protocol, endpoint, `hasKey`, and models.
+- Add/Edit Connection supports endpoint validation and key rotation.
+- Add Model uses catalogue suggestions when available and always supports manual entry.
+- Edit Model supports display name, enabled state, order, capabilities, and custom parameters.
+- Destructive actions require confirmation.
+- A single Back to Chat action returns to the chat page.
 
-- `ApiKeyForm.tsx`, `ApiKeyBaseUrlEditor.tsx`, `CustomModelForm.tsx`, `ModelCard.tsx`, `ModelConfigControls.tsx`
-- `ModelsSettingsPage.tsx` (full rewrite)
-
-### New components
-
-| Component | Purpose |
-|-----------|---------|
-| `settings/connections/ConnectionCard.tsx` | Card showing one connection: protocol badge, base URL, masked key, model count; edit/delete |
-| `settings/connections/AddConnectionDialog.tsx` | Modal: protocol selector → base URL (pre-filled from protocol default) → API key → label. If `GET /protocols` fails, the dialog shows an error banner and the submit button remains disabled. |
-| `settings/connections/ModelRow.tsx` | One row inside a connection card: enabled dot, model-id (mono), display name, capability tags, edit / delete |
-| `settings/connections/AddModelDialog.tsx` | Modal: model-id input or catalogue picker → display name → capability overrides |
-| `settings/connections/EditModelDialog.tsx` | Modal: edit display name, toggle enabled, edit capability overrides |
-
-### Settings page layout
-
-`/settings/models` page:
-
-```
-[Add connection]                              ← top-right button
-
-┌─ Connection card ───────────────────────────────────────────────────┐
-│ Label: "My OpenAI key"    [openai-compatible]    api.openai.com/v1  │
-│ ──────────────────────────────────────────────────────────────────  │
-│ ● gpt-4o          GPT-4o        vision context:128k   [Edit][Del]   │
-│ ● gpt-4o-mini     GPT-4o Mini   vision               [Edit][Del]   │
-│ [Add model]                                                         │
-│                                                        [Edit][Del]  │
-└─────────────────────────────────────────────────────────────────────┘
-
-┌─ Connection card ───────────────────────────────────────────────────┐
-│ Label: "Kimi key"         [openai-compatible]    api.kimi.com/v1    │
-│ ──────────────────────────────────────────────────────────────────  │
-│ ● kimi-k2         Kimi K2       context:131k          [Edit][Del]   │
-│ [Add model]                                                         │
-│                                                        [Edit][Del]  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### Chat model picker
-
-The picker calls `GET /configured-models` (filtered `isEnabled=true`) and groups results by `connectionId` / `protocol`. Model identity used in `submitTurn` changes from `modelId: string` to `configuredModelId: UUID`.
-
-### API client changes
-
-New file: `src/lib/api/connections.ts` (replaces `userConfig.ts` methods for keys/models).
-
----
-
-## Error Handling
-
-| Scenario | Behaviour |
-|----------|-----------|
-| Delete connection with active models | Cascade delete — ConfiguredModel rows removed by DB FK |
-| Delete model while session in progress | No runtime impact; next message won't include the model |
-| Invalid base URL on add connection | Backend `normalizeBaseUrl()` validates http/https; 400 |
-| Duplicate model-id on same connection | Allowed — user can have two rows for same model-id if desired |
-| Protocol unknown | 400 from backend |
-
----
+The chat picker uses configured-model UUIDs, groups models by connection, and remains compact when many models are configured.
 
 ## Testing
 
-### Backend
+Required automated coverage:
 
-- `ConnectionServiceTest`: add/patch/delete connection, key encryption round-trip
-- `ConnectionControllerTest`: REST contract (MockMvc), auth guard
-- `ConfiguredModelServiceTest`: add/patch/delete, cascade on connection delete
-- `OrchestratorTest`: `adapterFor("openai-compatible")` selects correct adapter
+- V016-to-V017 migration and rollback.
+- API v2 pagination and standard error envelopes.
+- API key non-disclosure and key rotation.
+- Owner isolation and composite ownership constraint.
+- SSRF address classes, DNS results, and redirect targets.
+- Capability/custom-parameter merge semantics.
+- Registry extensibility without orchestrator edits.
+- Duplicate model IDs producing separate concurrent streams and persisted responses.
+- Historical session rendering after configuration deletion.
+- Settings and chat user journeys.
 
-### Frontend
+## Resolved Decisions
 
-- `ConnectionCard.test.tsx`: renders protocol badge, model count, delete confirm
-- `AddConnectionDialog.test.tsx`: base URL pre-fills from protocol default; submits
-- `ModelRow.test.tsx`: enabled toggle calls PATCH; delete button calls DELETE
-
-### `capability_overrides` null-removal semantics
-
-When patching a model, a key set to `null` in `capabilityOverrides` **removes** that key from the stored JSONB (reverts to the protocol baseline). A key present with a non-null value replaces the stored value. Keys not mentioned in the patch are left unchanged. The backend applies this via a merge-then-strip approach (`jsonb_strip_nulls` on the merged object).
-
-### API key rotation
-
-`PatchConnectionRequest` allows editing `label` and `baseUrl` but **not the API key**. Rotating a compromised key requires deleting the connection and re-creating it (all `ConfiguredModel` rows cascade-delete and must be re-added). This is intentional for the initial implementation; key rotation can be added later as `PUT /connections/{id}/key`.
-
----
-
-## Open Questions
-
-None — all design decisions resolved in brainstorming session and spec review.
-
----
-
-## Implementation Plan
-
-See `specs/003-protocol-connection-model/plan.md` (generated by writing-plans skill after this spec is approved).
+- No clean rebuild or destructive configuration loss.
+- No adapter enumeration in the orchestrator.
+- No key fragments in API responses.
+- No live provider model discovery.
+- No model-specific capability claims at protocol level.
+- No breaking contract changes under `/api/v1`.

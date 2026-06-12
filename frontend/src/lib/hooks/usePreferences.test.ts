@@ -11,7 +11,7 @@ describe('usePreferences', () => {
 
   it('loads preferences on mount', async () => {
     const mockPreferences = {
-      lastSelectedModelId: 'gpt-4o',
+      lastSelectedConfiguredModelId: 'model-uuid',
       themePreference: 'dark',
       sidebarCollapsed: true,
     };
@@ -42,7 +42,7 @@ describe('usePreferences', () => {
 
   it('saves preferences', async () => {
     const mockPreferences = {
-      lastSelectedModelId: 'gpt-4o',
+      lastSelectedConfiguredModelId: 'model-uuid',
       themePreference: 'light',
       sidebarCollapsed: false,
     };
@@ -69,7 +69,7 @@ describe('usePreferences', () => {
 
   it('sets last selected model', async () => {
     const mockPreferences = {
-      lastSelectedModelId: null,
+      lastSelectedConfiguredModelId: null,
       themePreference: 'system',
       sidebarCollapsed: false,
     };
@@ -78,7 +78,7 @@ describe('usePreferences', () => {
     vi.spyOn(userConfigApi, 'getPreferences').mockResolvedValue(mockPreferences);
     vi.spyOn(userConfigApi, 'updatePreferences').mockResolvedValue({
       ...mockPreferences,
-      lastSelectedModelId: 'claude-3',
+      lastSelectedConfiguredModelId: 'configured-model-uuid',
     });
 
     const { result } = renderHook(() => usePreferences());
@@ -87,10 +87,10 @@ describe('usePreferences', () => {
       expect(result.current.preferences).toEqual(mockPreferences);
     });
 
-    await result.current.setLastSelectedModel('claude-3');
+    await result.current.setLastSelectedModel('configured-model-uuid');
 
     await waitFor(() => {
-      expect(result.current.preferences?.lastSelectedModelId).toBe('claude-3');
+      expect(result.current.preferences?.lastSelectedConfiguredModelId).toBe('configured-model-uuid');
     });
   });
 
