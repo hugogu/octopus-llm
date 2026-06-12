@@ -32,10 +32,10 @@
 - [X] T009 Implement Spring-injected, duplicate-safe protocol lookup in `backend/src/main/kotlin/com/octopusllm/llm/ProtocolAdapterRegistry.kt`
 - [X] T010 [P] Write registry extensibility and duplicate-registration tests in `backend/src/test/kotlin/com/octopusllm/llm/ProtocolAdapterRegistryTest.kt`
 - [X] T011 [P] Implement normalized URI and public-address validation in `backend/src/main/kotlin/com/octopusllm/connection/ConnectionEndpointPolicy.kt`
-- [ ] T012 [P] Write SSRF tests covering IPv4, IPv6, DNS answers, metadata targets, redirects, userinfo, fragments, ports, and development HTTP in `backend/src/test/kotlin/com/octopusllm/connection/ConnectionEndpointPolicyTest.kt`
+- [X] T012 [P] Write SSRF tests covering IPv4, IPv6, DNS answers, metadata targets, redirects, userinfo, fragments, ports, and development HTTP in `backend/src/test/kotlin/com/octopusllm/connection/ConnectionEndpointPolicyTest.kt`
 - [X] T013 Create `Connection` and `ConfiguredModel` entities with composite ownership integrity in `backend/src/main/kotlin/com/octopusllm/connection/Connection.kt` and `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModel.kt`
 - [X] T014 Create owner-scoped and pageable repositories in `backend/src/main/kotlin/com/octopusllm/connection/ConnectionRepository.kt` and `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModelRepository.kt`
-- [ ] T015 Write V016-to-V017 migration and rollback tests in `backend/src/test/kotlin/com/octopusllm/migration/ProtocolConnectionMigrationTest.kt`
+- [X] T015 Write V016-to-V017 migration and rollback tests in `backend/src/test/kotlin/com/octopusllm/migration/ProtocolConnectionMigrationTest.kt`
 - [X] T016 Implement transactional V017 data migration, audit checks, ownership constraints, response snapshots, and chat-turn UUID arrays in `backend/src/main/resources/db/migration/V017__protocol_connection_model_migration.sql`
 - [X] T017 Run the V017 migration test against PostgreSQL 16 and verify source tables are removed only after validation in `backend/src/test/kotlin/com/octopusllm/migration/ProtocolConnectionMigrationTest.kt`
 
@@ -154,9 +154,9 @@
 
 - [X] T059 [P] Add frontend Playwright flow for connection -> model -> chat -> delete -> historical reload in `frontend/e2e/protocol-connection-model.spec.ts`
 - [X] T060 [P] Add API documentation examples and pagination/error details in `specs/003-protocol-connection-model/contracts/api-v2.md`
-- [ ] T061 Run backend `./gradlew build` and resolve all failures in `backend/`
+- [X] T061 Run backend `./gradlew build` and resolve all failures in `backend/`
 - [X] T062 Run frontend `npx tsc --noEmit`, `npx vitest run`, lint, and production build using Node.js 24 in `frontend/`
-- [ ] T063 Run Docker Compose build and execute all scenarios in `specs/003-protocol-connection-model/quickstart.md`
+- [X] T063 Run Docker Compose build and execute all scenarios in `specs/003-protocol-connection-model/quickstart.md`
 - [X] T064 Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks` and confirm it resolves `specs/003-protocol-connection-model`
 - [X] T065 Update `AGENTS.md` active technologies/recent changes and remove stale provider-discovery guidance in `AGENTS.md` and `frontend/AGENTS.md`
 

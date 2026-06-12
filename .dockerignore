@@ -1,0 +1,34 @@
+# Backend build artifacts
+backend/.gradle/
+backend/.kotlin/
+backend/build/
+backend/out/
+
+# Frontend build artifacts
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+frontend/dist/
+frontend/build/
+
+# Local runtime data
+data/
+.tmp-screens/
+.gradle-local/
+.next/
+
+# Local config files
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
