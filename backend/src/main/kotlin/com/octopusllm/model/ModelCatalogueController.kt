@@ -1,6 +1,7 @@
 package com.octopusllm.model
 
 import com.octopusllm.llm.CapabilityMatrix
+import com.octopusllm.llm.ProviderDefaults
 import org.springframework.web.bind.annotation.*
 import reactor.core.publisher.Mono
 
@@ -31,4 +32,15 @@ class ModelCatalogueController(private val service: ModelCatalogueService) {
     @GetMapping("/{modelId}")
     fun getModel(@PathVariable modelId: String): Mono<ModelResponse> =
         service.getActiveModel(modelId).map { it.toResponse() }
+}
+
+data class ProviderResponse(val id: String, val defaultBaseUrl: String)
+
+@RestController
+@RequestMapping("/api/v1/providers")
+class ProviderController {
+
+    @GetMapping
+    fun listProviders(): Map<String, List<ProviderResponse>> =
+        mapOf("providers" to ProviderDefaults.baseUrls.map { (id, url) -> ProviderResponse(id, url) })
 }

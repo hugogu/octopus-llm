@@ -9,13 +9,15 @@ import { getToken } from '@/lib/api/auth';
 interface ApiKeyBaseUrlEditorProps {
   keyId: string;
   baseUrl: string | null;
+  /** The provider's built-in endpoint, shown when no override is set. */
+  defaultBaseUrl?: string;
 }
 
 /**
  * Inline editor for an API key's base URL override.
  * Saving an empty value clears the override (provider default applies).
  */
-export default function ApiKeyBaseUrlEditor({ keyId, baseUrl }: ApiKeyBaseUrlEditorProps) {
+export default function ApiKeyBaseUrlEditor({ keyId, baseUrl, defaultBaseUrl }: ApiKeyBaseUrlEditorProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(baseUrl ?? '');
@@ -39,11 +41,17 @@ export default function ApiKeyBaseUrlEditor({ keyId, baseUrl }: ApiKeyBaseUrlEdi
   };
 
   if (!editing) {
+    const displayUrl = baseUrl ?? defaultBaseUrl ?? 'Default endpoint';
     return (
       <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-        <span className="truncate font-mono" title={baseUrl ?? undefined}>
-          {baseUrl ?? 'Default endpoint'}
+        <span className="truncate font-mono" title={displayUrl}>
+          {displayUrl}
         </span>
+        {!baseUrl && defaultBaseUrl && (
+          <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-gray-400">
+            default
+          </span>
+        )}
         <button
           type="button"
           onClick={() => {
@@ -66,7 +74,7 @@ export default function ApiKeyBaseUrlEditor({ keyId, baseUrl }: ApiKeyBaseUrlEdi
           type="url"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="https://api.example.com/v1 (empty = default)"
+          placeholder={defaultBaseUrl ? `${defaultBaseUrl} (default)` : 'https://api.example.com/v1 (empty = default)'}
           className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs text-gray-800 focus:border-blue-500 focus:outline-none"
           disabled={saving}
         />

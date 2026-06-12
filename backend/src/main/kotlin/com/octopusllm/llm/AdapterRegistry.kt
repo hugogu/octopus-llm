@@ -8,10 +8,10 @@ import org.springframework.stereotype.Component
 @Component
 class AdapterRegistry {
     private val adapters: Map<String, LlmAdapter> = mapOf(
-        "openai" to OpenAiCompatAdapter("openai", "https://api.openai.com/v1"),
-        "moonshot" to OpenAiCompatAdapter("moonshot", "https://api.moonshot.cn/v1"),
-        "deepseek" to OpenAiCompatAdapter("deepseek", "https://api.deepseek.com/v1"),
-        "zhipu" to OpenAiCompatAdapter("zhipu", "https://open.bigmodel.cn/api/paas/v4"),
+        "openai" to OpenAiCompatAdapter("openai", ProviderDefaults.baseUrls.getValue("openai")),
+        "moonshot" to OpenAiCompatAdapter("moonshot", ProviderDefaults.baseUrls.getValue("moonshot")),
+        "deepseek" to OpenAiCompatAdapter("deepseek", ProviderDefaults.baseUrls.getValue("deepseek")),
+        "zhipu" to OpenAiCompatAdapter("zhipu", ProviderDefaults.baseUrls.getValue("zhipu")),
         "anthropic" to AnthropicAdapter(),
         "minimax" to MiniMaxAdapter(),
     )

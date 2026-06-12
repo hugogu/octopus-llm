@@ -19,9 +19,10 @@ interface ModelsSettingsPageProps {
   models: ModelDefinition[];
   apiKeys: ApiKeyMeta[];
   modelConfigs: UserModelConfig[];
+  defaultBaseUrls: Record<string, string>;
 }
 
-export default function ModelsSettingsPage({ models, apiKeys, modelConfigs }: ModelsSettingsPageProps) {
+export default function ModelsSettingsPage({ models, apiKeys, modelConfigs, defaultBaseUrls }: ModelsSettingsPageProps) {
   const router = useRouter();
   const [showAddKeyModal, setShowAddKeyModal] = useState(false);
   const [showAddModelModal, setShowAddModelModal] = useState(false);
@@ -136,7 +137,11 @@ export default function ModelsSettingsPage({ models, apiKeys, modelConfigs }: Mo
                     <p className="mt-2 text-sm text-gray-600">
                       Use this key to sync provider models and bind them to model configs below.
                     </p>
-                    <ApiKeyBaseUrlEditor keyId={key.id} baseUrl={key.baseUrl} />
+                    <ApiKeyBaseUrlEditor
+                      keyId={key.id}
+                      baseUrl={key.baseUrl}
+                      defaultBaseUrl={defaultBaseUrls[key.providerId]}
+                    />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Added {new Date(key.createdAt).toLocaleDateString()}
                     </p>

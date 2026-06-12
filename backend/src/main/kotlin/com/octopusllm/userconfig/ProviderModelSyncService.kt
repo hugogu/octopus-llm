@@ -30,12 +30,8 @@ class ProviderModelSyncService(
 ) {
     private val syncTimeout: Duration = Duration.ofSeconds(20)
 
-    private val openAiCompatibleBaseUrls = mapOf(
-        "openai" to "https://api.openai.com/v1",
-        "moonshot" to "https://api.moonshot.cn/v1",
-        "deepseek" to "https://api.deepseek.com/v1",
-        "zhipu" to "https://open.bigmodel.cn/api/paas/v4",
-    )
+    // Providers reachable via the OpenAI-compatible /models discovery endpoint
+    private val openAiCompatibleProviders = setOf("openai", "moonshot", "deepseek", "zhipu")
 
     fun syncProviderModels(userId: UUID, providerId: String, providerApiKeyId: UUID? = null): Mono<List<ModelDefinition>> =
         Mono.fromCallable {
@@ -75,7 +71,8 @@ class ProviderModelSyncService(
         decryptedApiKey: String,
         baseUrlOverride: String?,
     ): List<DiscoveredModel> {
-        val baseUrl = baseUrlOverride ?: openAiCompatibleBaseUrls[providerId]
+        val baseUrl = baseUrlOverride
+            ?: com.octopusllm.llm.ProviderDefaults.baseUrlFor(providerId).takeIf { providerId in openAiCompatibleProviders }
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Provider does not support dynamic model discovery: $providerId")
 
         val client: OpenAIClient = OpenAIOkHttpClient.builder()

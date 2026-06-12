@@ -18,3 +18,14 @@ export async function getModel(id: string): Promise<ModelDefinition> {
   if (!res.ok) throw new Error(`Model not found: ${id}`);
   return res.json() as Promise<ModelDefinition>;
 }
+
+export interface ProviderInfo {
+  id: string;
+  defaultBaseUrl: string;
+}
+
+export async function listProviders(): Promise<{ providers: ProviderInfo[] }> {
+  const res = await fetch(apiUrl("/api/v1/providers"), { cache: "no-store" });
+  if (!res.ok) throw new Error(`Failed to list providers: ${res.status}`);
+  return res.json() as Promise<{ providers: ProviderInfo[] }>;
+}

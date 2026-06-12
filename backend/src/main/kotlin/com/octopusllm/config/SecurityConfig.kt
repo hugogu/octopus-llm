@@ -39,6 +39,7 @@ class SecurityConfig(
                 exchanges
                     .pathMatchers("/api/v1/auth/**").permitAll()
                     .pathMatchers("/api/v1/models/**").permitAll()
+                    .pathMatchers("/api/v1/providers").permitAll()
                     .pathMatchers("/api/v1/health").permitAll()
                     .anyExchange().authenticated()
             }
