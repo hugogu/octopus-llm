@@ -90,55 +90,62 @@ export function useParallelStream() {
 
   const handleEvent = useCallback((streamKey: string, event: SseEventV2) => {
     const stream = stateRef.current[streamKey] ?? emptyStream();
-    stateRef.current[streamKey] = stream;
-    const current = stream.models;
-    const prior = (id: string): ModelStreamState => current[id] ?? { ...emptyState(), status: 'streaming' };
+    const models = stream.models;
+    const prior = (id: string): ModelStreamState => models[id] ?? { ...emptyState(), status: 'streaming' };
+    const withModel = (id: string, patch: Partial<ModelStreamState>): ParallelStreamState => ({
+      ...stream,
+      streaming: true,
+      models: { ...models, [id]: { ...prior(id), ...patch } },
+    });
+
+    let next: ParallelStreamState;
+    let immediate = false;
 
     if (event.event === 'turn_created') {
-      const next: Record<string, ModelStreamState> = {};
-      for (const id of Object.keys(current)) {
-        next[id] = { ...(current[id] ?? emptyState()), status: 'streaming' };
+      const reset: Record<string, ModelStreamState> = {};
+      for (const id of Object.keys(models)) {
+        reset[id] = { ...(models[id] ?? emptyState()), status: 'streaming' };
       }
-      stream.turnId = event.turnId;
-      stream.streaming = true;
-      stream.models = next;
-      flushNow(streamKey);
+      next = { ...stream, turnId: event.turnId, streaming: true, models: reset };
+      immediate = true;
     } else if (event.event === 'capability_notice') {
-      current[event.configuredModelId] = { ...prior(event.configuredModelId), capabilityNotice: event.notice };
-      stream.streaming = true;
-      scheduleFlush(streamKey);
+      next = withModel(event.configuredModelId, { capabilityNotice: event.notice });
     } else if (event.event === 'reasoning') {
-      const cur = prior(event.configuredModelId);
-      current[event.configuredModelId] = { ...cur, reasoning: cur.reasoning + event.delta, status: 'streaming' };
-      stream.streaming = true;
-      scheduleFlush(streamKey);
+      next = withModel(event.configuredModelId, {
+        reasoning: prior(event.configuredModelId).reasoning + event.delta,
+        status: 'streaming',
+      });
     } else if (event.event === 'token') {
-      const cur = prior(event.configuredModelId);
-      current[event.configuredModelId] = { ...cur, text: cur.text + event.delta, status: 'streaming' };
-      stream.streaming = true;
-      scheduleFlush(streamKey);
+      next = withModel(event.configuredModelId, {
+        text: prior(event.configuredModelId).text + event.delta,
+        status: 'streaming',
+      });
     } else if (event.event === 'model_complete') {
-      current[event.configuredModelId] = {
-        ...prior(event.configuredModelId),
+      next = withModel(event.configuredModelId, {
         status: 'complete',
         inputTokens: event.inputTokens,
         outputTokens: event.outputTokens,
         latencyMs: event.latencyMs,
         responseId: event.responseId,
-      };
-      flushNow(streamKey);
+      });
+      immediate = true;
     } else if (event.event === 'model_error') {
-      current[event.configuredModelId] = {
-        ...prior(event.configuredModelId),
+      next = withModel(event.configuredModelId, {
         status: 'error',
         errorMessage: event.error,
         responseId: event.responseId,
-      };
-      flushNow(streamKey);
+      });
+      immediate = true;
     } else if (event.event === 'all_complete') {
-      stream.streaming = false;
-      flushNow(streamKey);
+      next = { ...stream, streaming: false };
+      immediate = true;
+    } else {
+      return;
     }
+
+    stateRef.current = { ...stateRef.current, [streamKey]: next };
+    if (immediate) flushNow(streamKey);
+    else scheduleFlush(streamKey);
   }, [flushNow, scheduleFlush]);
 
   return { streams, start, clear, handleEvent };
