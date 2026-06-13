@@ -25,4 +25,15 @@ interface AnonymousResponseLikeRepository : JpaRepository<AnonymousResponseLike,
 
     fun countByResponseId(responseId: UUID): Long
     fun existsByResponseIdAndVisitorKeyHash(responseId: UUID, visitorKeyHash: String): Boolean
+
+    @Query(
+        value = """
+            SELECT response_id AS responseId, COUNT(*) AS likeCount
+            FROM anonymous_response_likes
+            WHERE response_id IN (:responseIds)
+            GROUP BY response_id
+        """,
+        nativeQuery = true,
+    )
+    fun counts(@Param("responseIds") responseIds: Collection<UUID>): List<ResponseLikeCountProjection>
 }

@@ -30,6 +30,7 @@ const session: GetSessionResponseV2 = {
           latencyMs: 1200,
           likeCount: 1,
           likedByMe: true,
+          anonymousLikeCount: 0,
         },
         {
           responseId: 'r2',
@@ -47,6 +48,7 @@ const session: GetSessionResponseV2 = {
           latencyMs: 300,
           likeCount: 0,
           likedByMe: false,
+          anonymousLikeCount: 0,
         },
       ],
     },

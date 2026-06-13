@@ -158,6 +158,31 @@ export default function ChatPage() {
     });
   }, [loadSessionData, querySessionId, reset]);
 
+  // Refresh like / anonymous-thumb counts read-only while viewing, so loves and 👍 added on a shared
+  // link show up here without a manual reload. Skips while streaming to avoid clobbering live state.
+  const refreshCounts = useCallback(async () => {
+    const token = getToken();
+    if (!token || !sessionId) return;
+    try {
+      setActiveSession(await getSessionV2(sessionId, token));
+    } catch {
+      // background refresh — ignore transient errors
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const maybeRefresh = () => {
+      if (document.visibilityState === "visible" && !streaming) void refreshCounts();
+    };
+    const interval = window.setInterval(maybeRefresh, 20000);
+    document.addEventListener("visibilitychange", maybeRefresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", maybeRefresh);
+    };
+  }, [sessionId, streaming, refreshCounts]);
+
   const supportsAttachments = selectedIds.some((id) => {
     const modalities = modelsById[id]?.capabilityMatrix.input_modalities ?? [];
     return modalities.includes("image") || modalities.includes("video");
@@ -242,6 +267,7 @@ export default function ChatPage() {
             responseId={response.responseId}
             likeCount={response.likeCount}
             likedByMe={response.likedByMe}
+            anonymousLikeCount={response.anonymousLikeCount}
           />
         ))}
       </div>

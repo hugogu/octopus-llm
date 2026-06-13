@@ -58,6 +58,7 @@ data class ProviderResponseDtoV2(
     val latencyMs: Int,
     val likeCount: Long,
     val likedByMe: Boolean,
+    val anonymousLikeCount: Long,
 )
 
 data class TurnDtoV2(
@@ -108,8 +109,13 @@ class ChatControllerV2(
         @PathVariable sessionId: UUID,
     ): Mono<Map<String, Any?>> =
         chatService.getSession(sessionId, userId(principal)).flatMap { (session, turns) ->
-            val responses = turns.flatMap { it.second }
-            reactionService.states(responses.map { it.id }, userId(principal)).map { states ->
+            val responseIds = turns.flatMap { it.second }.map { it.id }
+            Mono.zip(
+                reactionService.states(responseIds, userId(principal)),
+                reactionService.anonymousCounts(responseIds),
+            ).map { tuple ->
+              val states = tuple.t1
+              val anonymousCounts = tuple.t2
               mapOf(
                 "id" to session.id,
                 "title" to session.title,
@@ -120,7 +126,7 @@ class ChatControllerV2(
                         promptText = turn.promptText,
                         selectedModelIds = turn.selectedModelIds.toList(),
                         selectedConfiguredModelIds = turn.selectedConfiguredModelIds.toList(),
-                        responses = responses.map { responseDto(it, states[it.id]) },
+                        responses = responses.map { responseDto(it, states[it.id], anonymousCounts[it.id] ?: 0) },
                         createdAt = turn.createdAt,
                     )
                 },
@@ -216,7 +222,11 @@ class ChatControllerV2(
     private fun sessionResponse(session: ChatSession) =
         SessionResponseV2(session.id, session.title, session.createdAt, session.updatedAt)
 
-    private fun responseDto(response: ProviderResponse, likeState: com.octopusllm.reaction.LikeState?) =
+    private fun responseDto(
+        response: ProviderResponse,
+        likeState: com.octopusllm.reaction.LikeState?,
+        anonymousLikeCount: Long,
+    ) =
         ProviderResponseDtoV2(
             responseId = response.id,
             configuredModelId = response.configuredModelId,
@@ -233,6 +243,7 @@ class ChatControllerV2(
             latencyMs = response.latencyMs,
             likeCount = likeState?.likeCount ?: 0,
             likedByMe = likeState?.likedByMe ?: false,
+            anonymousLikeCount = anonymousLikeCount,
         )
 
     private fun userId(principal: String) = UUID.fromString(principal)

@@ -18,6 +18,7 @@ data class LikeState(
 class ReactionService(
     private val responseRepository: ProviderResponseRepository,
     private val likeRepository: ResponseLikeRepository,
+    private val anonymousLikeRepository: AnonymousResponseLikeRepository,
 ) {
     fun likeOwned(responseId: UUID, userId: UUID): Mono<LikeState> = blocking {
         requireOwned(responseId, userId)
@@ -36,6 +37,12 @@ class ReactionService(
         val counts = likeRepository.counts(responseIds).associate { it.getResponseId() to it.getLikeCount() }
         val liked = likeRepository.likedResponseIds(responseIds, userId).toSet()
         responseIds.associateWith { id -> LikeState(id, counts[id] ?: 0, id in liked) }
+    }
+
+    /** Read-only anonymous (👍) counts per response, for the owner's chat view. */
+    fun anonymousCounts(responseIds: Collection<UUID>): Mono<Map<UUID, Long>> = blocking {
+        if (responseIds.isEmpty()) return@blocking emptyMap()
+        anonymousLikeRepository.counts(responseIds).associate { it.getResponseId() to it.getLikeCount() }
     }
 
     fun likeShared(responseId: UUID, userId: UUID): LikeState {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { Info, ThumbsUp } from "lucide-react";
 import type { CapabilityMatrix } from "@/lib/types/api";
 import StreamingMarkdown from "./StreamingMarkdown";
 import ThinkingBlock from "./ThinkingBlock";
@@ -25,6 +25,7 @@ interface ModelResponsePanelProps {
   responseId?: string;
   likeCount?: number;
   likedByMe?: boolean;
+  anonymousLikeCount?: number;
 }
 
 export default function ModelResponsePanel({
@@ -43,6 +44,7 @@ export default function ModelResponsePanel({
   responseId,
   likeCount = 0,
   likedByMe = false,
+  anonymousLikeCount = 0,
 }: ModelResponsePanelProps) {
   const [showCaps, setShowCaps] = useState(false);
 
@@ -68,6 +70,15 @@ export default function ModelResponsePanel({
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <ResponseLikeButton responseId={responseId} initialCount={likeCount} initialLiked={likedByMe} />
+          {anonymousLikeCount > 0 ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-stone-400"
+              title={`${anonymousLikeCount} anonymous thumbs up from shared viewers`}
+            >
+              <ThumbsUp className="h-3.5 w-3.5" />
+              {anonymousLikeCount}
+            </span>
+          ) : null}
           {status === "complete" && (
             <span className="hidden text-xs text-stone-400 sm:block">
               {latencyMs !== undefined && `${(latencyMs / 1000).toFixed(1)}s`}

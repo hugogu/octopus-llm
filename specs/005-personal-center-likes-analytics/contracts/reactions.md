@@ -31,9 +31,11 @@ Un-like (idempotent).
 
 `GET /api/v2/chat/sessions/{sessionId}` — each item in `responses[]` gains:
 ```json
-{ "responseId": "uuid", "likeCount": 4, "likedByMe": true, "...": "existing fields" }
+{ "responseId": "uuid", "likeCount": 4, "likedByMe": true, "anonymousLikeCount": 7, "...": "existing fields" }
 ```
-(`responseId` is the `provider_responses.id`; previously not surfaced.)
+(`responseId` is the `provider_responses.id`; previously not surfaced.) `anonymousLikeCount` is the
+read-only aggregate of 👍 thumbs from shared-link visitors, shown in the owner's chat view next to the
+❤️ like; it is never folded into `likeCount`.
 
 **Behavioral contracts**:
 - At most one like per (user, response) — second PUT does not increase the count (FR-009).

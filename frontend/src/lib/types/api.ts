@@ -361,6 +361,7 @@ export interface ProviderResponseV2 {
   latencyMs: number;
   likeCount: number;
   likedByMe: boolean;
+  anonymousLikeCount: number;
 }
 
 export interface ChatTurnV2 {
