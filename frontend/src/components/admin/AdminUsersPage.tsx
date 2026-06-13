@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { KeyRound, Search, ShieldCheck } from "lucide-react";
+import Button from "@/components/ui/Button";
+import AdminShell from "@/components/admin/AdminShell";
 import { getToken } from "@/lib/api/auth";
 import {
   activateUser,
@@ -11,125 +14,163 @@ import {
 } from "@/lib/api/admin";
 import type { AdminUser } from "@/lib/types/api";
 
+function Pill({ tone, children }: { tone: "green" | "red" | "amber" | "accent" | "stone"; children: React.ReactNode }) {
+  const tones = {
+    green: "bg-green-100 text-green-700",
+    red: "bg-red-100 text-red-700",
+    amber: "bg-amber-100 text-amber-700",
+    accent: "bg-[#c96442]/10 text-[#b75536]",
+    stone: "bg-stone-200 text-stone-600",
+  } as const;
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>{children}</span>;
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const token = getToken() ?? "";
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const page = await listUsers(token, query, 0, 50);
       setUsers(page.items);
+      setError(null);
     } catch {
       setError("Failed to load users.");
+    } finally {
+      setLoading(false);
     }
   }, [token, query]);
 
   useEffect(() => {
-    let active = true;
-    listUsers(token, query, 0, 50)
-      .then((page) => {
-        if (active) setUsers(page.items);
-      })
-      .catch(() => {
-        if (active) setError("Failed to load users.");
-      });
-    return () => {
-      active = false;
-    };
-  }, [token, query]);
+    queueMicrotask(() => void load());
+  }, [load]);
 
-  async function run(action: () => Promise<unknown>, success: string) {
+  async function run(id: string, action: () => Promise<unknown>, success: string) {
     setError(null);
     setNotice(null);
+    setBusyId(id);
     try {
       await action();
       setNotice(success);
       await load();
     } catch (e) {
       const status = (e as { status?: number }).status;
-      setError(status === 409 ? "Refused: cannot lock out the last administrator." : "Action failed.");
+      setError(status === 409 ? "Refused: this would lock out the last administrator." : "Action failed.");
+    } finally {
+      setBusyId(null);
     }
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">User management</h1>
-
-      <div className="flex gap-2 mb-4">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by email"
-          className="border rounded px-3 py-2 flex-1"
-        />
-        <button onClick={() => void load()} className="border rounded px-4 py-2">
+    <AdminShell
+      title="User management"
+      description="Activate registered accounts, allocate built-in connections, disable or re-enable access, and trigger password resets. BYOK stays available to every active account."
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void load();
+        }}
+        className="mb-5 flex items-center gap-2"
+      >
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by email"
+            className="w-full rounded-xl border border-stone-300 bg-white py-2.5 pl-9 pr-3 text-sm text-stone-800 shadow-sm focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]"
+          />
+        </div>
+        <Button type="submit" variant="secondary">
           Search
-        </button>
-      </div>
+        </Button>
+      </form>
 
-      {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-      {notice && <p className="text-green-600 text-sm mb-2">{notice}</p>}
+      {error ? (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      ) : null}
+      {notice ? (
+        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</div>
+      ) : null}
 
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="text-left border-b">
-            <th className="py-2">Email</th>
-            <th>Status</th>
-            <th>Role</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr key={u.id} className="border-b align-top">
-              <td className="py-2">{u.email}</td>
-              <td>
-                <span className={u.isDisabled ? "text-red-600" : "text-green-700"}>
-                  {u.isDisabled ? "Disabled" : "Enabled"}
-                </span>
-                {", "}
-                {u.isActive ? "Activated" : "Not activated"}
-              </td>
-              <td>{u.isAdmin ? "Admin" : "User"}</td>
-              <td className="flex flex-wrap gap-2 py-2">
-                {!u.isActive && (
-                  <button
-                    onClick={() => void run(() => activateUser(token, u.id), "User activated.")}
-                    className="text-blue-600 underline"
-                  >
-                    Activate
-                  </button>
-                )}
-                {u.isDisabled ? (
-                  <button
-                    onClick={() => void run(() => enableUser(token, u.id), "User enabled.")}
-                    className="text-blue-600 underline"
-                  >
-                    Enable
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => void run(() => disableUser(token, u.id), "User disabled.")}
-                    className="text-red-600 underline"
-                  >
-                    Disable
-                  </button>
-                )}
-                <button
-                  onClick={() => void run(() => resetUserPassword(token, u.id), "Reset email sent.")}
-                  className="text-gray-700 underline"
-                >
-                  Reset password
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      {loading ? (
+        <div className="space-y-3">
+          <div className="h-16 animate-pulse rounded-2xl bg-white/70" />
+          <div className="h-16 animate-pulse rounded-2xl bg-white/70" />
+          <div className="h-16 animate-pulse rounded-2xl bg-white/70" />
+        </div>
+      ) : users.length === 0 ? (
+        <section className="rounded-3xl border border-dashed border-stone-300 bg-white/70 px-8 py-16 text-center">
+          <h2 className="text-lg font-semibold text-stone-900">No accounts found</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-stone-500">Try a different search, or wait for users to register.</p>
+        </section>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-stone-200 bg-stone-50/70 text-left text-xs uppercase tracking-wide text-stone-500">
+                  <th className="px-4 py-3 font-medium">Account</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50/50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-stone-900">{u.email}</span>
+                        {u.isAdmin ? (
+                          <Pill tone="accent">
+                            <ShieldCheck className="mr-0.5 inline h-3 w-3 align-[-1px]" />
+                            Admin
+                          </Pill>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Pill tone={u.isDisabled ? "red" : "green"}>{u.isDisabled ? "Disabled" : "Enabled"}</Pill>
+                        <Pill tone={u.isActive ? "green" : "amber"}>{u.isActive ? "Activated" : "Not activated"}</Pill>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        {!u.isActive ? (
+                          <Button size="sm" variant="secondary" isLoading={busyId === u.id} onClick={() => void run(u.id, () => activateUser(token, u.id), "User activated.")}>
+                            Activate
+                          </Button>
+                        ) : null}
+                        {u.isDisabled ? (
+                          <Button size="sm" variant="secondary" isLoading={busyId === u.id} onClick={() => void run(u.id, () => enableUser(token, u.id), "User enabled.")}>
+                            Enable
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="danger" isLoading={busyId === u.id} onClick={() => void run(u.id, () => disableUser(token, u.id), "User disabled.")}>
+                            Disable
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" isLoading={busyId === u.id} onClick={() => void run(u.id, () => resetUserPassword(token, u.id), "Password reset email sent.")}>
+                          <KeyRound className="mr-1 h-3.5 w-3.5" /> Reset
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </AdminShell>
   );
 }

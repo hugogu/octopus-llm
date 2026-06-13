@@ -37,7 +37,11 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
   }, [router]);
 
   if (state !== "allowed") {
-    return <p className="p-6 text-sm text-gray-500">Checking access…</p>;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_#f8e9dc,_transparent_30%),linear-gradient(180deg,#faf9f5,#f2f0e8)]">
+        <p className="text-sm text-stone-500">Checking access…</p>
+      </main>
+    );
   }
   return <>{children}</>;
 }

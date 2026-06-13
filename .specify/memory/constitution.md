@@ -1,13 +1,12 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Modified principles:
-  - VI. Security & User Key Privacy: removed "Rate limiting MUST be applied per user to
-    prevent key abuse." The platform is a relay service; the user's own provider enforces
-    quota limits at the key level. Per-user rate limiting at the relay layer is redundant
-    and adds complexity without additional security value.
-Added sections: none
+Version change: 1.1.0 → 1.2.0
+Modified principles: none
+Added sections:
+  - VIII. UX Consistency & Visual Coherence — codifies the four UX principles
+    (consistent, fluent, responsive, connected), mandatory design-system reuse, and
+    visual verification before a page is considered done.
 Removed sections: none
 Templates status:
   ✅ .specify/templates/plan-template.md — Constitution Check section aligns
@@ -101,6 +100,33 @@ documented in the plan. YAGNI applies — do not design for scale not yet requir
 **Rationale**: Premature complexity is the primary risk in platform projects. Horizontal
 scalability is non-negotiable for production viability; distributed-lock-free design enables it.
 
+### VIII. UX Consistency & Visual Coherence
+
+Every user-facing surface MUST follow these four principles; a feature is not complete until they hold:
+
+- **Consistent**: Reuse the established design system — the shared `Button`/UI primitives, the warm
+  canvas gradient, the `#c96442`/`#b75536` accent, the stone palette, `rounded-2xl` cards with
+  `border-stone-200`/`shadow-sm`, and the eyebrow + title + description header pattern. New pages MUST
+  match a comparable existing page (e.g. the Model settings page) rather than inventing bespoke styling.
+  Do not ship raw, unstyled HTML controls when a styled equivalent already exists.
+- **Fluent**: Interactions MUST communicate state — loading skeletons or button spinners during async
+  work, disabled controls while busy, and inline success/error banners. No dead clicks, no silent
+  failures, no unexplained blank states.
+- **Responsive**: Layouts MUST work from narrow mobile widths to desktop using the project's Tailwind
+  breakpoints; tables and wide content MUST degrade gracefully (scroll or reflow), never overflow.
+- **Connected**: Every authorized destination MUST be reachable through in-app navigation — a feature
+  hidden behind a hand-typed URL is incomplete. Related views MUST link to each other, and navigation
+  state (active section) MUST be visible.
+
+Every new page MUST be visually verified (browser or Playwright) before it is considered done; a
+passing type-check is necessary but not sufficient. Internal navigation MUST use the framework router
+(`next/link`), not raw `<a>` to in-app routes.
+
+**Rationale**: The frontend is the product for most users. Inconsistent, unstyled, or undiscoverable
+surfaces erode trust as much as a backend bug, and they are cheap to prevent by reusing what already
+exists. Treating UX coherence as optional polish is how important features ship effectively broken
+(e.g. a control panel no one can find).
+
 ## Technology Stack & Constraints
 
 ### Backend
@@ -174,4 +200,4 @@ existing code if the principle affects live systems, and (3) a version bump per 
 All pull requests touching files governed by a principle MUST include a Constitution Check in
 the plan confirming compliance. Violations MUST be justified in the Complexity Tracking table.
 
-**Version**: 1.1.0 | **Ratified**: 2026-06-09 | **Last Amended**: 2026-06-09
+**Version**: 1.2.0 | **Ratified**: 2026-06-09 | **Last Amended**: 2026-06-13
