@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Search, ShieldCheck } from "lucide-react";
+import { KeyRound, Search, ShieldCheck, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import AdminShell from "@/components/admin/AdminShell";
 import { getToken } from "@/lib/api/auth";
 import {
   activateUser,
+  deleteUser,
   disableUser,
   enableUser,
   listUsers,
+  purgeTestAccounts,
   resetUserPassword,
 } from "@/lib/api/admin";
 import type { AdminUser } from "@/lib/types/api";
@@ -28,17 +30,19 @@ function Pill({ tone, children }: { tone: "green" | "red" | "amber" | "accent" |
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [query, setQuery] = useState("");
+  const [testOnly, setTestOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [purging, setPurging] = useState(false);
 
   const token = getToken() ?? "";
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const page = await listUsers(token, query, 0, 50);
+      const page = await listUsers(token, query, 0, 50, testOnly);
       setUsers(page.items);
       setError(null);
     } catch {
@@ -46,7 +50,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, query]);
+  }, [token, query, testOnly]);
 
   useEffect(() => {
     queueMicrotask(() => void load());
@@ -62,9 +66,33 @@ export default function AdminUsersPage() {
       await load();
     } catch (e) {
       const status = (e as { status?: number }).status;
-      setError(status === 409 ? "Refused: this would lock out the last administrator." : "Action failed.");
+      setError(
+        status === 409
+          ? "Refused: this would lock out the last administrator."
+          : status === 422
+            ? "Refused: demote the administrator before deleting."
+            : "Action failed.",
+      );
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function purge() {
+    if (!confirm("Permanently delete ALL suspected test accounts (reserved example/test email domains)? This cannot be undone.")) {
+      return;
+    }
+    setError(null);
+    setNotice(null);
+    setPurging(true);
+    try {
+      const { deleted } = await purgeTestAccounts(token);
+      setNotice(`Deleted ${deleted} test account${deleted === 1 ? "" : "s"}.`);
+      await load();
+    } catch {
+      setError("Purge failed.");
+    } finally {
+      setPurging(false);
     }
   }
 
@@ -72,27 +100,46 @@ export default function AdminUsersPage() {
     <AdminShell
       title="User management"
       description="Activate registered accounts, allocate built-in connections, disable or re-enable access, and trigger password resets. BYOK stays available to every active account."
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void load();
-        }}
-        className="mb-5 flex items-center gap-2"
-      >
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by email"
-            className="w-full rounded-xl border border-stone-300 bg-white py-2.5 pl-9 pr-3 text-sm text-stone-800 shadow-sm focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]"
-          />
-        </div>
-        <Button type="submit" variant="secondary">
-          Search
+      actions={
+        <Button variant="danger" isLoading={purging} onClick={() => void purge()}>
+          <Trash2 className="mr-1.5 h-4 w-4" /> Delete test accounts
         </Button>
-      </form>
+      }
+    >
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void load();
+          }}
+          className="flex flex-1 items-center gap-2"
+        >
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by email"
+              className="w-full rounded-xl border border-stone-300 bg-white py-2.5 pl-9 pr-3 text-sm text-stone-800 shadow-sm focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]"
+            />
+          </div>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
+        </form>
+        <button
+          type="button"
+          onClick={() => setTestOnly((v) => !v)}
+          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+            testOnly
+              ? "border-[#c96442] bg-[#c96442]/10 text-[#b75536]"
+              : "border-stone-300 bg-white text-stone-600 hover:bg-stone-50"
+          }`}
+        >
+          <Trash2 className="h-4 w-4" />
+          Suspected test only
+        </button>
+      </div>
 
       {error ? (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
@@ -127,7 +174,7 @@ export default function AdminUsersPage() {
                 {users.map((u) => (
                   <tr key={u.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50/50">
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium text-stone-900">{u.email}</span>
                         {u.isAdmin ? (
                           <Pill tone="accent">
@@ -135,6 +182,7 @@ export default function AdminUsersPage() {
                             Admin
                           </Pill>
                         ) : null}
+                        {u.suspectedTest ? <Pill tone="amber">Suspected test</Pill> : null}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -162,6 +210,21 @@ export default function AdminUsersPage() {
                         <Button size="sm" variant="ghost" isLoading={busyId === u.id} onClick={() => void run(u.id, () => resetUserPassword(token, u.id), "Password reset email sent.")}>
                           <KeyRound className="mr-1 h-3.5 w-3.5" /> Reset
                         </Button>
+                        {!u.isAdmin ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600"
+                            isLoading={busyId === u.id}
+                            onClick={() => {
+                              if (confirm(`Permanently delete ${u.email} and all of its data? This cannot be undone.`)) {
+                                void run(u.id, () => deleteUser(token, u.id), "User deleted.");
+                              }
+                            }}
+                          >
+                            <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>

@@ -50,9 +50,11 @@ export function listUsers(
   q = "",
   page = 0,
   size = 25,
+  testOnly = false,
 ): Promise<PageResponse<AdminUser>> {
   const query = q ? `&q=${encodeURIComponent(q)}` : "";
-  return request(`/api/v2/admin/users?page=${page}&size=${size}${query}`, {}, token);
+  const testParam = testOnly ? "&testOnly=true" : "";
+  return request(`/api/v2/admin/users?page=${page}&size=${size}${query}${testParam}`, {}, token);
 }
 
 export function activateUser(token: string, id: string): Promise<AdminUser> {
@@ -69,6 +71,14 @@ export function enableUser(token: string, id: string): Promise<AdminUser> {
 
 export function resetUserPassword(token: string, id: string): Promise<{ status: string }> {
   return request(`/api/v2/admin/users/${id}/reset-password`, { method: "POST" }, token);
+}
+
+export function deleteUser(token: string, id: string): Promise<void> {
+  return request(`/api/v2/admin/users/${id}`, { method: "DELETE" }, token);
+}
+
+export function purgeTestAccounts(token: string): Promise<{ deleted: number }> {
+  return request(`/api/v2/admin/users/purge-test`, { method: "POST" }, token);
 }
 
 // --- Built-in connections --------------------------------------------------

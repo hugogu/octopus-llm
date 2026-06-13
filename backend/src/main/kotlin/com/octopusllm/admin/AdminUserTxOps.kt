@@ -84,6 +84,32 @@ class AdminUserTxOps(
         return user to passwordResetRepository.save(token)
     }
 
+    /**
+     * Hard-deletes a non-admin account and all of its owned data (cascades). Administrators are
+     * refused (422) — demote first — which also avoids the audit/allocator restrict FKs and any
+     * last-admin concern.
+     */
+    @Transactional
+    fun delete(userId: UUID) {
+        val user = require(userId)
+        if (user.isAdmin) {
+            throw ResponseStatusException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Cannot delete an administrator; demote the account first",
+            )
+        }
+        userRepository.delete(user)
+    }
+
+    /** Deletes every suspected-test (non-admin) account and returns their ids for auditing. */
+    @Transactional
+    fun deleteAllTestAccounts(): List<UUID> {
+        val accounts = userRepository.findAllSuspectedTestAccounts()
+        val ids = accounts.map { it.id }
+        userRepository.deleteAll(accounts)
+        return ids
+    }
+
     private fun isUsableAdmin(user: User): Boolean =
         user.isAdmin && !user.isDisabled &&
             !passwordResetRepository.hasActiveReset(user.id, Instant.now())

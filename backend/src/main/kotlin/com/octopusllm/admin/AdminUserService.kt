@@ -19,7 +19,7 @@ class AdminUserService(
     private val auditService: AdminAuditService,
     private val emailService: EmailService,
 ) {
-    fun list(query: String?, page: Int, size: Int): Mono<Page<User>> = blocking {
+    fun list(query: String?, testOnly: Boolean, page: Int, size: Int): Mono<Page<User>> = blocking {
         val pageable = boundedPageRequest(
             page,
             size,
@@ -27,8 +27,25 @@ class AdminUserService(
             Sort.Order.asc("id"),
         )
         val trimmed = query?.trim()
-        if (trimmed.isNullOrEmpty()) userRepository.findAll(pageable)
-        else userRepository.findByEmailContainingIgnoreCase(trimmed, pageable)
+        when {
+            testOnly -> userRepository.findSuspectedTestAccounts(pageable)
+            trimmed.isNullOrEmpty() -> userRepository.findAll(pageable)
+            else -> userRepository.findByEmailContainingIgnoreCase(trimmed, pageable)
+        }
+    }
+
+    fun delete(adminId: UUID, userId: UUID): Mono<Unit> = blocking {
+        withSerializableRetry { txOps.delete(userId) }
+        auditService.record(adminId, AdminAuditAction.DELETE_USER, AdminAuditTargetType.USER, userId)
+        Unit
+    }
+
+    fun purgeTestAccounts(adminId: UUID): Mono<Int> = blocking {
+        val ids = withSerializableRetry { txOps.deleteAllTestAccounts() }
+        ids.forEach { id ->
+            auditService.record(adminId, AdminAuditAction.DELETE_USER, AdminAuditTargetType.USER, id)
+        }
+        ids.size
     }
 
     fun activate(adminId: UUID, userId: UUID): Mono<User> = blocking {

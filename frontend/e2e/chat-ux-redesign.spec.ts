@@ -1,4 +1,40 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, request as pwRequest, type Page } from "@playwright/test";
+
+// This suite registers real `test-<ts>@example.com` accounts against the running backend. Clean
+// them up afterwards so they don't accumulate as garbage. Cleanup needs admin privileges, supplied
+// via env (E2E_ADMIN_EMAIL / E2E_ADMIN_PASSWORD); it is best-effort and skips with a warning when
+// they are absent. It calls the admin purge endpoint, which deletes all reserved-domain test
+// accounts (see TestAccountHeuristic on the backend).
+test.afterAll(async () => {
+  const email = process.env.E2E_ADMIN_EMAIL;
+  const password = process.env.E2E_ADMIN_PASSWORD;
+  const baseURL = process.env.BASE_URL || "http://localhost:3000";
+  if (!email || !password) {
+    console.warn(
+      "[cleanup] Skipping test-account purge — set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD (an admin account) to enable.",
+    );
+    return;
+  }
+  const ctx = await pwRequest.newContext({ baseURL });
+  try {
+    const loginRes = await ctx.post("/api/v1/auth/login", { data: { email, password } });
+    if (!loginRes.ok()) {
+      console.warn("[cleanup] admin login failed:", loginRes.status());
+      return;
+    }
+    const token = (await loginRes.json()).token as string;
+    const purgeRes = await ctx.post("/api/v2/admin/users/purge-test", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (purgeRes.ok()) {
+      console.log(`[cleanup] purged ${(await purgeRes.json()).deleted} test account(s).`);
+    } else {
+      console.warn("[cleanup] purge failed:", purgeRes.status());
+    }
+  } finally {
+    await ctx.dispose();
+  }
+});
 
 // Helper function to register and login a test user
 async function loginUser(page: Page) {

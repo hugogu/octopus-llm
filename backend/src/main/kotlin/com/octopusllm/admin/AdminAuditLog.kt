@@ -19,6 +19,7 @@ enum class AdminAuditAction {
     BUILTIN_CONNECTION_DELETE,
     ALLOCATE,
     REVOKE,
+    DELETE_USER,
 }
 
 enum class AdminAuditTargetType {

@@ -86,6 +86,7 @@ export interface AdminUser {
   isActive: boolean;
   isDisabled: boolean;
   isAdmin: boolean;
+  suspectedTest: boolean;
   createdAt: string;
 }
 
