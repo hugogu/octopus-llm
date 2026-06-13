@@ -1,0 +1,230 @@
+package com.octopusllm.llm.adapter
+
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.octopusllm.llm.Attachment
+import com.octopusllm.llm.LlmRequest
+import com.octopusllm.llm.LlmStreamEvent
+import com.sun.net.httpserver.HttpExchange
+import com.sun.net.httpserver.HttpServer
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import reactor.core.publisher.Flux
+import java.net.InetSocketAddress
+import java.nio.charset.StandardCharsets
+import java.util.Collections
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+
+class StreamingAdaptersTest {
+    private val mapper = jacksonObjectMapper()
+    private var server: HttpServer? = null
+    private var serverExecutor: ExecutorService? = null
+
+    @AfterEach
+    fun stopServer() {
+        server?.stop(0)
+        serverExecutor?.shutdownNow()
+    }
+
+    @Test
+    fun `openai stream sends compatible request and maps split SSE chunks`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/chat/completions") { exchange ->
+            captured = capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"你好"}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"reasoning_content":"think"}}]}""" + "\n\n",
+                    """data: {"choices":[],"usage":{"prompt_tokens":7,"completion_tokens":3}}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+                splitFirstChunk = true,
+            )
+        }
+
+        val events = OpenAiCompatAdapter(mapper).stream(
+            modelId = "provider-model",
+            request = LlmRequest(
+                prompt = "describe",
+                attachments = listOf(Attachment("image", "YWJj", "image/png")),
+                customParams = mapOf("temperature" to 0.2, "ignored" to null),
+            ),
+            decryptedApiKey = "test-secret",
+            baseUrlOverride = baseUrl("/v1"),
+        ).collectList().block()!!
+
+        assertEquals("Bearer test-secret", captured!!.headers["Authorization"])
+        val body = mapper.readTree(captured!!.body)
+        assertEquals("provider-model", body.path("model").asText())
+        assertTrue(body.path("stream").asBoolean())
+        assertEquals(0.2, body.path("temperature").asDouble())
+        assertFalse(body.has("ignored"))
+        assertEquals("image_url", body.path("messages").path(0).path("content").path(1).path("type").asText())
+        assertEquals(
+            listOf(
+                LlmStreamEvent.Token("provider-model", "你好"),
+                LlmStreamEvent.Reasoning("provider-model", "think"),
+            ),
+            events.dropLast(1),
+        )
+        val complete = events.last() as LlmStreamEvent.ModelComplete
+        assertEquals(7, complete.inputTokens)
+        assertEquals(3, complete.outputTokens)
+    }
+
+    @Test
+    fun `anthropic stream sends messages request and maps token usage`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/messages") { exchange ->
+            captured = capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"type":"message_start","message":{"usage":{"input_tokens":11}}}""" + "\n\n",
+                    """data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"plan"}}""" + "\n\n",
+                    """data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"answer"}}""" + "\n\n",
+                    """data: {"type":"message_delta","usage":{"output_tokens":5}}""" + "\n\n",
+                    """data: {"type":"message_stop"}""" + "\n\n",
+                ),
+            )
+        }
+
+        val events = AnthropicAdapter(mapper).stream(
+            modelId = "claude-test",
+            request = LlmRequest("hello"),
+            decryptedApiKey = "anthropic-secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        assertEquals("anthropic-secret", captured!!.headers["X-api-key"])
+        assertEquals("2023-06-01", captured!!.headers["Anthropic-version"])
+        val body = mapper.readTree(captured!!.body)
+        assertEquals("claude-test", body.path("model").asText())
+        assertEquals(4096, body.path("max_tokens").asInt())
+        assertTrue(body.path("stream").asBoolean())
+        assertEquals(
+            listOf(
+                LlmStreamEvent.Reasoning("claude-test", "plan"),
+                LlmStreamEvent.Token("claude-test", "answer"),
+            ),
+            events.dropLast(1),
+        )
+        val complete = events.last() as LlmStreamEvent.ModelComplete
+        assertEquals(11, complete.inputTokens)
+        assertEquals(5, complete.outputTokens)
+    }
+
+    @Test
+    fun `three provider streams subscribe concurrently`() {
+        val allArrived = CountDownLatch(3)
+        val paths = Collections.synchronizedList(mutableListOf<String>())
+        startServer("/v1/chat/completions") { exchange ->
+            paths.add(exchange.requestURI.path)
+            exchange.requestBody.use { it.readAllBytes() }
+            allArrived.countDown()
+            check(allArrived.await(2, TimeUnit.SECONDS)) { "Provider requests were not concurrent" }
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"ok"}}]}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+        val adapter = OpenAiCompatAdapter(mapper)
+
+        val events = Flux.merge(
+            (1..3).map { index ->
+                adapter.stream(
+                    modelId = "model-$index",
+                    request = LlmRequest("hello"),
+                    decryptedApiKey = "secret-$index",
+                    baseUrlOverride = baseUrl("/v1"),
+                )
+            },
+        ).collectList().block()!!
+
+        assertEquals(3, paths.size)
+        assertEquals(3, events.count { it is LlmStreamEvent.Token })
+        assertEquals(3, events.count { it is LlmStreamEvent.ModelComplete })
+    }
+
+    @Test
+    fun `provider error omits response body`() {
+        startServer("/v1/chat/completions") { exchange ->
+            exchange.requestBody.use { it.readAllBytes() }
+            val body = "do-not-expose-provider-details".toByteArray()
+            exchange.sendResponseHeaders(429, body.size.toLong())
+            exchange.responseBody.use { it.write(body) }
+        }
+
+        val event = OpenAiCompatAdapter(mapper).stream(
+            modelId = "model",
+            request = LlmRequest("hello"),
+            decryptedApiKey = "secret",
+            baseUrlOverride = baseUrl("/v1"),
+        ).blockLast() as LlmStreamEvent.ModelError
+
+        assertEquals("Provider returned HTTP 429", event.error)
+    }
+
+    private fun startServer(path: String, handler: (HttpExchange) -> Unit) {
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            serverExecutor = Executors.newCachedThreadPool()
+            executor = serverExecutor
+            createContext(path) { exchange ->
+                try {
+                    handler(exchange)
+                } catch (error: Throwable) {
+                    exchange.close()
+                    throw error
+                }
+            }
+            start()
+        }
+    }
+
+    private fun baseUrl(path: String): String =
+        "http://127.0.0.1:${server!!.address.port}$path"
+
+    private fun capture(exchange: HttpExchange): CapturedRequest =
+        CapturedRequest(
+            headers = exchange.requestHeaders.entries.associate { (name, values) -> name to values.first() },
+            body = exchange.requestBody.use { String(it.readAllBytes(), StandardCharsets.UTF_8) },
+        )
+
+    private fun sendSse(
+        exchange: HttpExchange,
+        chunks: List<String>,
+        splitFirstChunk: Boolean = false,
+    ) {
+        exchange.responseHeaders.add("Content-Type", "text/event-stream")
+        exchange.sendResponseHeaders(200, 0)
+        exchange.responseBody.use { output ->
+            chunks.forEachIndexed { index, chunk ->
+                val bytes = chunk.toByteArray(StandardCharsets.UTF_8)
+                if (index == 0 && splitFirstChunk) {
+                    val utf8Start = bytes.indexOfFirst { it < 0 }
+                    val splitAt = utf8Start + 1
+                    output.write(bytes, 0, splitAt)
+                    output.flush()
+                    output.write(bytes, splitAt, bytes.size - splitAt)
+                } else {
+                    output.write(bytes)
+                }
+                output.flush()
+            }
+        }
+    }
+
+    private data class CapturedRequest(
+        val headers: Map<String, String>,
+        val body: String,
+    )
+}

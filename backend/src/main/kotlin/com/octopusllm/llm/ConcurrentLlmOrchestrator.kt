@@ -2,7 +2,6 @@ package com.octopusllm.llm
 
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
-import reactor.core.scheduler.Schedulers
 import java.time.Duration
 import java.math.BigDecimal
 import java.util.UUID
@@ -106,7 +105,6 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegi
                 // their output is withheld until the end. Buffering here keeps every model streaming
                 // concurrently and makes the timeout measure real provider silence, not writer backlog.
                 .onBackpressureBuffer()
-                .subscribeOn(Schedulers.boundedElastic())
 
             Flux.concat(noticeFlux, streamFlux)
         }
