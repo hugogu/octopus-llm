@@ -54,6 +54,12 @@ class AdminUserService(
         user
     }
 
+    fun deactivate(adminId: UUID, userId: UUID): Mono<User> = blocking {
+        val user = withSerializableRetry { txOps.deactivate(userId) }
+        auditService.record(adminId, AdminAuditAction.DEACTIVATE, AdminAuditTargetType.USER, userId)
+        user
+    }
+
     fun disable(adminId: UUID, userId: UUID): Mono<User> = blocking {
         val user = withSerializableRetry { txOps.disable(userId) }
         auditService.record(adminId, AdminAuditAction.DISABLE, AdminAuditTargetType.USER, userId)

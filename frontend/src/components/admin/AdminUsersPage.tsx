@@ -7,6 +7,7 @@ import AdminShell from "@/components/admin/AdminShell";
 import { getToken } from "@/lib/api/auth";
 import {
   activateUser,
+  deactivateUser,
   deleteUser,
   disableUser,
   enableUser,
@@ -197,7 +198,11 @@ export default function AdminUsersPage() {
                           <Button size="sm" variant="secondary" isLoading={busyId === u.id} onClick={() => void run(u.id, () => activateUser(token, u.id), "User activated.")}>
                             Activate
                           </Button>
-                        ) : null}
+                        ) : (
+                          <Button size="sm" variant="ghost" isLoading={busyId === u.id} onClick={() => void run(u.id, () => deactivateUser(token, u.id), "User deactivated.")}>
+                            Deactivate
+                          </Button>
+                        )}
                         {u.isDisabled ? (
                           <Button size="sm" variant="secondary" isLoading={busyId === u.id} onClick={() => void run(u.id, () => enableUser(token, u.id), "User enabled.")}>
                             Enable

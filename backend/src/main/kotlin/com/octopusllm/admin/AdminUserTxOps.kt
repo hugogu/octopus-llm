@@ -40,6 +40,19 @@ class AdminUserTxOps(
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
+    fun deactivate(userId: UUID): User {
+        val user = require(userId)
+        if (!user.isActive) return user // idempotent
+        if (isUsableAdmin(user) && userRepository.countUsableAdmins() <= 1) {
+            throw lastAdmin("deactivate")
+        }
+        user.isActive = false
+        user.sessionEpoch += 1 // revoke the deactivated account's existing sessions
+        user.updatedAt = Instant.now()
+        return userRepository.save(user)
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     fun disable(userId: UUID): User {
         val user = require(userId)
         if (user.isDisabled) return user // idempotent

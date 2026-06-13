@@ -48,6 +48,13 @@ class AdminUserController(private val service: AdminUserService) {
     ): Mono<AdminUserResponse> =
         service.activate(adminId(principal), id).map(::response)
 
+    @PostMapping("/{id}/deactivate")
+    fun deactivate(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable id: UUID,
+    ): Mono<AdminUserResponse> =
+        service.deactivate(adminId(principal), id).map(::response)
+
     @PostMapping("/{id}/disable")
     fun disable(
         @AuthenticationPrincipal principal: String,

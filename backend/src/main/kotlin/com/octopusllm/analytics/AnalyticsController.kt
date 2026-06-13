@@ -54,6 +54,15 @@ class AnalyticsController(private val service: AnalyticsService) {
     ): PageResponse<Map<String, Any?>> =
         service.responses(UUID.fromString(principal), from, to, configuredModelId, page, size)
 
+    @GetMapping("/timeseries")
+    fun timeseries(
+        @AuthenticationPrincipal principal: String,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) from: Instant?,
+        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) to: Instant?,
+        @RequestParam configuredModelId: UUID?,
+    ): Map<String, Any?> =
+        mapOf("items" to service.timeseries(UUID.fromString(principal), from, to, configuredModelId))
+
     @GetMapping("/public/by-model")
     fun publicByModel(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) from: Instant?,

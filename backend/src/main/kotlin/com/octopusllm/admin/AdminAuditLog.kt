@@ -11,6 +11,7 @@ import java.util.UUID
 
 enum class AdminAuditAction {
     ACTIVATE,
+    DEACTIVATE,
     DISABLE,
     ENABLE,
     RESET_PASSWORD,

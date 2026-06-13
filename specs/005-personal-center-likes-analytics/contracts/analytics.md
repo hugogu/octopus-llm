@@ -116,6 +116,29 @@ Per-response detail rows — the drill-down (FR-022). Owner-only fields (IP) inc
 Paginated. `clientIp`, `userId`, connection fields, and configured-model UUID appear ONLY in this
 owner-scoped detail, never in aggregate payloads (FR-025).
 
+## GET /api/v2/analytics/timeseries  (NEW)
+
+Owner-scoped daily trend buckets powering the dashboard line charts (latency, success rate, token
+usage). Accepts `from`, `to`, `configuredModelId`. Not paginated (one row per active day in range).
+
+200:
+```json
+{
+  "items": [
+    {
+      "bucket": "2026-06-13",
+      "responseCount": 42,
+      "avgLatencyMs": 1820.5,
+      "successRate": 0.97,
+      "inputTokens": 30000,
+      "outputTokens": 41000
+    }
+  ]
+}
+```
+- Buckets are emitted only for days with at least one response, ordered ascending.
+- `successRate` is 0..1; the dashboard renders it as a percentage.
+
 ## GET /api/v2/analytics/public/by-model  (NEW, PUBLIC)
 
 Public anonymized aggregate required by Constitution V (FR-028/FR-029). Optional filters: `from`,

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { getPublicModelAnalytics } from "@/lib/api/analytics";
 import type { PublicModelAnalytics as PublicModelAnalyticsRow } from "@/lib/types/api";
 
@@ -34,7 +36,10 @@ export default function PublicModelAnalytics() {
   return (
     <main className="min-h-screen bg-[#faf9f5] px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-5xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#b75536]">Public analytics</p>
+        <Link href="/" className="inline-flex items-center rounded-lg px-2.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white">
+          <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to home
+        </Link>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#b75536]">Public analytics</p>
         <h1 className="mt-1 text-3xl font-semibold text-stone-900">Model usage across Octopus LLM</h1>
         <p className="mt-2 max-w-2xl text-sm text-stone-600">Anonymous aggregates only. No account, conversation, connection, prompt, or response data is included.</p>
         <section className="mt-6 grid gap-3 rounded-2xl border border-stone-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]">

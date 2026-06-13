@@ -157,6 +157,28 @@ class AnalyticsRepository(
         return items to total
     }
 
+    /** Owner-scoped daily time series for trend line charts (latency, success rate, token usage). */
+    fun timeseries(filter: AnalyticsFilter): List<Map<String, Any?>> {
+        val (where, params) = where(filter, ownerScoped = true)
+        return jdbc.queryForList(
+            """
+            SELECT to_char(date_trunc('day', pr.created_at), 'YYYY-MM-DD') AS bucket,
+                   COUNT(*) AS response_count,
+                   AVG(pr.latency_ms) AS avg_latency_ms,
+                   AVG(CASE WHEN pr.status = 'complete' THEN 1.0 ELSE 0.0 END) AS success_rate,
+                   COALESCE(SUM(pr.input_tokens), 0) AS input_tokens,
+                   COALESCE(SUM(pr.output_tokens), 0) AS output_tokens
+            FROM provider_responses pr
+            JOIN chat_turns ct ON ct.id = pr.turn_id
+            JOIN chat_sessions cs ON cs.id = ct.session_id
+            $where
+            GROUP BY date_trunc('day', pr.created_at)
+            ORDER BY date_trunc('day', pr.created_at)
+            """.trimIndent(),
+            params,
+        )
+    }
+
     fun publicByModel(filter: AnalyticsFilter, page: Int, size: Int): Pair<List<Map<String, Any?>>, Long> {
         val (where, params) = where(filter, ownerScoped = false)
         params.addValue("limit", size).addValue("offset", page * size)

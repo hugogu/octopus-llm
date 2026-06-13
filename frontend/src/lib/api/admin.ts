@@ -61,6 +61,10 @@ export function activateUser(token: string, id: string): Promise<AdminUser> {
   return request(`/api/v2/admin/users/${id}/activate`, { method: "POST" }, token);
 }
 
+export function deactivateUser(token: string, id: string): Promise<AdminUser> {
+  return request(`/api/v2/admin/users/${id}/deactivate`, { method: "POST" }, token);
+}
+
 export function disableUser(token: string, id: string): Promise<AdminUser> {
   return request(`/api/v2/admin/users/${id}/disable`, { method: "POST" }, token);
 }

@@ -68,6 +68,32 @@ class AdminUserControllerTest @Autowired constructor(
     }
 
     @Test
+    fun `activate then deactivate toggles isActive and is idempotent`() {
+        val admin = newUser(admin = true, active = true)
+        val target = newUser(active = true)
+        val token = adminToken(admin)
+        repeat(2) {
+            webTestClient.post().uri("/api/v2/admin/users/${target.id}/deactivate")
+                .header("Authorization", "Bearer $token")
+                .exchange().expectStatus().isOk
+                .expectBody().jsonPath("$.isActive").isEqualTo(false)
+        }
+        webTestClient.post().uri("/api/v2/admin/users/${target.id}/activate")
+            .header("Authorization", "Bearer $token")
+            .exchange().expectStatus().isOk
+            .expectBody().jsonPath("$.isActive").isEqualTo(true)
+    }
+
+    @Test
+    fun `deactivating the only usable admin is refused`() {
+        disableAllExistingAdmins()
+        val admin = newUser(admin = true, active = true)
+        webTestClient.post().uri("/api/v2/admin/users/${admin.id}/deactivate")
+            .header("Authorization", "Bearer ${adminToken(admin)}")
+            .exchange().expectStatus().isEqualTo(409)
+    }
+
+    @Test
     fun `disable then enable preserves the account`() {
         val admin = newUser(admin = true, active = true)
         val target = newUser()

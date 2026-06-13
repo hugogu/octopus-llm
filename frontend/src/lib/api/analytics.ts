@@ -1,6 +1,7 @@
 import { apiUrl } from "@/lib/api/base";
 import type {
   AnalyticsSummary,
+  AnalyticsTimePoint,
   ModelAnalytics,
   PageResponse,
   PublicModelAnalytics,
@@ -53,6 +54,10 @@ export function getSessionAnalytics(token: string, query: AnalyticsQuery): Promi
 
 export function getResponseAnalytics(token: string, query: AnalyticsQuery): Promise<PageResponse<ResponseAnalytics>> {
   return request(`/api/v2/analytics/responses${queryString(query)}`, token);
+}
+
+export function getAnalyticsTimeseries(token: string, query: AnalyticsQuery): Promise<{ items: AnalyticsTimePoint[] }> {
+  return request(`/api/v2/analytics/timeseries${queryString(query)}`, token);
 }
 
 export function getPublicModelAnalytics(query: AnalyticsQuery): Promise<PageResponse<PublicModelAnalytics>> {

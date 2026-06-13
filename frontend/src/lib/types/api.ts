@@ -123,6 +123,15 @@ export interface ResponseAnalytics {
   anonymousLikeCount: number;
 }
 
+export interface AnalyticsTimePoint {
+  bucket: string;
+  responseCount: number;
+  avgLatencyMs: number;
+  successRate: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface PublicModelAnalytics {
   protocol: string;
   modelId: string;

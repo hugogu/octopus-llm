@@ -19,6 +19,9 @@ class AnalyticsService(private val repository: AnalyticsRepository) {
     fun responses(userId: UUID, from: Instant?, to: Instant?, configuredModelId: UUID?, page: Int, size: Int) =
         page(repository.responses(personalFilter(userId, from, to, configuredModelId), page, size), page, size)
 
+    fun timeseries(userId: UUID, from: Instant?, to: Instant?, configuredModelId: UUID?): List<Map<String, Any?>> =
+        repository.timeseries(personalFilter(userId, from, to, configuredModelId)).map(::normalize)
+
     fun publicByModel(
         from: Instant?,
         to: Instant?,
