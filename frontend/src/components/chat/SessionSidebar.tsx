@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { MessageSquare, Trash2, Plus, Clock } from 'lucide-react';
 import type { ChatSessionV2 } from '@/lib/types/api';
 import Button from '@/components/ui/Button';
+import AdminNavLink from '@/components/admin/AdminNavLink';
 
 interface SessionSidebarProps {
   sessions: ChatSessionV2[];
@@ -113,6 +114,8 @@ export default function SessionSidebar({
           </div>
         )}
       </div>
+
+      <AdminNavLink />
     </div>
   );
 }
