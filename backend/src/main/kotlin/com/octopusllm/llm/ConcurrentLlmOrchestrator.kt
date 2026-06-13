@@ -99,6 +99,13 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegi
                     }
                     Flux.just(LlmStreamEvent.ModelError(target.modelId, message, target.configuredModelId))
                 }
+                // Decouple this provider's read + idle-timeout from the shared SSE writer's demand.
+                // All models fan into a single HTTP response via Flux.merge; without this buffer a fast
+                // model monopolizes downstream demand, so other models' upstream gets no requests, their
+                // .timeout() sees no onNext, and healthy providers falsely trip the idle timeout while
+                // their output is withheld until the end. Buffering here keeps every model streaming
+                // concurrently and makes the timeout measure real provider silence, not writer backlog.
+                .onBackpressureBuffer()
                 .subscribeOn(Schedulers.boundedElastic())
 
             Flux.concat(noticeFlux, streamFlux)
