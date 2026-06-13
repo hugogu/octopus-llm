@@ -150,7 +150,7 @@ Historical prompts and response payloads are never deleted or updated beyond add
 - Connection cards show label, protocol, endpoint, `hasKey`, and models.
 - Add/Edit Connection supports endpoint validation and key rotation.
 - Add Model uses catalogue suggestions when available and always supports manual entry.
-- Add Model offers an optional "Load models" lookup against the connection endpoint (`GET /api/v2/connections/{id}/models`); failures are non-blocking and never disable manual entry.
+- Each connection card offers an optional "Load models" action (`GET /api/v2/connections/{id}/models`) that bulk-adds endpoint models not yet configured; failures are non-blocking and never disable manual entry.
 - Edit Model supports display name, enabled state, order, capabilities, and custom parameters.
 - Destructive actions require confirmation.
 - A single Back to Chat action returns to the chat page.

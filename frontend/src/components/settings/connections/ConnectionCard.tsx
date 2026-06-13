@@ -1,9 +1,14 @@
 "use client";
 
-import { Cable, Pencil, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Cable, DownloadCloud, Pencil, Plus, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { getToken } from "@/lib/api/auth";
-import { deleteConnection } from "@/lib/api/connections";
+import {
+  addConfiguredModel,
+  deleteConnection,
+  listConnectionEndpointModels,
+} from "@/lib/api/connections";
 import type { ConfiguredModelV2, ConnectionV2 } from "@/lib/types/api";
 import ModelRow from "./ModelRow";
 
@@ -24,6 +29,48 @@ export default function ConnectionCard({
   onEditModel,
   onChanged,
 }: Props) {
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [loadNotice, setLoadNotice] = useState<string | null>(null);
+
+  const loadModels = async () => {
+    const token = getToken();
+    if (!token) return;
+    setLoadingModels(true);
+    setLoadNotice(null);
+    try {
+      const { items } = await listConnectionEndpointModels(token, connection.id);
+      const existing = new Set(models.map((model) => model.modelId));
+      const missing = items.filter((id) => !existing.has(id));
+      if (missing.length === 0) {
+        setLoadNotice(
+          items.length === 0
+            ? "The endpoint returned no models."
+            : "All models from the endpoint are already configured.",
+        );
+        return;
+      }
+      if (!confirm(`Add ${missing.length} model(s) from this endpoint?`)) return;
+      const results = await Promise.allSettled(
+        missing.map((id) =>
+          addConfiguredModel(token, { connectionId: connection.id, modelId: id, displayName: id }),
+        ),
+      );
+      const failed = results.filter((result) => result.status === "rejected").length;
+      setLoadNotice(
+        failed === 0
+          ? `Added ${missing.length} model(s).`
+          : `Added ${missing.length - failed} model(s); ${failed} failed.`,
+      );
+      onChanged();
+    } catch (cause) {
+      setLoadNotice(
+        cause instanceof Error ? cause.message : "Failed to load models from the endpoint",
+      );
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
   const remove = async () => {
     if (!confirm(`Delete ${connection.label ?? connection.baseUrl} and its configured models?`)) return;
     const token = getToken();
@@ -47,6 +94,9 @@ export default function ConnectionCard({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <Button size="sm" variant="secondary" isLoading={loadingModels} onClick={() => void loadModels()}>
+            <DownloadCloud className="mr-1.5 h-4 w-4" /> Load models
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => onAddModel(connection)}>
             <Plus className="mr-1.5 h-4 w-4" /> Add model
           </Button>
@@ -58,6 +108,9 @@ export default function ConnectionCard({
           </Button>
         </div>
       </div>
+      {loadNotice ? (
+        <p className="border-b border-stone-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">{loadNotice}</p>
+      ) : null}
       {models.length > 0 ? (
         models.map((model) => (
           <ModelRow key={model.id} model={model} onEdit={onEditModel} onChanged={onChanged} />
