@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquare, Trash2, Plus, Clock } from 'lucide-react';
+import { MessageSquare, Trash2, Plus, Clock, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { ChatSessionV2 } from '@/lib/types/api';
 import Button from '@/components/ui/Button';
 import AdminNavLink from '@/components/admin/AdminNavLink';
@@ -24,6 +24,7 @@ export default function SessionSidebar({
   loading = false,
 }: SessionSidebarProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleDelete = async (sessionId: string) => {
     if (!confirm('Are you sure you want to delete this conversation?')) {
@@ -50,9 +51,34 @@ export default function SessionSidebar({
     return date.toLocaleDateString();
   };
 
+  if (collapsed) {
+    return (
+      <div className="flex h-full w-14 flex-col items-center gap-2 border-r border-stone-200 bg-[#f5f4ee] py-3">
+        <button
+          type="button"
+          onClick={() => setCollapsed(false)}
+          title="Expand sidebar"
+          aria-label="Expand sidebar"
+          className="rounded-lg p-2 text-stone-500 transition hover:bg-white/70 hover:text-stone-800"
+        >
+          <PanelLeftOpen className="h-5 w-5" />
+        </button>
+        <button
+          type="button"
+          onClick={onNewSession}
+          title="New chat"
+          aria-label="New chat"
+          className="rounded-lg bg-[#c96442] p-2 text-white transition hover:bg-[#b55538]"
+        >
+          <Plus className="h-5 w-5" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-64 h-full flex flex-col border-r border-stone-200 bg-[#f5f4ee]">
-      <div className="p-3">
+      <div className="flex items-center gap-2 p-3">
         <Button
           onClick={onNewSession}
           fullWidth
@@ -61,6 +87,15 @@ export default function SessionSidebar({
           <Plus className="w-4 h-4 mr-2" />
           New Chat
         </Button>
+        <button
+          type="button"
+          onClick={() => setCollapsed(true)}
+          title="Collapse sidebar"
+          aria-label="Collapse sidebar"
+          className="shrink-0 rounded-lg p-2 text-stone-500 transition hover:bg-white/70 hover:text-stone-800"
+        >
+          <PanelLeftClose className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">

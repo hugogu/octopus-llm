@@ -61,6 +61,8 @@ describe("ModelSelectorPanel", () => {
 
   it("uses a single settings entry point", () => {
     render(<ModelSelectorPanel models={models} selectedIds={["configured-a"]} onChange={vi.fn()} />);
+    // The picker is collapsed when models are selected; open it to reveal the link.
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     expect(screen.getAllByRole("link", { name: "Manage models" })).toHaveLength(1);
   });
 });

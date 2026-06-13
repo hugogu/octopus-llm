@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { Paperclip, ArrowUp, X } from "lucide-react";
 import type { Attachment } from "@/lib/types/api";
 
 interface ChatInputProps {
@@ -55,57 +56,78 @@ export default function ChatInput({ onSubmit, disabled = false, supportsAttachme
     }
   }
 
+  const canSend = !disabled && (text.trim().length > 0 || attachments.length > 0);
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-      {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {attachments.map((att, i) => (
-            <div key={i} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1 text-xs">
-              <span>{att.type}: {att.mimeType}</span>
-              <button type="button" onClick={() => removeAttachment(i)} className="text-gray-400 hover:text-gray-700">×</button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="flex gap-2 items-end">
+    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-3xl">
+      <div className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-white p-2.5 shadow-sm transition focus-within:border-[#c96442] focus-within:ring-1 focus-within:ring-[#c96442]">
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-1 pt-1">
+            {attachments.map((att, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs text-stone-600"
+              >
+                <span className="font-medium capitalize">{att.type}</span>
+                <span className="text-stone-400">{att.mimeType}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(i)}
+                  className="text-stone-400 transition hover:text-stone-700"
+                  aria-label="Remove attachment"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
-          placeholder="Ask all selected models… (Enter to send, Shift+Enter for newline)"
+          placeholder="Ask all selected models…  (Enter to send, Shift+Enter for newline)"
           rows={3}
-          className="flex-1 border rounded-lg px-3 py-2 text-sm resize-none disabled:bg-gray-50 disabled:text-gray-400"
+          className="w-full resize-none bg-transparent px-2 py-1 text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none disabled:text-stone-400"
         />
-        <div className="flex flex-col gap-1 self-end">
-          {supportsAttachments && (
-            <>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                className="sr-only"
-                onChange={handleFile}
-                disabled={disabled}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={disabled}
-                className="border rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50 h-[42px]"
-                title="Attach image or video"
-              >
-                📎
-              </button>
-            </>
-          )}
+
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-1">
+            {supportsAttachments && (
+              <>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="sr-only"
+                  onChange={handleFile}
+                  disabled={disabled}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={disabled}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-stone-500 transition hover:bg-stone-100 hover:text-stone-700 disabled:opacity-50"
+                  title="Attach image or video"
+                  aria-label="Attach image or video"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
+              </>
+            )}
+          </div>
+
           <button
             type="submit"
-            disabled={disabled || (!text.trim() && attachments.length === 0)}
-            className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50 h-[42px]"
+            disabled={!canSend}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#c96442] text-white shadow-sm transition hover:bg-[#b55538] disabled:cursor-not-allowed disabled:opacity-40"
+            title="Send message"
+            aria-label="Send message"
           >
-            Send
+            <ArrowUp className="h-4 w-4" />
           </button>
         </div>
       </div>

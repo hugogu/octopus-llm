@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Download, Link as LinkIcon } from "lucide-react";
+import { Check, Download, Link as LinkIcon, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ChatInput from "@/components/chat/ChatInput";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
@@ -245,6 +245,11 @@ export default function ChatPage() {
   ), [modelsById]);
 
   const hasConversation = (activeSession?.turns.length ?? 0) > 0 || draftTurn !== null;
+  const handleDelete = useCallback(() => {
+    if (!sessionId) return;
+    if (!window.confirm("Are you sure you want to delete this conversation?")) return;
+    void handleDeleteSession(sessionId);
+  }, [handleDeleteSession, sessionId]);
   const handleExport = useCallback(() => {
     if (!activeSession) return;
     downloadTextFile(
@@ -272,27 +277,38 @@ export default function ChatPage() {
               </h1>
               <p className="truncate text-xs text-stone-500">Compare configured endpoints in one thread</p>
             </div>
-            {sessionId ? (
-              <div className="flex shrink-0 items-center gap-1">
-                <ShareLinkButton />
-                <button type="button" onClick={handleExport} className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
-                  <Download className="h-3.5 w-3.5" /> Export
-                </button>
-              </div>
-            ) : null}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <ModelSelectorPanel
+                models={models}
+                selectedIds={selectedIds}
+                onChange={(ids) => {
+                  setSelectedIds(ids);
+                  void setLastSelectedModel(ids[0] ?? null);
+                }}
+              />
+              {sessionId ? (
+                <>
+                  <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden />
+                  <ShareLinkButton />
+                  <button
+                    type="button"
+                    onClick={handleExport}
+                    className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:text-stone-900"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Export
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </button>
+                </>
+              ) : null}
+            </div>
           </div>
         </header>
-
-        <div className="border-b border-stone-200 bg-white/60 px-6 py-3">
-          <ModelSelectorPanel
-            models={models}
-            selectedIds={selectedIds}
-            onChange={(ids) => {
-              setSelectedIds(ids);
-              void setLastSelectedModel(ids[0] ?? null);
-            }}
-          />
-        </div>
 
         <div className="flex-1 overflow-y-auto px-6">
           <div className="flex w-full flex-col gap-6 py-6">
