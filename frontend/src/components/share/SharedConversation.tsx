@@ -41,9 +41,8 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
     }
   }
 
-  // Anonymous thumb: only for signed-out visitors. Best-effort deduplicated per browser.
+  // Anonymous thumb: available to anyone (signed-in too). Best-effort deduplicated per browser cookie.
   async function toggleAnonymousThumb(response: SharedResponse) {
-    if (getToken()) return;
     setBusyId(response.responseId);
     try {
       const state = await anonymousLike(shareToken, response.responseId);
@@ -93,11 +92,11 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
                         </button>
                         <button
                           type="button"
-                          title={signedIn ? "Anonymous thumbs (sign out to add)" : "Give an anonymous thumbs up"}
+                          title={response.likedByThisVisitor ? "You already thumbed this" : "Give an anonymous thumbs up"}
                           aria-label="Anonymous thumbs up"
-                          disabled={signedIn || busyId === response.responseId || response.likedByThisVisitor}
+                          disabled={busyId === response.responseId || response.likedByThisVisitor}
                           onClick={() => void toggleAnonymousThumb(response)}
-                          className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors disabled:cursor-default disabled:opacity-100 ${response.likedByThisVisitor ? "text-[#c96442]" : "text-stone-500"} ${!signedIn && !response.likedByThisVisitor ? "hover:bg-stone-100" : ""}`}
+                          className={`flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors disabled:cursor-default disabled:opacity-100 ${response.likedByThisVisitor ? "text-[#c96442]" : "text-stone-500"} ${!response.likedByThisVisitor ? "hover:bg-stone-100" : ""}`}
                         >
                           <ThumbsUp className={`h-4 w-4 ${response.likedByThisVisitor ? "fill-current" : ""}`} />
                           {response.anonymousLikeCount}

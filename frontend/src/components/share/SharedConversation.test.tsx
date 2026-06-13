@@ -63,4 +63,16 @@ describe("SharedConversation", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Loves" })).toHaveTextContent("4"));
     expect(api.sharedNamedLike).toHaveBeenCalledWith("opaque", "r1", "viewer-token", true);
   });
+
+  it("lets a signed-in viewer also give an anonymous thumb", async () => {
+    auth.token = "viewer-token";
+    api.getSharedSession.mockResolvedValue(sessionWith({}));
+    api.anonymousLike.mockResolvedValue({ responseId: "r1", anonymousLikeCount: 2, likedByThisVisitor: true });
+    render(<SharedConversation shareToken="opaque" />);
+    const thumb = await screen.findByRole("button", { name: "Anonymous thumbs up" });
+    expect(thumb).toBeEnabled();
+    fireEvent.click(thumb);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Anonymous thumbs up" })).toHaveTextContent("2"));
+    expect(api.anonymousLike).toHaveBeenCalledWith("opaque", "r1");
+  });
 });

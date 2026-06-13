@@ -101,8 +101,12 @@ used for the named like.
 `DELETE` on the same path removes that named like idempotently.
 
 **Behavioral contracts**:
-- An authenticated caller on a shared session uses the token-scoped `PUT`/`DELETE` endpoint and is
-  recorded as a named like (FR-018), not anonymous.
+- A **named love** (❤️) requires authentication and goes through the token-scoped `PUT`/`DELETE`
+  endpoint, recorded against the account (FR-018). The shared page offers this control only to
+  signed-in viewers.
+- An **anonymous thumb** (👍) is available to **any** visitor — signed-out or signed-in — via the
+  no-auth `POST` endpoint, deduplicated by the server-issued visitor cookie. A signed-in user may give
+  both a named love and an anonymous thumb; the thumb never carries identity.
 - The anonymous endpoint never reveals who liked (FR-015); only counts + this-visitor state.
 - The public frontend page lives outside the authenticated `(app)` route group and all browser API
   calls use same-origin `/api/...` proxy paths.
