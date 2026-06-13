@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { useParallelStream } from "./useParallelStream";
 
 describe("useParallelStream", () => {
-  it("keys duplicate literal model IDs by configured-model UUID", () => {
+  it("keys duplicate literal model IDs by configured-model UUID", async () => {
     const { result } = renderHook(() => useParallelStream());
     act(() => result.current.reset(["configured-a", "configured-b"]));
     act(() => result.current.handleEvent({ event: "turn_created", turnId: "turn", sequenceNum: 1 }));
@@ -19,6 +19,9 @@ describe("useParallelStream", () => {
       modelId: "same-model",
       delta: "B",
     }));
+
+    // Token updates are flushed to React state on a short throttle (reading is decoupled from render).
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
 
     expect(result.current.models["configured-a"]?.text).toBe("A");
     expect(result.current.models["configured-b"]?.text).toBe("B");
