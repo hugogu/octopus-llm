@@ -65,6 +65,19 @@ class AdminConnectionControllerTest @Autowired constructor(
     }
 
     @Test
+    fun `endpoint-models is admin-gated and 404s for an unknown built-in connection`() {
+        val admin = newUser(admin = true, active = true)
+        webTestClient.get().uri("/api/v2/admin/connections/${UUID.randomUUID()}/endpoint-models")
+            .header("Authorization", "Bearer ${token(admin)}")
+            .exchange().expectStatus().isNotFound
+
+        val regular = newUser(active = true)
+        webTestClient.get().uri("/api/v2/admin/connections/${UUID.randomUUID()}/endpoint-models")
+            .header("Authorization", "Bearer ${token(regular)}")
+            .exchange().expectStatus().isForbidden
+    }
+
+    @Test
     fun `allocation requires an activated user`() {
         val admin = newUser(admin = true, active = true)
         val adminToken = token(admin)

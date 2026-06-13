@@ -142,6 +142,10 @@ class AdminConnectionController(private val service: AdminConnectionService) {
     ): Mono<PageResponse<BuiltinModelResponse>> =
         service.listModels(id, page, size).map { result -> result.toPageResponse(::modelResponse) }
 
+    @GetMapping("/{id}/endpoint-models")
+    fun listEndpointModels(@PathVariable id: UUID): Mono<Map<String, List<String>>> =
+        service.listEndpointModels(id).map { mapOf("items" to it) }
+
     @PatchMapping("/{id}/models/{configuredModelId}")
     fun patchModel(
         @PathVariable id: UUID,

@@ -125,6 +125,13 @@ export function listBuiltinModels(
   return request(`/api/v2/admin/connections/${connectionId}/models?page=${page}&size=${size}`, {}, token);
 }
 
+export function loadBuiltinEndpointModels(
+  token: string,
+  connectionId: string,
+): Promise<{ items: string[] }> {
+  return request(`/api/v2/admin/connections/${connectionId}/endpoint-models`, {}, token);
+}
+
 export function addBuiltinModel(
   token: string,
   connectionId: string,

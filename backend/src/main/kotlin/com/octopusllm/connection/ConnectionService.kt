@@ -102,8 +102,11 @@ class ConnectionService(
     }
 
     fun listEndpointModels(userId: UUID, id: UUID): Mono<List<String>> =
+        blocking { requireOwned(userId, id) }.flatMap { fetchEndpointModels(it) }
+
+    /** Owner-agnostic model discovery: decrypts the key and asks the protocol adapter for model IDs. */
+    fun fetchEndpointModels(connection: Connection): Mono<List<String>> =
         blocking {
-            val connection = requireOwned(userId, id)
             val apiKey = decryptAndValidate(connection)
             try {
                 adapterRegistry.getAdapter(connection.protocol).listModels(apiKey, connection.baseUrl)

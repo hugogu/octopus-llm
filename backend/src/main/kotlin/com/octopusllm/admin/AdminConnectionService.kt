@@ -33,6 +33,7 @@ class AdminConnectionService(
     private val encryptionService: ApiKeyEncryptionService,
     private val endpointPolicy: ConnectionEndpointPolicy,
     private val auditService: AdminAuditService,
+    private val connectionService: com.octopusllm.connection.ConnectionService,
 ) {
     // --- Connection CRUD -----------------------------------------------------
 
@@ -121,6 +122,10 @@ class AdminConnectionService(
             ),
         )
     }
+
+    /** Discover model IDs from the built-in connection's provider endpoint (for bulk-add). */
+    fun listEndpointModels(connectionId: UUID): Mono<List<String>> =
+        blocking { requireBuiltin(connectionId) }.flatMap { connectionService.fetchEndpointModels(it) }
 
     fun listModels(connectionId: UUID, page: Int, size: Int): Mono<Page<ConfiguredModel>> = blocking {
         requireBuiltin(connectionId)
