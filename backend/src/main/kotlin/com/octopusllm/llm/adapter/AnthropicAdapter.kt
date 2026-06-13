@@ -88,6 +88,23 @@ class AnthropicAdapter : LlmAdapter {
         }
     }
 
+    override fun listModels(decryptedApiKey: String, baseUrl: String): List<String> {
+        val backend = AnthropicBackend.builder()
+            .apiKey(decryptedApiKey)
+            .baseUrl(baseUrl)
+            .build()
+        val client: AnthropicClient = AnthropicClientImpl(
+            ClientOptions.builder()
+                .httpClient(NoRedirectAnthropicTransport(backend))
+                .build(),
+        )
+        try {
+            return client.models().list().data().map { it.id() }.distinct().sorted()
+        } finally {
+            client.close()
+        }
+    }
+
     private fun buildMessages(request: LlmRequest): List<MessageParam> {
         val messages = mutableListOf<MessageParam>()
 

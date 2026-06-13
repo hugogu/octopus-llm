@@ -2,6 +2,7 @@ package com.octopusllm.connection
 
 import com.octopusllm.api.v2.boundedPageRequest
 import com.octopusllm.auth.UserRepository
+import com.octopusllm.llm.ProtocolAdapterRegistry
 import com.octopusllm.model.ProtocolDefinitions
 import com.octopusllm.userconfig.ApiKeyEncryptionService
 import org.springframework.data.domain.Page
@@ -11,8 +12,10 @@ import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.TimeoutException
 
 @Service
 class ConnectionService(
@@ -21,7 +24,10 @@ class ConnectionService(
     private val configuredModelRepository: ConfiguredModelRepository,
     private val encryptionService: ApiKeyEncryptionService,
     private val endpointPolicy: ConnectionEndpointPolicy,
+    private val adapterRegistry: ProtocolAdapterRegistry,
 ) {
+    private val listModelsTimeout: Duration = Duration.ofSeconds(20)
+
     fun list(userId: UUID, page: Int, size: Int): Mono<Page<Connection>> =
         blocking {
             connectionRepository.findByUserId(
@@ -90,6 +96,32 @@ class ConnectionService(
         endpointPolicy.normalizeAndValidate(connection.baseUrl)
         return encryptionService.decrypt(connection.encryptedKey, connection.keyIv)
     }
+
+    fun listEndpointModels(userId: UUID, id: UUID): Mono<List<String>> =
+        blocking {
+            val connection = requireOwned(userId, id)
+            val apiKey = decryptAndValidate(connection)
+            try {
+                adapterRegistry.getAdapter(connection.protocol).listModels(apiKey, connection.baseUrl)
+            } catch (cause: UnsupportedOperationException) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, cause.message)
+            } catch (cause: ResponseStatusException) {
+                throw cause
+            } catch (cause: Exception) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Failed to load models from the endpoint: ${cause.message ?: "provider request failed"}",
+                    cause,
+                )
+            }
+        }
+            .timeout(listModelsTimeout)
+            .onErrorMap(TimeoutException::class.java) {
+                ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT,
+                    "Loading models timed out after ${listModelsTimeout.seconds}s",
+                )
+            }
 
     fun modelCount(connectionId: UUID): Long = configuredModelRepository.countByConnectionId(connectionId)
 

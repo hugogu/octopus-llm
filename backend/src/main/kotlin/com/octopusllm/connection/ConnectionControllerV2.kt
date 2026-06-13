@@ -90,6 +90,13 @@ class ConnectionControllerV2(private val service: ConnectionService) {
         @Valid @RequestBody request: RotateConnectionKeyRequest,
     ): Mono<Void> = service.rotateKey(userId(principal), id, request.apiKey).then()
 
+    @GetMapping("/{id}/models")
+    fun listEndpointModels(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable id: UUID,
+    ): Mono<Map<String, List<String>>> =
+        service.listEndpointModels(userId(principal), id).map { mapOf("items" to it) }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(

@@ -89,6 +89,21 @@ class OpenAiCompatAdapter : LlmAdapter {
         }
     }
 
+    override fun listModels(decryptedApiKey: String, baseUrl: String): List<String> {
+        val client: OpenAIClient = OpenAIClientImpl(
+            ClientOptions.builder()
+                .apiKey(decryptedApiKey)
+                .baseUrl(baseUrl)
+                .httpClient(NoRedirectOpenAiTransport(baseUrl.toHttpUrl()))
+                .build(),
+        )
+        try {
+            return client.models().list().data().map { it.id() }.distinct().sorted()
+        } finally {
+            client.close()
+        }
+    }
+
     private fun buildMessages(request: LlmRequest): List<ChatCompletionMessageParam> {
         val messages = mutableListOf<ChatCompletionMessageParam>()
 

@@ -85,6 +85,17 @@ export function rotateConnectionKey(token: string, id: string, apiKey: string): 
   );
 }
 
+export function listConnectionEndpointModels(
+  token: string,
+  id: string,
+): Promise<{ items: string[] }> {
+  return request(
+    `/api/v2/connections/${encodeURIComponent(id)}/models`,
+    {},
+    token,
+  );
+}
+
 export function deleteConnection(token: string, id: string): Promise<void> {
   return request(
     `/api/v2/connections/${encodeURIComponent(id)}`,

@@ -44,11 +44,16 @@ export default function EditConnectionDialog({ connection, onClose, onSaved }: P
         <Input label="Label" value={label} onChange={(event) => setLabel(event.target.value)} />
         <Input label="Base URL" type="url" required value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} />
         <Input
-          label="Rotate API key"
+          label="API key"
           type="password"
           value={apiKey}
           onChange={(event) => setApiKey(event.target.value)}
-          helperText="Leave blank to keep the current encrypted key."
+          placeholder={connection.hasKey ? "••••••••••••••••" : undefined}
+          helperText={
+            connection.hasKey
+              ? "An encrypted key is stored but never returned by the API. Enter a new value to replace it, or leave blank to keep it."
+              : "No key stored yet. Enter one to authenticate this connection."
+          }
           autoComplete="new-password"
         />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}

@@ -100,7 +100,7 @@ Existing provider keys and model configurations are migrated to connections and 
 - **FR-010**: Users MUST be able to create, edit, reorder, enable, disable, and delete configured models, including editing custom parameters.
 - **FR-011**: Duplicate model IDs MUST be allowed across and within connections because UUID is the operational identity.
 - **FR-012**: The catalogue MUST be static application data used only for form suggestions; arbitrary model IDs MUST remain valid.
-- **FR-013**: The system MUST remove live provider model discovery from the configuration workflow.
+- **FR-013**: The configuration workflow MUST NOT depend on live provider model discovery; an optional per-connection "load models" lookup MAY pre-fill suggestions, and arbitrary manual model IDs MUST remain valid when the lookup fails or is unsupported.
 - **FR-014**: A submitted chat turn MUST accept configured-model UUIDs and resolve only enabled records owned by the authenticated user.
 - **FR-015**: Concurrent stream events MUST carry `configuredModelId`; `modelId` MUST retain its literal provider model meaning.
 - **FR-016**: Persisted provider responses MUST retain immutable snapshots of configured-model UUID, model ID, display name, protocol, and connection label.

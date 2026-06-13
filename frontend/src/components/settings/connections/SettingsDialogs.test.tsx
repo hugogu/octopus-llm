@@ -71,7 +71,7 @@ describe("connection settings", () => {
     render(<EditConnectionDialog connection={connection} onClose={vi.fn()} onSaved={onSaved} />);
 
     fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Renamed" } });
-    fireEvent.change(screen.getByLabelText("Rotate API key"), { target: { value: "replacement-key" } });
+    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "replacement-key" } });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => expect(api.patchConnection).toHaveBeenCalledWith(

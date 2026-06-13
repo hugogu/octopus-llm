@@ -42,7 +42,9 @@ export default function ConnectionCard({
             <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[11px] text-stone-600">{connection.protocol}</span>
           </div>
           <p className="mt-1 truncate font-mono text-xs text-stone-500">{connection.baseUrl}</p>
-          <p className="mt-1 text-xs text-stone-400">Encrypted key stored · {models.length} model(s)</p>
+          <p className="mt-1 text-xs text-stone-400">
+            {connection.hasKey ? "Encrypted key stored" : "No key stored"} · {models.length} model(s)
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Button size="sm" variant="secondary" onClick={() => onAddModel(connection)}>
