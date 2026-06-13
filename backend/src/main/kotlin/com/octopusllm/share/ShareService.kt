@@ -5,6 +5,7 @@ import com.octopusllm.api.v2.boundedPageRequest
 import com.octopusllm.chat.ChatSessionRepository
 import com.octopusllm.chat.ChatTurnRepository
 import com.octopusllm.chat.ProviderResponseRepository
+import com.octopusllm.chat.latestProviderResponses
 import com.octopusllm.reaction.AnonymousResponseLikeRepository
 import com.octopusllm.reaction.LikeState
 import com.octopusllm.reaction.ReactionService
@@ -108,7 +109,10 @@ class ShareService(
                 SharedTurnDto(
                     sequenceNum = turn.sequenceNum,
                     promptText = turn.promptText,
-                    responses = responseRepository.findByTurnId(turn.id).map { response ->
+                    responses = latestProviderResponses(
+                        turn,
+                        responseRepository.findByTurnId(turn.id),
+                    ).map { response ->
                         SharedResponseDto(
                             responseId = response.id,
                             modelDisplayName = response.modelDisplayName,

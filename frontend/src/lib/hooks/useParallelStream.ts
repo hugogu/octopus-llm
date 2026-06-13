@@ -23,72 +23,100 @@ const emptyState = (): Pick<ModelStreamState, 'text' | 'reasoning'> => ({ text: 
 // makes renders the bottleneck and slower panels appear to freeze).
 const FLUSH_INTERVAL_MS = 16;
 
-/** Accumulates per-model SSE stream events into renderable panel state. */
+export interface ParallelStreamState {
+  models: Record<string, ModelStreamState>;
+  streaming: boolean;
+  turnId: string | null;
+}
+
+const emptyStream = (): ParallelStreamState => ({ models: {}, streaming: false, turnId: null });
+
+/** Accumulates multiple session/turn SSE streams without discarding background streams on navigation. */
 export function useParallelStream() {
-  const [models, setModels] = useState<Record<string, ModelStreamState>>({});
-  const [streaming, setStreaming] = useState(false);
-  const [turnId, setTurnId] = useState<string | null>(null);
+  const [streams, setStreams] = useState<Record<string, ParallelStreamState>>({});
 
-  // Authoritative working copy, updated synchronously on every event. `models` (React state) is a
-  // throttled snapshot of this, so the SSE read loop is decoupled from render cost.
-  const stateRef = useRef<Record<string, ModelStreamState>>({});
-  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Authoritative working copies are updated synchronously. React receives throttled snapshots,
+  // keeping all SSE readers independent from rendering and from the currently selected session.
+  const stateRef = useRef<Record<string, ParallelStreamState>>({});
+  const flushTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  const flushNow = useCallback(() => {
-    if (flushTimerRef.current != null) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
+  const flushNow = useCallback((streamKey: string) => {
+    const timer = flushTimersRef.current[streamKey];
+    if (timer != null) {
+      clearTimeout(timer);
+      delete flushTimersRef.current[streamKey];
     }
-    setModels({ ...stateRef.current });
+    const stream = stateRef.current[streamKey];
+    if (!stream) return;
+    setStreams((current) => ({ ...current, [streamKey]: { ...stream, models: { ...stream.models } } }));
   }, []);
 
-  const scheduleFlush = useCallback(() => {
-    if (flushTimerRef.current != null) return;
-    flushTimerRef.current = setTimeout(() => {
-      flushTimerRef.current = null;
-      setModels({ ...stateRef.current });
+  const scheduleFlush = useCallback((streamKey: string) => {
+    if (flushTimersRef.current[streamKey] != null) return;
+    flushTimersRef.current[streamKey] = setTimeout(() => {
+      delete flushTimersRef.current[streamKey];
+      const stream = stateRef.current[streamKey];
+      if (!stream) return;
+      setStreams((current) => ({ ...current, [streamKey]: { ...stream, models: { ...stream.models } } }));
     }, FLUSH_INTERVAL_MS);
   }, []);
 
-  const reset = useCallback((modelIds: string[]) => {
+  const start = useCallback((streamKey: string, modelIds: string[], streaming = false) => {
     const init: Record<string, ModelStreamState> = {};
     for (const id of modelIds) {
-      init[id] = { ...emptyState(), status: 'idle' };
+      init[id] = { ...emptyState(), status: streaming ? 'streaming' : 'idle' };
     }
-    if (flushTimerRef.current != null) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
+    const timer = flushTimersRef.current[streamKey];
+    if (timer != null) {
+      clearTimeout(timer);
+      delete flushTimersRef.current[streamKey];
     }
-    stateRef.current = init;
-    setModels(init);
-    setStreaming(false);
-    setTurnId(null);
+    const stream = { ...emptyStream(), models: init, streaming };
+    stateRef.current[streamKey] = stream;
+    setStreams((current) => ({ ...current, [streamKey]: stream }));
   }, []);
 
-  const handleEvent = useCallback((event: SseEventV2) => {
-    const current = stateRef.current;
+  const clear = useCallback((streamKey: string) => {
+    const timer = flushTimersRef.current[streamKey];
+    if (timer != null) clearTimeout(timer);
+    delete flushTimersRef.current[streamKey];
+    delete stateRef.current[streamKey];
+    setStreams((current) => {
+      const next = { ...current };
+      delete next[streamKey];
+      return next;
+    });
+  }, []);
+
+  const handleEvent = useCallback((streamKey: string, event: SseEventV2) => {
+    const stream = stateRef.current[streamKey] ?? emptyStream();
+    stateRef.current[streamKey] = stream;
+    const current = stream.models;
     const prior = (id: string): ModelStreamState => current[id] ?? { ...emptyState(), status: 'streaming' };
 
     if (event.event === 'turn_created') {
-      setTurnId(event.turnId);
-      setStreaming(true);
       const next: Record<string, ModelStreamState> = {};
       for (const id of Object.keys(current)) {
         next[id] = { ...(current[id] ?? emptyState()), status: 'streaming' };
       }
-      stateRef.current = next;
-      flushNow();
+      stream.turnId = event.turnId;
+      stream.streaming = true;
+      stream.models = next;
+      flushNow(streamKey);
     } else if (event.event === 'capability_notice') {
       current[event.configuredModelId] = { ...prior(event.configuredModelId), capabilityNotice: event.notice };
-      scheduleFlush();
+      stream.streaming = true;
+      scheduleFlush(streamKey);
     } else if (event.event === 'reasoning') {
       const cur = prior(event.configuredModelId);
       current[event.configuredModelId] = { ...cur, reasoning: cur.reasoning + event.delta, status: 'streaming' };
-      scheduleFlush();
+      stream.streaming = true;
+      scheduleFlush(streamKey);
     } else if (event.event === 'token') {
       const cur = prior(event.configuredModelId);
       current[event.configuredModelId] = { ...cur, text: cur.text + event.delta, status: 'streaming' };
-      scheduleFlush();
+      stream.streaming = true;
+      scheduleFlush(streamKey);
     } else if (event.event === 'model_complete') {
       current[event.configuredModelId] = {
         ...prior(event.configuredModelId),
@@ -98,7 +126,7 @@ export function useParallelStream() {
         latencyMs: event.latencyMs,
         responseId: event.responseId,
       };
-      flushNow();
+      flushNow(streamKey);
     } else if (event.event === 'model_error') {
       current[event.configuredModelId] = {
         ...prior(event.configuredModelId),
@@ -106,12 +134,12 @@ export function useParallelStream() {
         errorMessage: event.error,
         responseId: event.responseId,
       };
-      flushNow();
+      flushNow(streamKey);
     } else if (event.event === 'all_complete') {
-      setStreaming(false);
-      flushNow();
+      stream.streaming = false;
+      flushNow(streamKey);
     }
   }, [flushNow, scheduleFlush]);
 
-  return { models, streaming, turnId, reset, handleEvent };
+  return { streams, start, clear, handleEvent };
 }

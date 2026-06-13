@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Info, ThumbsUp } from "lucide-react";
+import { Info, RotateCcw, ThumbsUp } from "lucide-react";
 import type { CapabilityMatrix } from "@/lib/types/api";
 import StreamingMarkdown from "./StreamingMarkdown";
 import ThinkingBlock from "./ThinkingBlock";
@@ -26,6 +26,8 @@ interface ModelResponsePanelProps {
   likeCount?: number;
   likedByMe?: boolean;
   anonymousLikeCount?: number;
+  onRetry?: () => void;
+  retrying?: boolean;
 }
 
 export default function ModelResponsePanel({
@@ -45,6 +47,8 @@ export default function ModelResponsePanel({
   likeCount = 0,
   likedByMe = false,
   anonymousLikeCount = 0,
+  onRetry,
+  retrying = false,
 }: ModelResponsePanelProps) {
   const [showCaps, setShowCaps] = useState(false);
 
@@ -88,6 +92,18 @@ export default function ModelResponsePanel({
           )}
           {(status === "complete" || status === "error") && text && (
             <CopyButton text={text} />
+          )}
+          {status === "error" && onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={retrying}
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Retry this model"
+            >
+              <RotateCcw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} />
+              Retry
+            </button>
           )}
           {capabilityMatrix && (
             <button

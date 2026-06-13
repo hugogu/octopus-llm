@@ -46,6 +46,19 @@ class ShareControllerTest @Autowired constructor(
                 selectedConfiguredModelIds = arrayOf(model.id),
             ),
         )
+        responses.save(
+            ProviderResponse(
+                turn = turn,
+                modelId = model.modelId,
+                configuredModelId = model.id,
+                modelDisplayName = model.displayName,
+                protocol = connection.protocol,
+                attemptNumber = 1,
+                status = "error",
+                errorMessage = "temporary failure",
+                latencyMs = 10,
+            ),
+        )
         val response = responses.save(
             ProviderResponse(
                 turn = turn,
@@ -53,9 +66,11 @@ class ShareControllerTest @Autowired constructor(
                 configuredModelId = model.id,
                 modelDisplayName = model.displayName,
                 protocol = connection.protocol,
+                attemptNumber = 2,
+                retryRequestId = "share-retry-${UUID.randomUUID()}",
                 status = "complete",
                 responseText = "world",
-                latencyMs = 10,
+                latencyMs = 12,
             ),
         )
         val bearer = jwt.issue(user.id, user.sessionEpoch)
@@ -72,7 +87,9 @@ class ShareControllerTest @Autowired constructor(
 
         val read = web.get().uri("/api/v2/shared/${share.token}")
             .exchange().expectStatus().isOk
-            .expectBody().jsonPath("$.turns[0].responses[0].responseId").isEqualTo(response.id.toString())
+            .expectBody().jsonPath("$.turns[0].responses.length()").isEqualTo(1)
+            .jsonPath("$.turns[0].responses[0].status").isEqualTo("complete")
+            .jsonPath("$.turns[0].responses[0].responseId").isEqualTo(response.id.toString())
             .returnResult()
         val visitor = read.responseHeaders.getFirst("Set-Cookie")
             ?.substringAfter("${AnonymousVisitorService.COOKIE_NAME}=")

@@ -24,6 +24,12 @@ class ProviderResponse(
     @Column(name = "configured_model_id", nullable = false)
     val configuredModelId: UUID,
 
+    @Column(name = "attempt_number", nullable = false)
+    val attemptNumber: Int = 1,
+
+    @Column(name = "retry_request_id", length = 100)
+    val retryRequestId: String? = null,
+
     @Column(name = "model_display_name", nullable = false, length = 255)
     val modelDisplayName: String,
 
@@ -69,3 +75,17 @@ class ProviderResponse(
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 )
+
+fun latestProviderResponses(
+    turn: ChatTurn,
+    responses: List<ProviderResponse>,
+): List<ProviderResponse> {
+    val selectedOrder = turn.selectedConfiguredModelIds
+        .withIndex()
+        .associate { (index, id) -> id to index }
+    return responses
+        .groupBy(ProviderResponse::configuredModelId)
+        .values
+        .map { attempts -> attempts.maxBy(ProviderResponse::attemptNumber) }
+        .sortedBy { selectedOrder[it.configuredModelId] ?: Int.MAX_VALUE }
+}

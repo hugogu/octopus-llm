@@ -50,6 +50,8 @@ class PersonalAnalyticsMigrationTest {
             assertTrue("configured_models" to "input_price_per_mtok" in columns)
             assertTrue("chat_turns" to "client_ip" in columns)
             assertTrue("provider_responses" to "connection_id" in columns)
+            assertTrue("provider_responses" to "attempt_number" in columns)
+            assertTrue("provider_responses" to "retry_request_id" in columns)
 
             listOf(
                 "auth_action_throttles",
@@ -72,6 +74,17 @@ class PersonalAnalyticsMigrationTest {
                 ).use { result ->
                     assertTrue(result.next())
                     assertTrue(result.getString(1).contains("WHERE (revoked_at IS NULL)"))
+                }
+                statement.executeQuery(
+                    """
+                    SELECT constraint_name
+                    FROM information_schema.table_constraints
+                    WHERE table_schema = 'public'
+                      AND table_name = 'provider_responses'
+                      AND constraint_name = 'uq_response_turn_configured_model_attempt'
+                    """.trimIndent(),
+                ).use { result ->
+                    assertTrue(result.next())
                 }
             }
         }

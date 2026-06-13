@@ -7,6 +7,7 @@ import com.octopusllm.reaction.ReactionService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
+import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.codec.ServerSentEvent
@@ -33,6 +34,10 @@ data class SubmitTurnRequestV2(
     @field:NotEmpty val selectedConfiguredModelIds: List<UUID>,
     val clientRequestId: String? = null,
     val attachments: List<Map<String, String>> = emptyList(),
+)
+
+data class RetryModelRequestV2(
+    @field:NotBlank @field:Size(max = 100) val clientRequestId: String,
 )
 
 data class SessionResponseV2(
@@ -156,6 +161,31 @@ class ChatControllerV2(
             request.attachments,
             request.clientRequestId,
             clientIpResolver.resolve(exchange),
+        )
+            .map(::toSse)
+            .concatWithValues(
+                ServerSentEvent.builder<String>()
+                    .data("""{"event":"all_complete"}""")
+                    .build(),
+            )
+
+    @PostMapping(
+        "/{sessionId}/turns/{turnId}/models/{configuredModelId}/retry",
+        produces = [MediaType.TEXT_EVENT_STREAM_VALUE],
+    )
+    fun retryModel(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable sessionId: UUID,
+        @PathVariable turnId: UUID,
+        @PathVariable configuredModelId: UUID,
+        @Valid @RequestBody request: RetryModelRequestV2,
+    ): Flux<ServerSentEvent<String>> =
+        chatService.retryModel(
+            sessionId = sessionId,
+            turnId = turnId,
+            configuredModelId = configuredModelId,
+            userId = userId(principal),
+            clientRequestId = request.clientRequestId,
         )
             .map(::toSse)
             .concatWithValues(

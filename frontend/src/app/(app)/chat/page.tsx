@@ -13,6 +13,7 @@ import { getToken } from "@/lib/api/auth";
 import {
   createSessionV2,
   getSessionV2,
+  retryModelV2,
   streamTurnV2,
 } from "@/lib/api/chatV2";
 import { listConfiguredModels } from "@/lib/api/connections";
@@ -42,7 +43,11 @@ const responseGridStyle = {
 interface DraftTurnState {
   promptText: string;
   selectedConfiguredModelIds: string[];
+  turnId?: string;
 }
+
+const retryStreamKey = (turnId: string, configuredModelId: string) =>
+  `retry:${turnId}:${configuredModelId}`;
 
 export default function ChatPage() {
   const router = useRouter();
@@ -55,9 +60,10 @@ export default function ChatPage() {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [draftTurn, setDraftTurn] = useState<DraftTurnState | null>(null);
+  const [liveTurns, setLiveTurns] = useState<Record<string, DraftTurnState>>({});
   const initializedSelectionRef = useRef(false);
-  const { models: panelStates, streaming, reset, handleEvent } = useParallelStream();
+  const sessionIdRef = useRef<string | null>(null);
+  const { streams, start, clear, handleEvent } = useParallelStream();
   const { preferences, setLastSelectedModel } = usePreferences();
   const { sessions, loading: sessionsLoading, loadSessions, removeSession } = useSessions();
 
@@ -66,6 +72,14 @@ export default function ChatPage() {
     () => Object.fromEntries(models.map((model) => [model.id, model])),
     [models],
   );
+  const liveTurn = sessionId ? liveTurns[sessionId] ?? null : null;
+  const currentStream = sessionId ? streams[sessionId] : undefined;
+  const panelStates = currentStream?.models ?? {};
+  const streaming = currentStream?.streaming ?? false;
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   const loadModels = useCallback(async () => {
     const token = getToken();
@@ -129,34 +143,37 @@ export default function ChatPage() {
   const loadSessionData = useCallback(async (id: string) => {
     const token = getToken();
     if (!token) return;
-    setSessionLoading(true);
+    if (sessionIdRef.current === id) setSessionLoading(true);
     try {
       const session = await getSessionV2(id, token);
+      if (sessionIdRef.current !== id) return;
       setActiveSession(session);
       const enabledIds = new Set(enabledModels.map((model) => model.id));
       const priorSelection = session.turns.at(-1)?.selectedConfiguredModelIds.filter((modelId) => enabledIds.has(modelId)) ?? [];
       if (priorSelection.length > 0) setSelectedIds(priorSelection);
       setLoadError(null);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Failed to load conversation");
+      if (sessionIdRef.current === id) {
+        setLoadError(error instanceof Error ? error.message : "Failed to load conversation");
+      }
     } finally {
-      setSessionLoading(false);
+      if (sessionIdRef.current === id) setSessionLoading(false);
     }
   }, [enabledModels]);
 
   useEffect(() => {
     queueMicrotask(() => {
       if (!querySessionId) {
+        sessionIdRef.current = null;
         setSessionId(null);
         setActiveSession(null);
-        setDraftTurn(null);
-        reset([]);
         return;
       }
+      sessionIdRef.current = querySessionId;
       setSessionId(querySessionId);
       void loadSessionData(querySessionId);
     });
-  }, [loadSessionData, querySessionId, reset]);
+  }, [loadSessionData, querySessionId]);
 
   // Refresh like / anonymous-thumb counts read-only while viewing, so loves and 👍 added on a shared
   // link show up here without a manual reload. Skips while streaming to avoid clobbering live state.
@@ -192,18 +209,15 @@ export default function ChatPage() {
     : null;
 
   const handleNewSession = useCallback(() => {
+    sessionIdRef.current = null;
     setSessionId(null);
     setActiveSession(null);
-    setDraftTurn(null);
-    reset([]);
     router.replace("/chat");
-  }, [reset, router]);
+  }, [router]);
 
   const handleSelectSession = useCallback((id: string) => {
-    setDraftTurn(null);
-    reset([]);
     router.replace(`/chat?session=${encodeURIComponent(id)}`);
-  }, [reset, router]);
+  }, [router]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     await removeSession(id);
@@ -212,19 +226,23 @@ export default function ChatPage() {
 
   const handleSubmit = useCallback(async (promptText: string, attachments: Attachment[]) => {
     if (selectedIds.length === 0) return;
-    reset(selectedIds);
-    setDraftTurn({ promptText, selectedConfiguredModelIds: [...selectedIds] });
     try {
       let id = sessionId;
       if (!id) {
         const session = await createSessionV2();
         id = session.id;
+        sessionIdRef.current = id;
         setSessionId(id);
         setActiveSession({ id, title: session.title, turns: [] });
         router.replace(`/chat?session=${encodeURIComponent(id)}`);
         await loadSessions();
       }
 
+      start(id, selectedIds);
+      setLiveTurns((current) => ({
+        ...current,
+        [id]: { promptText, selectedConfiguredModelIds: [...selectedIds] },
+      }));
       await streamTurnV2(
         id,
         {
@@ -233,16 +251,57 @@ export default function ChatPage() {
           attachments,
           clientRequestId: crypto.randomUUID(),
         },
-        (event: SseEventV2) => handleEvent(event),
+        (event: SseEventV2) => {
+          handleEvent(id, event);
+          if (event.event === "turn_created") {
+            setLiveTurns((current) => ({
+              ...current,
+              [id]: { ...(current[id] ?? { promptText, selectedConfiguredModelIds: [...selectedIds] }), turnId: event.turnId },
+            }));
+          }
+        },
       );
       const token = getToken();
-      if (token) setActiveSession(await getSessionV2(id, token));
-      setDraftTurn(null);
+      if (token) {
+        const session = await getSessionV2(id, token);
+        if (sessionIdRef.current === id) setActiveSession(session);
+      }
+      setLiveTurns((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      clear(id);
       await loadSessions();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Chat request failed");
     }
-  }, [handleEvent, loadSessions, reset, router, selectedIds, sessionId]);
+  }, [clear, handleEvent, loadSessions, router, selectedIds, sessionId, start]);
+
+  const handleRetry = useCallback(async (turnId: string, configuredModelId: string) => {
+    if (!sessionId) return;
+    const id = sessionId;
+    const key = retryStreamKey(turnId, configuredModelId);
+    start(key, [configuredModelId], true);
+    try {
+      await retryModelV2(
+        id,
+        turnId,
+        configuredModelId,
+        crypto.randomUUID(),
+        (event) => handleEvent(key, event),
+      );
+      const token = getToken();
+      if (token) {
+        const session = await getSessionV2(id, token);
+        if (sessionIdRef.current === id) setActiveSession(session);
+      }
+      clear(key);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Model retry failed");
+      clear(key);
+    }
+  }, [clear, handleEvent, sessionId, start]);
 
   const renderTurn = useCallback((turn: ChatTurnV2) => (
     <section key={turn.id} className="space-y-3">
@@ -250,31 +309,38 @@ export default function ChatPage() {
         <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
       </div>
       <div style={responseGridStyle}>
-        {turn.responses.map((response) => (
-          <ModelResponsePanel
-            key={`${turn.id}:${response.configuredModelId}`}
-            modelId={response.modelId}
-            displayName={response.modelDisplayName}
-            connectionLabel={response.connectionLabel}
-            text={response.responseText ?? ""}
-            reasoning={response.reasoningText ?? ""}
-            status={response.status}
-            errorMessage={response.errorMessage ?? undefined}
-            inputTokens={response.inputTokens ?? undefined}
-            outputTokens={response.outputTokens ?? undefined}
-            latencyMs={response.latencyMs}
-            capabilityMatrix={modelsById[response.configuredModelId]?.capabilityMatrix}
-            responseId={response.responseId}
-            likeCount={response.likeCount}
-            likedByMe={response.likedByMe}
-            anonymousLikeCount={response.anonymousLikeCount}
-          />
-        ))}
+        {turn.responses.map((response) => {
+          const key = retryStreamKey(turn.id, response.configuredModelId);
+          const retry = streams[key];
+          const retryState = retry?.models[response.configuredModelId];
+          return (
+            <ModelResponsePanel
+              key={`${turn.id}:${response.configuredModelId}`}
+              modelId={response.modelId}
+              displayName={response.modelDisplayName}
+              connectionLabel={response.connectionLabel}
+              text={retryState?.text ?? response.responseText ?? ""}
+              reasoning={retryState?.reasoning ?? response.reasoningText ?? ""}
+              status={retryState?.status ?? response.status}
+              errorMessage={retryState?.errorMessage ?? response.errorMessage ?? undefined}
+              inputTokens={retryState?.inputTokens ?? response.inputTokens ?? undefined}
+              outputTokens={retryState?.outputTokens ?? response.outputTokens ?? undefined}
+              latencyMs={retryState?.latencyMs ?? response.latencyMs}
+              capabilityMatrix={modelsById[response.configuredModelId]?.capabilityMatrix}
+              responseId={retryState?.responseId ?? response.responseId}
+              likeCount={response.likeCount}
+              likedByMe={response.likedByMe}
+              anonymousLikeCount={response.anonymousLikeCount}
+              retrying={retry?.streaming ?? false}
+              onRetry={() => void handleRetry(turn.id, response.configuredModelId)}
+            />
+          );
+        })}
       </div>
     </section>
-  ), [modelsById]);
+  ), [handleRetry, modelsById, streams]);
 
-  const hasConversation = (activeSession?.turns.length ?? 0) > 0 || draftTurn !== null;
+  const hasConversation = (activeSession?.turns.length ?? 0) > 0 || liveTurn !== null;
   const handleDelete = useCallback(() => {
     if (!sessionId) return;
     if (!window.confirm("Are you sure you want to delete this conversation?")) return;
@@ -352,14 +418,16 @@ export default function ChatPage() {
               </div>
             ) : hasConversation ? (
               <>
-                {activeSession?.turns.map(renderTurn)}
-                {draftTurn ? (
+                {activeSession?.turns
+                  .filter((turn) => turn.id !== liveTurn?.turnId)
+                  .map(renderTurn)}
+                {liveTurn ? (
                   <section className="space-y-3">
                     <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
-                      <MarkdownRenderer content={draftTurn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
+                      <MarkdownRenderer content={liveTurn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
                     </div>
                     <div style={responseGridStyle}>
-                      {draftTurn.selectedConfiguredModelIds.map((id) => {
+                      {liveTurn.selectedConfiguredModelIds.map((id) => {
                         const model = modelsById[id];
                         const state = panelStates[id];
                         return (

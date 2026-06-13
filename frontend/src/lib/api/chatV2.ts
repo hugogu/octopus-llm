@@ -73,14 +73,42 @@ export async function streamTurnV2(
   onEvent: (event: SseEventV2) => void,
   token?: string,
 ): Promise<void> {
-  const response = await checked(await fetch(
+  await readSse(await checked(await fetch(
     apiUrl(`/api/v2/chat/sessions/${encodeURIComponent(sessionId)}/turns`),
     {
       method: "POST",
       headers: { ...headers(token), Accept: "text/event-stream" },
       body: JSON.stringify(body),
     },
-  ));
+  )), onEvent);
+}
+
+export async function retryModelV2(
+  sessionId: string,
+  turnId: string,
+  configuredModelId: string,
+  clientRequestId: string,
+  onEvent: (event: SseEventV2) => void,
+  token?: string,
+): Promise<void> {
+  await readSse(await checked(await fetch(
+    apiUrl(
+      `/api/v2/chat/sessions/${encodeURIComponent(sessionId)}` +
+      `/turns/${encodeURIComponent(turnId)}` +
+      `/models/${encodeURIComponent(configuredModelId)}/retry`,
+    ),
+    {
+      method: "POST",
+      headers: { ...headers(token), Accept: "text/event-stream" },
+      body: JSON.stringify({ clientRequestId }),
+    },
+  )), onEvent);
+}
+
+async function readSse(
+  response: Response,
+  onEvent: (event: SseEventV2) => void,
+): Promise<void> {
   const reader = response.body?.getReader();
   if (!reader) throw new Error("No response body");
 

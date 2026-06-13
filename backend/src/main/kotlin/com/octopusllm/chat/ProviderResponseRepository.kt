@@ -7,6 +7,11 @@ import java.util.UUID
 
 interface ProviderResponseRepository : JpaRepository<ProviderResponse, UUID> {
     fun findByTurnId(turnId: UUID): List<ProviderResponse>
+    fun findFirstByTurnIdAndConfiguredModelIdOrderByAttemptNumberDesc(
+        turnId: UUID,
+        configuredModelId: UUID,
+    ): ProviderResponse?
+    fun findByRetryRequestId(retryRequestId: String): ProviderResponse?
 
     @Query(
         """

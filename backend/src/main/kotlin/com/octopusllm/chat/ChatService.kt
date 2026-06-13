@@ -62,7 +62,7 @@ class ChatService(
         blocking {
             val session = requireSession(sessionId, userId)
             val turns = turnRepository.findBySessionIdOrderBySequenceNum(sessionId)
-            session to turns.map { turn -> turn to responseRepository.findByTurnId(turn.id) }
+            session to turns.map { turn -> turn to latestResponses(turn) }
         }
 
     fun deleteSession(sessionId: UUID, userId: UUID): Mono<Unit> =
@@ -111,128 +111,262 @@ class ChatService(
                 session.updatedAt = Instant.now()
                 sessionRepository.save(session)
 
-                val targets = models.map { model ->
-                    val connection = model.connection
-                    val protocol = ProtocolDefinitions.require(connection.protocol)
-                    ModelDispatchTarget(
-                        configuredModelId = model.id,
-                        modelId = model.modelId,
-                        protocol = connection.protocol,
-                        decryptedApiKey = connectionService.decryptAndValidate(connection),
-                        capabilityMatrix = ProtocolDefinitions.mergeCapabilities(
-                            protocol.baseline,
-                            model.capabilityOverrides,
-                        ),
-                        customParams = model.customParams,
-                        baseUrl = connection.baseUrl,
-                        displayName = model.displayName,
-                        connectionLabel = connection.label,
-                        connectionId = connection.id,
-                        inputPricePerMtok = model.inputPricePerMtok,
-                        outputPricePerMtok = model.outputPricePerMtok,
-                        priceCurrency = model.priceCurrency,
-                    )
-                }
-
-                val priorTurns = turnRepository.findBySessionIdOrderBySequenceNum(sessionId).dropLast(1)
-                val history = priorTurns.flatMap { prior ->
-                    listOf(HistoryTurn(role = "user", text = prior.promptText)) +
-                        responseRepository.findByTurnId(prior.id)
-                            .filter { it.status == "complete" && it.responseText != null }
-                            .map { HistoryTurn(role = "assistant", text = requireNotNull(it.responseText)) }
-                }
-                val request = LlmRequest(
-                    prompt = promptText,
-                    history = history,
-                    attachments = attachments.map {
-                        Attachment(
-                            type = it["type"].orEmpty(),
-                            data = it["data"].orEmpty(),
-                            mimeType = it["mimeType"] ?: it["mime_type"].orEmpty(),
-                        )
-                    },
-                )
+                val targets = models.map(::dispatchTarget)
+                val request = requestForTurn(sessionId, turn)
                 Triple(turn, targets, request)
             }
 
+        return setup.flatMapMany { (turn, targets, request) ->
+            val attempts = targets.associate { it.configuredModelId to ResponseAttempt(1, null) }
+            streamResponses(turn, userId, targets, request, attempts, includeTurnCreated = true)
+        }
+    }
+
+    fun retryModel(
+        sessionId: UUID,
+        turnId: UUID,
+        configuredModelId: UUID,
+        userId: UUID,
+        clientRequestId: String,
+    ): Flux<LlmStreamEvent> {
+        data class RetrySetup(
+            val turn: ChatTurn,
+            val target: ModelDispatchTarget?,
+            val request: LlmRequest?,
+            val attempt: ResponseAttempt,
+        )
+
+        val setup = blocking {
+            requireSession(sessionId, userId)
+            val turn = turnRepository.findById(turnId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Turn not found")
+            }
+            if (turn.session.id != sessionId || turn.session.user.id != userId) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Turn not found")
+            }
+
+            responseRepository.findByRetryRequestId(clientRequestId)?.let { existing ->
+                if (
+                    existing.turn.id != turnId ||
+                    existing.configuredModelId != configuredModelId ||
+                    existing.turn.session.user.id != userId
+                ) {
+                    throw DuplicateRequestException(existing.id.toString())
+                }
+                return@blocking RetrySetup(
+                    turn,
+                    null,
+                    null,
+                    ResponseAttempt(existing.attemptNumber, clientRequestId, existing),
+                )
+            }
+
+            val latest = responseRepository
+                .findFirstByTurnIdAndConfiguredModelIdOrderByAttemptNumberDesc(turnId, configuredModelId)
+                ?: throw ResponseStatusException(HttpStatus.CONFLICT, "This model has not failed")
+            if (latest.status != "error") {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Only failed model responses can be retried")
+            }
+
+            val model = configuredModelService.requireSelectable(userId, listOf(configuredModelId)).single()
+            if (!model.isEnabled) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Configured model is disabled")
+            }
+            RetrySetup(
+                turn = turn,
+                target = dispatchTarget(model),
+                request = requestForTurn(sessionId, turn),
+                attempt = ResponseAttempt(latest.attemptNumber + 1, clientRequestId),
+            )
+        }
+
+        return setup.flatMapMany { retry ->
+            retry.attempt.existing?.let(::replayResponse)
+                ?: streamResponses(
+                    turn = retry.turn,
+                    userId = userId,
+                    targets = listOf(requireNotNull(retry.target)),
+                    request = requireNotNull(retry.request),
+                    attempts = mapOf(configuredModelId to retry.attempt),
+                    includeTurnCreated = false,
+                )
+        }
+    }
+
+    private data class ResponseAttempt(
+        val number: Int,
+        val retryRequestId: String?,
+        val existing: ProviderResponse? = null,
+    )
+
+    private fun streamResponses(
+        turn: ChatTurn,
+        userId: UUID,
+        targets: List<ModelDispatchTarget>,
+        request: LlmRequest,
+        attempts: Map<UUID, ResponseAttempt>,
+        includeTurnCreated: Boolean,
+    ): Flux<LlmStreamEvent> {
         val textBuffers = ConcurrentHashMap<UUID, StringBuilder>()
         val reasoningBuffers = ConcurrentHashMap<UUID, StringBuilder>()
         val startTimes = ConcurrentHashMap<UUID, Long>()
 
-        return setup.flatMapMany { (turn, targets, request) ->
-            val targetById = targets.associateBy { it.configuredModelId }
-            targets.forEach {
-                textBuffers[it.configuredModelId] = StringBuilder()
-                reasoningBuffers[it.configuredModelId] = StringBuilder()
-                startTimes[it.configuredModelId] = System.currentTimeMillis()
+        val targetById = targets.associateBy { it.configuredModelId }
+        targets.forEach {
+            textBuffers[it.configuredModelId] = StringBuilder()
+            reasoningBuffers[it.configuredModelId] = StringBuilder()
+            startTimes[it.configuredModelId] = System.currentTimeMillis()
+        }
+
+        val modelEvents = orchestrator.stream(targets, request)
+            .flatMap<LlmStreamEvent> { event ->
+                val configuredModelId = configuredModelId(event) ?: return@flatMap Mono.just(event)
+                val target = targetById[configuredModelId] ?: return@flatMap Mono.just(event)
+                val attempt = attempts.getValue(configuredModelId)
+                when (event) {
+                    is LlmStreamEvent.Token -> {
+                        textBuffers[configuredModelId]?.append(event.delta)
+                        Mono.just(event)
+                    }
+                    is LlmStreamEvent.Reasoning -> {
+                        reasoningBuffers[configuredModelId]?.append(event.delta)
+                        Mono.just(event)
+                    }
+                    is LlmStreamEvent.ModelComplete -> persistResponse(
+                        ProviderResponse(
+                            turn = turn,
+                            configuredModelId = configuredModelId,
+                            attemptNumber = attempt.number,
+                            retryRequestId = attempt.retryRequestId,
+                            modelId = target.modelId,
+                            modelDisplayName = target.displayName,
+                            protocol = target.protocol,
+                            connectionLabel = target.connectionLabel,
+                            connectionId = target.connectionId,
+                            status = "complete",
+                            responseText = textBuffers[configuredModelId]?.toString(),
+                            reasoningText = reasoningBuffers[configuredModelId]?.toString()?.ifBlank { null },
+                            inputTokens = event.inputTokens,
+                            outputTokens = event.outputTokens,
+                            latencyMs = event.latencyMs.toInt(),
+                            inputPricePerMtok = target.inputPricePerMtok,
+                            outputPricePerMtok = target.outputPricePerMtok,
+                            priceCurrency = target.priceCurrency,
+                        ),
+                        userId,
+                    ).map { saved -> event.copy(responseId = saved.id) }
+                    is LlmStreamEvent.ModelError -> persistResponse(
+                        ProviderResponse(
+                            turn = turn,
+                            configuredModelId = configuredModelId,
+                            attemptNumber = attempt.number,
+                            retryRequestId = attempt.retryRequestId,
+                            modelId = target.modelId,
+                            modelDisplayName = target.displayName,
+                            protocol = target.protocol,
+                            connectionLabel = target.connectionLabel,
+                            connectionId = target.connectionId,
+                            status = "error",
+                            errorMessage = event.error,
+                            latencyMs = (
+                                System.currentTimeMillis() -
+                                    (startTimes[configuredModelId] ?: System.currentTimeMillis())
+                                ).toInt(),
+                            inputPricePerMtok = target.inputPricePerMtok,
+                            outputPricePerMtok = target.outputPricePerMtok,
+                            priceCurrency = target.priceCurrency,
+                        ),
+                        userId,
+                    ).map { saved -> event.copy(responseId = saved.id) }
+                    is LlmStreamEvent.CapabilityNotice -> Mono.just(event)
+                }
             }
 
-            val turnCreated = LlmStreamEvent.CapabilityNotice(
-                modelId = "__system__",
-                notice = """{"event":"turn_created","turnId":"${turn.id}","sequenceNum":${turn.sequenceNum}}""",
-            )
+        if (!includeTurnCreated) return modelEvents
+        val turnCreated = LlmStreamEvent.CapabilityNotice(
+            modelId = "__system__",
+            notice = """{"event":"turn_created","turnId":"${turn.id}","sequenceNum":${turn.sequenceNum}}""",
+        )
+        return Flux.concat(Flux.just(turnCreated), modelEvents)
+    }
 
-            val modelEvents = orchestrator.stream(targets, request)
-                .flatMap<LlmStreamEvent> { event ->
-                    val configuredModelId = configuredModelId(event) ?: return@flatMap Mono.just(event)
-                    val target = targetById[configuredModelId] ?: return@flatMap Mono.just(event)
-                    when (event) {
-                        is LlmStreamEvent.Token -> {
-                            textBuffers[configuredModelId]?.append(event.delta)
-                            Mono.just(event)
-                        }
-                        is LlmStreamEvent.Reasoning -> {
-                            reasoningBuffers[configuredModelId]?.append(event.delta)
-                            Mono.just(event)
-                        }
-                        is LlmStreamEvent.ModelComplete -> persistResponse(
-                            ProviderResponse(
-                                turn = turn,
-                                configuredModelId = configuredModelId,
-                                modelId = target.modelId,
-                                modelDisplayName = target.displayName,
-                                protocol = target.protocol,
-                                connectionLabel = target.connectionLabel,
-                                connectionId = target.connectionId,
-                                status = "complete",
-                                responseText = textBuffers[configuredModelId]?.toString(),
-                                reasoningText = reasoningBuffers[configuredModelId]?.toString()?.ifBlank { null },
-                                inputTokens = event.inputTokens,
-                                outputTokens = event.outputTokens,
-                                latencyMs = event.latencyMs.toInt(),
-                                inputPricePerMtok = target.inputPricePerMtok,
-                                outputPricePerMtok = target.outputPricePerMtok,
-                                priceCurrency = target.priceCurrency,
-                            ),
-                            userId,
-                        ).map { saved -> event.copy(responseId = saved.id) }
-                        is LlmStreamEvent.ModelError -> persistResponse(
-                            ProviderResponse(
-                                turn = turn,
-                                configuredModelId = configuredModelId,
-                                modelId = target.modelId,
-                                modelDisplayName = target.displayName,
-                                protocol = target.protocol,
-                                connectionLabel = target.connectionLabel,
-                                connectionId = target.connectionId,
-                                status = "error",
-                                errorMessage = event.error,
-                                latencyMs = (
-                                    System.currentTimeMillis() -
-                                        (startTimes[configuredModelId] ?: System.currentTimeMillis())
-                                    ).toInt(),
-                                inputPricePerMtok = target.inputPricePerMtok,
-                                outputPricePerMtok = target.outputPricePerMtok,
-                                priceCurrency = target.priceCurrency,
-                            ),
-                            userId,
-                        ).map { saved -> event.copy(responseId = saved.id) }
-                        is LlmStreamEvent.CapabilityNotice -> Mono.just(event)
-                    }
-                }
-
-            Flux.concat(Flux.just(turnCreated), modelEvents)
+    private fun replayResponse(response: ProviderResponse): Flux<LlmStreamEvent> {
+        val events = mutableListOf<LlmStreamEvent>()
+        response.reasoningText?.takeIf { it.isNotEmpty() }?.let {
+            events.add(LlmStreamEvent.Reasoning(response.modelId, it, response.configuredModelId))
         }
+        response.responseText?.takeIf { it.isNotEmpty() }?.let {
+            events.add(LlmStreamEvent.Token(response.modelId, it, response.configuredModelId))
+        }
+        events.add(
+            if (response.status == "complete") {
+                LlmStreamEvent.ModelComplete(
+                    modelId = response.modelId,
+                    inputTokens = response.inputTokens,
+                    outputTokens = response.outputTokens,
+                    latencyMs = response.latencyMs.toLong(),
+                    configuredModelId = response.configuredModelId,
+                    responseId = response.id,
+                )
+            } else {
+                LlmStreamEvent.ModelError(
+                    modelId = response.modelId,
+                    error = response.errorMessage ?: "Unknown error",
+                    configuredModelId = response.configuredModelId,
+                    responseId = response.id,
+                )
+            },
+        )
+        return Flux.fromIterable(events)
+    }
+
+    private fun dispatchTarget(model: com.octopusllm.connection.ConfiguredModel): ModelDispatchTarget {
+        val connection = model.connection
+        val protocol = ProtocolDefinitions.require(connection.protocol)
+        return ModelDispatchTarget(
+            configuredModelId = model.id,
+            modelId = model.modelId,
+            protocol = connection.protocol,
+            decryptedApiKey = connectionService.decryptAndValidate(connection),
+            capabilityMatrix = ProtocolDefinitions.mergeCapabilities(
+                protocol.baseline,
+                model.capabilityOverrides,
+            ),
+            customParams = model.customParams,
+            baseUrl = connection.baseUrl,
+            displayName = model.displayName,
+            connectionLabel = connection.label,
+            connectionId = connection.id,
+            inputPricePerMtok = model.inputPricePerMtok,
+            outputPricePerMtok = model.outputPricePerMtok,
+            priceCurrency = model.priceCurrency,
+        )
+    }
+
+    private fun requestForTurn(sessionId: UUID, turn: ChatTurn): LlmRequest {
+        val priorTurns = turnRepository.findBySessionIdOrderBySequenceNum(sessionId)
+            .filter { it.sequenceNum < turn.sequenceNum }
+        val history = priorTurns.flatMap { prior ->
+            listOf(HistoryTurn(role = "user", text = prior.promptText)) +
+                latestResponses(prior)
+                    .filter { it.status == "complete" && it.responseText != null }
+                    .map { HistoryTurn(role = "assistant", text = requireNotNull(it.responseText)) }
+        }
+        return LlmRequest(
+            prompt = turn.promptText,
+            history = history,
+            attachments = turn.attachments.orEmpty().map {
+                Attachment(
+                    type = it["type"].orEmpty(),
+                    data = it["data"].orEmpty(),
+                    mimeType = it["mimeType"] ?: it["mime_type"].orEmpty(),
+                )
+            },
+        )
+    }
+
+    private fun latestResponses(turn: ChatTurn): List<ProviderResponse> {
+        return latestProviderResponses(turn, responseRepository.findByTurnId(turn.id))
     }
 
     private fun persistResponse(response: ProviderResponse, userId: UUID): Mono<ProviderResponse> =
