@@ -48,6 +48,9 @@ const savedModel: ConfiguredModelV2 = {
   customParams: {},
   isEnabled: true,
   sortOrder: 0,
+  inputPricePerMtok: null,
+  outputPricePerMtok: null,
+  priceCurrency: null,
   createdAt: "2026-06-12T00:00:00Z",
   updatedAt: "2026-06-12T00:00:00Z",
 };

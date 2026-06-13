@@ -57,6 +57,9 @@ export default function LoginForm() {
           Register
         </a>
       </p>
+      <a href="/forgot-password" className="text-center text-sm text-blue-600 underline">
+        Forgot password?
+      </a>
     </form>
   );
 }

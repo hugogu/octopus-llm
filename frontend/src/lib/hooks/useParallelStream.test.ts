@@ -34,6 +34,7 @@ describe("useParallelStream", () => {
       inputTokens: 3,
       outputTokens: 7,
       latencyMs: 42,
+      responseId: "response-a",
     }));
 
     expect(result.current.models["configured-a"]).toMatchObject({
@@ -41,6 +42,7 @@ describe("useParallelStream", () => {
       inputTokens: 3,
       outputTokens: 7,
       latencyMs: 42,
+      responseId: "response-a",
     });
   });
 });

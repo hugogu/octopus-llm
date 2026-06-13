@@ -32,9 +32,15 @@
 ## Notes
 
 - "消耗/cost" semantics confirmed in Clarifications (Session 2026-06-13): token usage primary; estimated
-  monetary cost only where pricing is known; no billing-grade pricing catalog. Other resolved decisions:
-  share links never auto-expire (revoke-only), password change invalidates all other sessions, and
-  statistics records are retained indefinitely (cascade on delete).
+  monetary cost only where configured-model pricing was captured for the response; no billing-grade
+  pricing catalog and mixed currencies are never summed. Other resolved decisions: share links never
+  auto-expire (revoke-only), password change invalidates all old credentials while replacing the
+  current one, and response statistics are retained indefinitely (cascade on delete).
 - Several Personal-Center capabilities partially exist (auth, reset-password, me/profile, model
   settings); spec treats this feature as consolidation + gap-filling rather than a rebuild.
+- The review corrected stale design assumptions: V017 removed `model_definitions`, `session_epoch`
+  already handles bulk session invalidation, `(app)` routes require authentication, and Constitution V
+  requires a public anonymized aggregate analytics view.
+- Anonymous like de-duplication uses a server-issued browser cookie and stored share-scoped digest;
+  arbitrary caller-provided visitor tokens are not accepted.
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.

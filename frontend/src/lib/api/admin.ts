@@ -135,7 +135,14 @@ export function loadBuiltinEndpointModels(
 export function addBuiltinModel(
   token: string,
   connectionId: string,
-  body: { modelId: string; displayName: string; isEnabled?: boolean },
+  body: {
+    modelId: string;
+    displayName: string;
+    isEnabled?: boolean;
+    inputPricePerMtok?: number | null;
+    outputPricePerMtok?: number | null;
+    priceCurrency?: string | null;
+  },
 ): Promise<BuiltinModel> {
   return request(
     `/api/v2/admin/connections/${connectionId}/models`,

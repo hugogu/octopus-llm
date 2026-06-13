@@ -25,11 +25,20 @@ export async function verifyEmail(req: VerifyEmailRequest): Promise<{ message: s
 
 export async function login(req: { email: string; password: string }): Promise<LoginResponse> {
   const data = await post<LoginResponse>("/api/v1/auth/login", req);
-  if (typeof document !== "undefined") {
-    // Non-HttpOnly cookie so server components can read it via cookies()
-    document.cookie = `auth_token=${data.token}; path=/; max-age=${60 * 60}; SameSite=Lax`;
-  }
+  replaceAuthToken(data.token, data.expiresAt);
   return data;
+}
+
+export async function requestPasswordReset(email: string): Promise<{ status: string }> {
+  return post("/api/v1/auth/password-reset/request", { email });
+}
+
+export function replaceAuthToken(token: string, expiresAt?: string): void {
+  if (typeof document === "undefined") return;
+  const maxAge = expiresAt
+    ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))
+    : 60 * 60;
+  document.cookie = `auth_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 export async function logout(): Promise<void> {

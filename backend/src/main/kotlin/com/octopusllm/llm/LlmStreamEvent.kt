@@ -21,12 +21,14 @@ sealed class LlmStreamEvent {
         val outputTokens: Int?,
         val latencyMs: Long,
         val configuredModelId: UUID? = null,
+        val responseId: UUID? = null,
     ) : LlmStreamEvent()
 
     data class ModelError(
         val modelId: String,
         val error: String,
         val configuredModelId: UUID? = null,
+        val responseId: UUID? = null,
     ) : LlmStreamEvent()
 
     data class CapabilityNotice(

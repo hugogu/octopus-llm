@@ -68,6 +68,101 @@ export interface PageResponse<T> {
   totalPages: number;
 }
 
+export interface AnalyticsSummary {
+  totalResponses: number;
+  successRate: number;
+  avgLatencyMs: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  estimatedCostsByCurrency: Record<string, number>;
+}
+
+export interface ModelAnalytics {
+  configuredModelId: string;
+  modelId: string;
+  modelDisplayName: string;
+  responseCount: number;
+  successRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostsByCurrency: Record<string, number>;
+}
+
+export interface SessionAnalytics {
+  sessionId: string;
+  title: string | null;
+  responseCount: number;
+  models: string[];
+  avgLatencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  successRate: number;
+  estimatedCostsByCurrency: Record<string, number>;
+}
+
+export interface ResponseAnalytics {
+  responseId: string;
+  userId: string;
+  sessionId: string;
+  createdAt: string;
+  configuredModelId: string;
+  modelId: string;
+  modelDisplayName: string;
+  protocol: string;
+  connectionId: string | null;
+  connectionLabel: string | null;
+  status: "complete" | "error";
+  latencyMs: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  estimatedCost: { amount: number; currency: string } | null;
+  clientIp: string | null;
+  namedLikeCount: number;
+  anonymousLikeCount: number;
+}
+
+export interface PublicModelAnalytics {
+  protocol: string;
+  modelId: string;
+  responseCount: number;
+  successRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number;
+  inputTokens: number;
+  outputTokens: number;
+  namedLikeCount: number;
+  anonymousLikeCount: number;
+}
+
+export interface ShareLink {
+  token: string;
+  shareUrl: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+export interface SharedResponse {
+  responseId: string;
+  modelDisplayName: string;
+  status: "complete" | "error";
+  responseText: string | null;
+  reasoningText: string | null;
+  errorMessage: string | null;
+  anonymousLikeCount: number;
+  likedByThisVisitor: boolean;
+}
+
+export interface SharedSession {
+  title: string | null;
+  turns: Array<{
+    sequenceNum: number;
+    promptText: string;
+    responses: SharedResponse[];
+  }>;
+}
+
 // ---------------------------------------------------------------------------
 // API v2 — admin control panel
 // ---------------------------------------------------------------------------
@@ -75,8 +170,17 @@ export interface PageResponse<T> {
 export interface MeResponse {
   id: string;
   email: string;
+  displayName: string | null;
+  emailVerified: boolean;
+  emailVerificationStatus: "verified" | "pending" | "unverified";
   isAdmin: boolean;
   isActive: boolean;
+}
+
+export interface PasswordChangeResponse {
+  status: "password_updated";
+  token: string;
+  expiresAt: string;
 }
 
 export interface AdminUser {
@@ -109,6 +213,9 @@ export interface BuiltinModel {
   displayName: string;
   isEnabled: boolean;
   sortOrder: number;
+  inputPricePerMtok: number | null;
+  outputPricePerMtok: number | null;
+  priceCurrency: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -178,6 +285,9 @@ export interface ConfiguredModelV2 {
   customParams: Record<string, unknown>;
   isEnabled: boolean;
   sortOrder: number;
+  inputPricePerMtok: number | null;
+  outputPricePerMtok: number | null;
+  priceCurrency: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -189,6 +299,9 @@ export interface AddConfiguredModelRequestV2 {
   capabilityOverrides?: Record<string, unknown>;
   customParams?: Record<string, unknown>;
   isEnabled?: boolean;
+  inputPricePerMtok?: number | null;
+  outputPricePerMtok?: number | null;
+  priceCurrency?: string | null;
 }
 
 export interface PatchConfiguredModelRequestV2 {
@@ -197,6 +310,9 @@ export interface PatchConfiguredModelRequestV2 {
   capabilityOverrides?: Record<string, unknown>;
   customParams?: Record<string, unknown>;
   sortOrder?: number;
+  inputPricePerMtok?: number | null;
+  outputPricePerMtok?: number | null;
+  priceCurrency?: string | null;
 }
 
 export interface UserPreferencesV2 {
@@ -219,6 +335,7 @@ export interface ChatSessionV2 {
 }
 
 export interface ProviderResponseV2 {
+  responseId: string;
   configuredModelId: string;
   modelId: string;
   modelDisplayName: string;
@@ -231,6 +348,8 @@ export interface ProviderResponseV2 {
   inputTokens: number | null;
   outputTokens: number | null;
   latencyMs: number;
+  likeCount: number;
+  likedByMe: boolean;
 }
 
 export interface ChatTurnV2 {
@@ -271,6 +390,7 @@ export type SseEventV2 =
       inputTokens: number;
       outputTokens: number;
       latencyMs: number;
+      responseId: string;
     })
-  | (ModelSseIdentity & { event: "model_error"; error: string })
+  | (ModelSseIdentity & { event: "model_error"; error: string; responseId: string })
   | { event: "all_complete" };

@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
 import reactor.core.scheduler.Schedulers
 import java.time.Duration
+import java.math.BigDecimal
 import java.util.UUID
 import java.util.concurrent.TimeoutException
 
@@ -17,6 +18,10 @@ data class ModelDispatchTarget(
     val baseUrl: String,
     val displayName: String,
     val connectionLabel: String?,
+    val connectionId: UUID? = null,
+    val inputPricePerMtok: BigDecimal? = null,
+    val outputPricePerMtok: BigDecimal? = null,
+    val priceCurrency: String? = null,
 )
 
 @Component

@@ -78,6 +78,7 @@ class ChatService(
         selectedConfiguredModelIds: List<UUID>,
         attachments: List<Map<String, String>>,
         clientRequestId: String?,
+        clientIp: String?,
     ): Flux<LlmStreamEvent> {
         val setup: Mono<Triple<ChatTurn, List<ModelDispatchTarget>, LlmRequest>> =
             blocking {
@@ -102,6 +103,7 @@ class ChatService(
                         selectedModelIds = models.map { it.modelId }.toTypedArray(),
                         selectedConfiguredModelIds = models.map { it.id }.toTypedArray(),
                         clientRequestId = clientRequestId,
+                        clientIp = clientIp,
                     ),
                 )
 
@@ -125,6 +127,10 @@ class ChatService(
                         baseUrl = connection.baseUrl,
                         displayName = model.displayName,
                         connectionLabel = connection.label,
+                        connectionId = connection.id,
+                        inputPricePerMtok = model.inputPricePerMtok,
+                        outputPricePerMtok = model.outputPricePerMtok,
+                        priceCurrency = model.priceCurrency,
                     )
                 }
 
@@ -167,12 +173,18 @@ class ChatService(
             )
 
             val modelEvents = orchestrator.stream(targets, request)
-                .doOnNext { event ->
-                    val configuredModelId = configuredModelId(event) ?: return@doOnNext
-                    val target = targetById[configuredModelId] ?: return@doOnNext
+                .flatMap<LlmStreamEvent> { event ->
+                    val configuredModelId = configuredModelId(event) ?: return@flatMap Mono.just(event)
+                    val target = targetById[configuredModelId] ?: return@flatMap Mono.just(event)
                     when (event) {
-                        is LlmStreamEvent.Token -> textBuffers[configuredModelId]?.append(event.delta)
-                        is LlmStreamEvent.Reasoning -> reasoningBuffers[configuredModelId]?.append(event.delta)
+                        is LlmStreamEvent.Token -> {
+                            textBuffers[configuredModelId]?.append(event.delta)
+                            Mono.just(event)
+                        }
+                        is LlmStreamEvent.Reasoning -> {
+                            reasoningBuffers[configuredModelId]?.append(event.delta)
+                            Mono.just(event)
+                        }
                         is LlmStreamEvent.ModelComplete -> persistResponse(
                             ProviderResponse(
                                 turn = turn,
@@ -181,15 +193,19 @@ class ChatService(
                                 modelDisplayName = target.displayName,
                                 protocol = target.protocol,
                                 connectionLabel = target.connectionLabel,
+                                connectionId = target.connectionId,
                                 status = "complete",
                                 responseText = textBuffers[configuredModelId]?.toString(),
                                 reasoningText = reasoningBuffers[configuredModelId]?.toString()?.ifBlank { null },
                                 inputTokens = event.inputTokens,
                                 outputTokens = event.outputTokens,
                                 latencyMs = event.latencyMs.toInt(),
+                                inputPricePerMtok = target.inputPricePerMtok,
+                                outputPricePerMtok = target.outputPricePerMtok,
+                                priceCurrency = target.priceCurrency,
                             ),
                             userId,
-                        )
+                        ).map { saved -> event.copy(responseId = saved.id) }
                         is LlmStreamEvent.ModelError -> persistResponse(
                             ProviderResponse(
                                 turn = turn,
@@ -198,16 +214,20 @@ class ChatService(
                                 modelDisplayName = target.displayName,
                                 protocol = target.protocol,
                                 connectionLabel = target.connectionLabel,
+                                connectionId = target.connectionId,
                                 status = "error",
                                 errorMessage = event.error,
                                 latencyMs = (
                                     System.currentTimeMillis() -
                                         (startTimes[configuredModelId] ?: System.currentTimeMillis())
                                     ).toInt(),
+                                inputPricePerMtok = target.inputPricePerMtok,
+                                outputPricePerMtok = target.outputPricePerMtok,
+                                priceCurrency = target.priceCurrency,
                             ),
                             userId,
-                        )
-                        is LlmStreamEvent.CapabilityNotice -> Unit
+                        ).map { saved -> event.copy(responseId = saved.id) }
+                        is LlmStreamEvent.CapabilityNotice -> Mono.just(event)
                     }
                 }
 
@@ -215,7 +235,7 @@ class ChatService(
         }
     }
 
-    private fun persistResponse(response: ProviderResponse, userId: UUID) {
+    private fun persistResponse(response: ProviderResponse, userId: UUID): Mono<ProviderResponse> =
         Mono.fromCallable { responseRepository.save(response) }
             .subscribeOn(Schedulers.boundedElastic())
             .doOnSuccess {
@@ -231,8 +251,6 @@ class ChatService(
                     response.status,
                 )
             }
-            .subscribe()
-    }
 
     private fun configuredModelId(event: LlmStreamEvent): UUID? = when (event) {
         is LlmStreamEvent.Token -> event.configuredModelId

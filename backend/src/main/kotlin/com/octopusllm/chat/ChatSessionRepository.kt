@@ -7,4 +7,5 @@ import java.util.UUID
 
 interface ChatSessionRepository : JpaRepository<ChatSession, UUID> {
     fun findByUserIdOrderByCreatedAtDesc(userId: UUID, pageable: Pageable): Page<ChatSession>
+    fun existsByIdAndUserId(id: UUID, userId: UUID): Boolean
 }

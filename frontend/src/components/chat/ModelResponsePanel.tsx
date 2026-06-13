@@ -7,6 +7,7 @@ import StreamingMarkdown from "./StreamingMarkdown";
 import ThinkingBlock from "./ThinkingBlock";
 import ExpandableContent from "./ExpandableContent";
 import CopyButton from "@/components/ui/CopyButton";
+import ResponseLikeButton from "./ResponseLikeButton";
 
 interface ModelResponsePanelProps {
   modelId: string;
@@ -21,6 +22,9 @@ interface ModelResponsePanelProps {
   latencyMs?: number;
   capabilityNotice?: string;
   capabilityMatrix?: CapabilityMatrix;
+  responseId?: string;
+  likeCount?: number;
+  likedByMe?: boolean;
 }
 
 export default function ModelResponsePanel({
@@ -36,6 +40,9 @@ export default function ModelResponsePanel({
   latencyMs,
   capabilityNotice,
   capabilityMatrix,
+  responseId,
+  likeCount = 0,
+  likedByMe = false,
 }: ModelResponsePanelProps) {
   const [showCaps, setShowCaps] = useState(false);
 
@@ -60,6 +67,7 @@ export default function ModelResponsePanel({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <ResponseLikeButton responseId={responseId} initialCount={likeCount} initialLiked={likedByMe} />
           {status === "complete" && (
             <span className="hidden text-xs text-stone-400 sm:block">
               {latencyMs !== undefined && `${(latencyMs / 1000).toFixed(1)}s`}

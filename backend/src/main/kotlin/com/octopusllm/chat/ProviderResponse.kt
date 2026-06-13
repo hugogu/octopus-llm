@@ -1,6 +1,7 @@
 package com.octopusllm.chat
 
 import jakarta.persistence.*
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
 
@@ -32,6 +33,9 @@ class ProviderResponse(
     @Column(name = "connection_label", length = 255)
     val connectionLabel: String? = null,
 
+    @Column(name = "connection_id")
+    val connectionId: UUID? = null,
+
     @Column(nullable = false, length = 50)
     val status: String, // "complete" or "error"
 
@@ -52,6 +56,15 @@ class ProviderResponse(
 
     @Column(name = "latency_ms", nullable = false)
     val latencyMs: Int,
+
+    @Column(name = "input_price_per_mtok", precision = 12, scale = 4)
+    val inputPricePerMtok: BigDecimal? = null,
+
+    @Column(name = "output_price_per_mtok", precision = 12, scale = 4)
+    val outputPricePerMtok: BigDecimal? = null,
+
+    @Column(name = "price_currency", length = 3)
+    val priceCurrency: String? = null,
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),

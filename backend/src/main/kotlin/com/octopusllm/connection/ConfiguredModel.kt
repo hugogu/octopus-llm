@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import org.hibernate.annotations.Type
+import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
 
@@ -47,6 +48,15 @@ class ConfiguredModel(
 
     @Column(name = "sort_order", nullable = false)
     var sortOrder: Int = 0,
+
+    @Column(name = "input_price_per_mtok", precision = 12, scale = 4)
+    var inputPricePerMtok: BigDecimal? = null,
+
+    @Column(name = "output_price_per_mtok", precision = 12, scale = 4)
+    var outputPricePerMtok: BigDecimal? = null,
+
+    @Column(name = "price_currency", length = 3)
+    var priceCurrency: String? = null,
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),

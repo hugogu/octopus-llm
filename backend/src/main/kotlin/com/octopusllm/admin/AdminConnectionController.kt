@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Mono
 import java.time.Instant
+import java.math.BigDecimal
 import java.util.UUID
 
 data class CreateBuiltinConnectionRequest(
@@ -55,12 +56,18 @@ data class AddBuiltinModelRequest(
     val capabilityOverrides: Map<String, Any?> = emptyMap(),
     val customParams: Map<String, Any?> = emptyMap(),
     val isEnabled: Boolean = true,
+    val inputPricePerMtok: BigDecimal? = null,
+    val outputPricePerMtok: BigDecimal? = null,
+    val priceCurrency: String? = null,
 )
 
 data class PatchBuiltinModelRequest(
     val displayName: String? = null,
     val isEnabled: Boolean? = null,
     val sortOrder: Int? = null,
+    val inputPricePerMtok: BigDecimal? = null,
+    val outputPricePerMtok: BigDecimal? = null,
+    val priceCurrency: String? = null,
 )
 
 data class BuiltinModelResponse(
@@ -70,6 +77,9 @@ data class BuiltinModelResponse(
     val displayName: String,
     val isEnabled: Boolean,
     val sortOrder: Int,
+    val inputPricePerMtok: BigDecimal?,
+    val outputPricePerMtok: BigDecimal?,
+    val priceCurrency: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
@@ -132,6 +142,9 @@ class AdminConnectionController(private val service: AdminConnectionService) {
             request.capabilityOverrides,
             request.customParams,
             request.isEnabled,
+            request.inputPricePerMtok,
+            request.outputPricePerMtok,
+            request.priceCurrency,
         ).map(::modelResponse)
 
     @GetMapping("/{id}/models")
@@ -152,7 +165,16 @@ class AdminConnectionController(private val service: AdminConnectionService) {
         @PathVariable configuredModelId: UUID,
         @RequestBody request: PatchBuiltinModelRequest,
     ): Mono<BuiltinModelResponse> =
-        service.patchModel(id, configuredModelId, request.displayName, request.isEnabled, request.sortOrder)
+        service.patchModel(
+            id,
+            configuredModelId,
+            request.displayName,
+            request.isEnabled,
+            request.sortOrder,
+            request.inputPricePerMtok,
+            request.outputPricePerMtok,
+            request.priceCurrency,
+        )
             .map(::modelResponse)
 
     @DeleteMapping("/{id}/models/{configuredModelId}")
@@ -209,6 +231,9 @@ class AdminConnectionController(private val service: AdminConnectionService) {
         displayName = model.displayName,
         isEnabled = model.isEnabled,
         sortOrder = model.sortOrder,
+        inputPricePerMtok = model.inputPricePerMtok,
+        outputPricePerMtok = model.outputPricePerMtok,
+        priceCurrency = model.priceCurrency,
         createdAt = model.createdAt,
         updatedAt = model.updatedAt,
     )

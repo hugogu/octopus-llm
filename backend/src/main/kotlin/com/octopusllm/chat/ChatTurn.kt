@@ -40,6 +40,10 @@ class ChatTurn(
     @Column(name = "client_request_id", length = 100)
     val clientRequestId: String? = null,
 
+    @JdbcTypeCode(SqlTypes.INET)
+    @Column(name = "client_ip", columnDefinition = "inet")
+    val clientIp: String? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 )

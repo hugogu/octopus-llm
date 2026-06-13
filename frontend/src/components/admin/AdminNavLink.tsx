@@ -31,7 +31,6 @@ export default function AdminNavLink() {
   if (!isAdmin) return null;
 
   return (
-    <div className="border-t border-stone-200 p-2">
       <Link
         href="/admin"
         className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-stone-600 transition-colors hover:bg-white/70 hover:text-stone-900"
@@ -39,6 +38,5 @@ export default function AdminNavLink() {
         <Shield className="h-4 w-4 text-[#c96442]" />
         Admin panel
       </Link>
-    </div>
   );
 }

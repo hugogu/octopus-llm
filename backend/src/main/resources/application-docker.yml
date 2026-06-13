@@ -1,3 +1,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://db:5432/${DB_NAME:octopus_llm}
+app:
+  network:
+    trusted-proxies: ${TRUSTED_PROXIES:}
+  anonymous-visitor:
+    hmac-secret: ${ANONYMOUS_VISITOR_HMAC_SECRET}

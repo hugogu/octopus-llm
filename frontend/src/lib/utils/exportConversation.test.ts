@@ -15,6 +15,7 @@ const session: GetSessionResponseV2 = {
       createdAt: '2026-06-11T00:00:00Z',
       responses: [
         {
+          responseId: 'r1',
           configuredModelId: 'cm1',
           modelId: 'm1',
           modelDisplayName: 'Model One',
@@ -27,8 +28,11 @@ const session: GetSessionResponseV2 = {
           inputTokens: 10,
           outputTokens: 20,
           latencyMs: 1200,
+          likeCount: 1,
+          likedByMe: true,
         },
         {
+          responseId: 'r2',
           configuredModelId: 'cm2',
           modelId: 'm2',
           modelDisplayName: 'Model Two',
@@ -41,6 +45,8 @@ const session: GetSessionResponseV2 = {
           inputTokens: null,
           outputTokens: null,
           latencyMs: 300,
+          likeCount: 0,
+          likedByMe: false,
         },
       ],
     },

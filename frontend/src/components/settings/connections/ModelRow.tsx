@@ -37,6 +37,11 @@ export default function ModelRow({ model, onEdit, onChanged }: Props) {
           </span>
         </div>
         <p className="mt-0.5 truncate font-mono text-xs text-stone-500">{model.modelId}</p>
+        <p className="mt-1 text-xs text-stone-400">
+          {model.priceCurrency
+            ? `${model.inputPricePerMtok ?? "—"} input / ${model.outputPricePerMtok ?? "—"} output per 1M ${model.priceCurrency}`
+            : "Pricing not configured"}
+        </p>
         {Object.keys(model.customParams).length > 0 ? (
           <p className="mt-1 text-xs text-stone-400">{Object.keys(model.customParams).length} custom parameter(s)</p>
         ) : null}

@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Mono
 import java.time.Instant
+import java.math.BigDecimal
 import java.util.UUID
 
 data class AddConfiguredModelRequestV2(
@@ -29,6 +30,9 @@ data class AddConfiguredModelRequestV2(
     val capabilityOverrides: Map<String, Any?> = emptyMap(),
     val customParams: Map<String, Any?> = emptyMap(),
     val isEnabled: Boolean = true,
+    val inputPricePerMtok: BigDecimal? = null,
+    val outputPricePerMtok: BigDecimal? = null,
+    val priceCurrency: String? = null,
 )
 
 data class PatchConfiguredModelRequestV2(
@@ -37,6 +41,9 @@ data class PatchConfiguredModelRequestV2(
     val capabilityOverrides: Map<String, Any?>? = null,
     val customParams: Map<String, Any?>? = null,
     val sortOrder: Int? = null,
+    val inputPricePerMtok: BigDecimal? = null,
+    val outputPricePerMtok: BigDecimal? = null,
+    val priceCurrency: String? = null,
 )
 
 data class ConfiguredModelResponseV2(
@@ -52,6 +59,9 @@ data class ConfiguredModelResponseV2(
     val customParams: Map<String, Any?>,
     val isEnabled: Boolean,
     val sortOrder: Int,
+    val inputPricePerMtok: BigDecimal?,
+    val outputPricePerMtok: BigDecimal?,
+    val priceCurrency: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
@@ -83,6 +93,9 @@ class ConfiguredModelControllerV2(private val service: ConfiguredModelService) {
             request.capabilityOverrides,
             request.customParams,
             request.isEnabled,
+            request.inputPricePerMtok,
+            request.outputPricePerMtok,
+            request.priceCurrency,
         ).map(::response)
 
     @PatchMapping("/{id}")
@@ -99,6 +112,9 @@ class ConfiguredModelControllerV2(private val service: ConfiguredModelService) {
             request.capabilityOverrides,
             request.customParams,
             request.sortOrder,
+            request.inputPricePerMtok,
+            request.outputPricePerMtok,
+            request.priceCurrency,
         ).map(::response)
 
     @DeleteMapping("/{id}")
@@ -123,6 +139,9 @@ class ConfiguredModelControllerV2(private val service: ConfiguredModelService) {
             customParams = model.customParams,
             isEnabled = model.isEnabled,
             sortOrder = model.sortOrder,
+            inputPricePerMtok = model.inputPricePerMtok,
+            outputPricePerMtok = model.outputPricePerMtok,
+            priceCurrency = model.priceCurrency,
             createdAt = model.createdAt,
             updatedAt = model.updatedAt,
         )

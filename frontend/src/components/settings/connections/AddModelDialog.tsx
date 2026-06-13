@@ -7,7 +7,7 @@ import Input from "@/components/ui/Input";
 import { getToken } from "@/lib/api/auth";
 import { addConfiguredModel, listCatalogue } from "@/lib/api/connections";
 import type { CatalogueEntryV2, ConfiguredModelV2, ConnectionV2 } from "@/lib/types/api";
-import { parseJsonObject, prettyJson } from "./formUtils";
+import { normalizeCurrency, parseJsonObject, parseOptionalPrice, prettyJson } from "./formUtils";
 
 interface Props {
   connection: ConnectionV2 | null;
@@ -21,6 +21,9 @@ export default function AddModelDialog({ connection, onClose, onSaved }: Props) 
   const [displayName, setDisplayName] = useState("");
   const [capabilities, setCapabilities] = useState("");
   const [customParams, setCustomParams] = useState("");
+  const [inputPrice, setInputPrice] = useState("");
+  const [outputPrice, setOutputPrice] = useState("");
+  const [currency, setCurrency] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -47,12 +50,17 @@ export default function AddModelDialog({ connection, onClose, onSaved }: Props) 
     if (!token) return setError("Not authenticated");
     setSaving(true);
     try {
+      const parsedInputPrice = parseOptionalPrice(inputPrice, "Input price");
+      const parsedOutputPrice = parseOptionalPrice(outputPrice, "Output price");
       const saved = await addConfiguredModel(token, {
         connectionId: connection.id,
         modelId,
         displayName,
         capabilityOverrides: parseJsonObject(capabilities, "Capability overrides"),
         customParams: parseJsonObject(customParams, "Custom parameters"),
+        inputPricePerMtok: parsedInputPrice,
+        outputPricePerMtok: parsedOutputPrice,
+        priceCurrency: normalizeCurrency(currency, parsedInputPrice !== null || parsedOutputPrice !== null),
       });
       onSaved(saved);
       onClose();
@@ -81,6 +89,11 @@ export default function AddModelDialog({ connection, onClose, onSaved }: Props) 
         )}
         <Input label="Model ID" required value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="provider-model-id" />
         <Input label="Display name" required value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Input label="Input price / 1M tokens" type="number" min="0" step="0.0001" value={inputPrice} onChange={(event) => setInputPrice(event.target.value)} />
+          <Input label="Output price / 1M tokens" type="number" min="0" step="0.0001" value={outputPrice} onChange={(event) => setOutputPrice(event.target.value)} />
+          <Input label="Currency" maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="USD" />
+        </div>
         <JsonField label="Capability overrides" value={capabilities} onChange={setCapabilities} placeholder={'{\n  "context_length_tokens": 128000\n}'} />
         <JsonField label="Custom request parameters" value={customParams} onChange={setCustomParams} placeholder={'{\n  "temperature": 0.2\n}'} />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}

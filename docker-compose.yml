@@ -33,6 +33,8 @@ services:
       MAIL_PORT: 1025
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      ANONYMOUS_VISITOR_HMAC_SECRET: ${ANONYMOUS_VISITOR_HMAC_SECRET:-local-development-anonymous-visitor-secret}
     depends_on:
       db:
         condition: service_healthy

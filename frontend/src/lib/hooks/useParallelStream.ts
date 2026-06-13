@@ -12,6 +12,7 @@ export interface ModelStreamState {
   outputTokens?: number;
   latencyMs?: number;
   capabilityNotice?: string;
+  responseId?: string;
 }
 
 const emptyState = (): Pick<ModelStreamState, 'text' | 'reasoning'> => ({ text: '', reasoning: '' });
@@ -78,6 +79,7 @@ export function useParallelStream() {
           inputTokens: event.inputTokens,
           outputTokens: event.outputTokens,
           latencyMs: event.latencyMs,
+          responseId: event.responseId,
         },
       }));
     } else if (event.event === 'model_error') {
@@ -87,6 +89,7 @@ export function useParallelStream() {
           ...(prev[event.configuredModelId] ?? { ...emptyState(), status: 'error' }),
           status: 'error',
           errorMessage: event.error,
+          responseId: event.responseId,
         },
       }));
     } else if (event.event === 'all_complete') {

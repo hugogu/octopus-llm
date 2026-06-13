@@ -2,6 +2,8 @@ package com.octopusllm.chat
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.octopusllm.llm.LlmStreamEvent
+import com.octopusllm.config.TrustedClientIpResolver
+import com.octopusllm.reaction.ReactionService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.time.Instant
@@ -40,6 +43,7 @@ data class SessionResponseV2(
 )
 
 data class ProviderResponseDtoV2(
+    val responseId: UUID,
     val configuredModelId: UUID,
     val modelId: String,
     val modelDisplayName: String,
@@ -52,6 +56,8 @@ data class ProviderResponseDtoV2(
     val inputTokens: Int?,
     val outputTokens: Int?,
     val latencyMs: Int,
+    val likeCount: Long,
+    val likedByMe: Boolean,
 )
 
 data class TurnDtoV2(
@@ -69,6 +75,8 @@ data class TurnDtoV2(
 class ChatControllerV2(
     private val chatService: ChatService,
     private val mapper: ObjectMapper,
+    private val reactionService: ReactionService,
+    private val clientIpResolver: TrustedClientIpResolver,
 ) {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -99,8 +107,10 @@ class ChatControllerV2(
         @AuthenticationPrincipal principal: String,
         @PathVariable sessionId: UUID,
     ): Mono<Map<String, Any?>> =
-        chatService.getSession(sessionId, userId(principal)).map { (session, turns) ->
-            mapOf(
+        chatService.getSession(sessionId, userId(principal)).flatMap { (session, turns) ->
+            val responses = turns.flatMap { it.second }
+            reactionService.states(responses.map { it.id }, userId(principal)).map { states ->
+              mapOf(
                 "id" to session.id,
                 "title" to session.title,
                 "turns" to turns.map { (turn, responses) ->
@@ -110,11 +120,12 @@ class ChatControllerV2(
                         promptText = turn.promptText,
                         selectedModelIds = turn.selectedModelIds.toList(),
                         selectedConfiguredModelIds = turn.selectedConfiguredModelIds.toList(),
-                        responses = responses.map(::responseDto),
+                        responses = responses.map { responseDto(it, states[it.id]) },
                         createdAt = turn.createdAt,
                     )
                 },
-            )
+              )
+            }
         }
 
     @DeleteMapping("/{sessionId}")
@@ -129,6 +140,7 @@ class ChatControllerV2(
         @AuthenticationPrincipal principal: String,
         @PathVariable sessionId: UUID,
         @Valid @RequestBody request: SubmitTurnRequestV2,
+        exchange: ServerWebExchange,
     ): Flux<ServerSentEvent<String>> =
         chatService.submitTurn(
             sessionId,
@@ -137,6 +149,7 @@ class ChatControllerV2(
             request.selectedConfiguredModelIds,
             request.attachments,
             request.clientRequestId,
+            clientIpResolver.resolve(exchange),
         )
             .map(::toSse)
             .concatWithValues(
@@ -184,6 +197,7 @@ class ChatControllerV2(
                     "inputTokens" to event.inputTokens,
                     "outputTokens" to event.outputTokens,
                     "latencyMs" to event.latencyMs,
+                    "responseId" to event.responseId,
                 ),
             )
             is LlmStreamEvent.ModelError -> mapper.writeValueAsString(
@@ -192,6 +206,7 @@ class ChatControllerV2(
                     "configuredModelId" to event.configuredModelId,
                     "modelId" to event.modelId,
                     "error" to event.error,
+                    "responseId" to event.responseId,
                 ),
             )
         }
@@ -201,8 +216,9 @@ class ChatControllerV2(
     private fun sessionResponse(session: ChatSession) =
         SessionResponseV2(session.id, session.title, session.createdAt, session.updatedAt)
 
-    private fun responseDto(response: ProviderResponse) =
+    private fun responseDto(response: ProviderResponse, likeState: com.octopusllm.reaction.LikeState?) =
         ProviderResponseDtoV2(
+            responseId = response.id,
             configuredModelId = response.configuredModelId,
             modelId = response.modelId,
             modelDisplayName = response.modelDisplayName,
@@ -215,6 +231,8 @@ class ChatControllerV2(
             inputTokens = response.inputTokens,
             outputTokens = response.outputTokens,
             latencyMs = response.latencyMs,
+            likeCount = likeState?.likeCount ?: 0,
+            likedByMe = likeState?.likedByMe ?: false,
         )
 
     private fun userId(principal: String) = UUID.fromString(principal)

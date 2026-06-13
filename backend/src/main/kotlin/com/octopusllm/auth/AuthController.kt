@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ServerWebExchange
+import com.octopusllm.config.TrustedClientIpResolver
 import reactor.core.publisher.Mono
 import java.time.Instant
 import java.util.UUID
@@ -30,11 +32,14 @@ data class PasswordResetConfirmRequest(
     @field:NotBlank @field:Size(min = 8) val password: String,
 )
 
+data class PasswordResetRequest(@field:Email @field:NotBlank val email: String)
+
 @RestController
 @RequestMapping("/api/v1/auth")
 class AuthController(
     private val authService: AuthService,
     private val jwtTokenService: JwtTokenService,
+    private val clientIpResolver: TrustedClientIpResolver,
 ) {
 
     @PostMapping("/register")
@@ -52,6 +57,15 @@ class AuthController(
     fun confirmPasswordReset(@Valid @RequestBody request: PasswordResetConfirmRequest): Mono<Map<String, String>> =
         authService.confirmPasswordReset(request.token, request.password)
             .thenReturn(mapOf("status" to "password_updated"))
+
+    @PostMapping("/password-reset/request")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    fun requestPasswordReset(
+        @Valid @RequestBody request: PasswordResetRequest,
+        exchange: ServerWebExchange,
+    ): Mono<Map<String, String>> =
+        authService.requestPasswordReset(request.email, clientIpResolver.resolve(exchange))
+            .thenReturn(mapOf("status" to "accepted"))
 
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): Mono<LoginResponse> =

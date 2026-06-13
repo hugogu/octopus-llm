@@ -1,5 +1,7 @@
 package com.octopusllm.auth
 
+import com.ninjasquad.springmockk.MockkBean
+import io.mockk.every
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient
@@ -26,8 +28,12 @@ class AuthControllerTest {
     @Autowired
     private lateinit var emailVerificationRepository: EmailVerificationRepository
 
+    @MockkBean(relaxed = true)
+    private lateinit var emailService: EmailService
+
     @Test
     fun `register verify login and logout flow works end to end`() {
+        every { emailService.sendVerificationEmail(any(), any()) } returns Unit
         val registerBody = mapOf("email" to "test@example.com", "password" to "Test1234!")
         webTestClient.post()
             .uri("/api/v1/auth/register")
@@ -40,8 +46,16 @@ class AuthControllerTest {
 
         val user = userRepository.findByEmail("test@example.com")
         requireNotNull(user) { "Expected registered user to be persisted" }
-        require(user.emailVerified) { "Expected user to be verified immediately" }
-        require(emailVerificationRepository.findAll().isEmpty()) { "Expected no verification token to be created" }
+        require(!user.emailVerified) { "Expected a newly registered user to remain unverified" }
+        val verification = emailVerificationRepository.findAll().single { it.user.id == user.id }
+
+        webTestClient.post()
+            .uri("/api/v1/auth/verify-email")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("token" to verification.token))
+            .exchange()
+            .expectStatus().isOk
+        require(userRepository.findById(user.id).orElseThrow().emailVerified)
 
         val loginResponse = webTestClient.post()
             .uri("/api/v1/auth/login")

@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.time.Instant
+import java.math.BigDecimal
 import java.util.UUID
 
 /**
@@ -106,9 +107,13 @@ class AdminConnectionService(
         capabilityOverrides: Map<String, Any?>,
         customParams: Map<String, Any?>,
         isEnabled: Boolean,
+        inputPricePerMtok: BigDecimal?,
+        outputPricePerMtok: BigDecimal?,
+        priceCurrency: String?,
     ): Mono<ConfiguredModel> = blocking {
         val connection = requireBuiltin(connectionId)
         validateCapabilities(connection, capabilityOverrides)
+        val pricing = validatePricing(inputPricePerMtok, outputPricePerMtok, priceCurrency)
         configuredModelRepository.save(
             ConfiguredModel(
                 user = connection.user,
@@ -119,6 +124,9 @@ class AdminConnectionService(
                 customParams = customParams,
                 isEnabled = isEnabled,
                 sortOrder = configuredModelRepository.countByConnectionId(connectionId).toInt(),
+                inputPricePerMtok = pricing.first,
+                outputPricePerMtok = pricing.second,
+                priceCurrency = pricing.third,
             ),
         )
     }
@@ -141,6 +149,9 @@ class AdminConnectionService(
         displayName: String?,
         isEnabled: Boolean?,
         sortOrder: Int?,
+        inputPricePerMtok: BigDecimal?,
+        outputPricePerMtok: BigDecimal?,
+        priceCurrency: String?,
     ): Mono<ConfiguredModel> = blocking {
         val model = requireModel(connectionId, configuredModelId)
         if (displayName != null) model.displayName = requiredText(displayName, "displayName")
@@ -148,6 +159,12 @@ class AdminConnectionService(
         if (sortOrder != null) {
             if (sortOrder < 0) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "sortOrder must not be negative")
             model.sortOrder = sortOrder
+        }
+        if (inputPricePerMtok != null || outputPricePerMtok != null || priceCurrency != null) {
+            val pricing = validatePricing(inputPricePerMtok, outputPricePerMtok, priceCurrency)
+            model.inputPricePerMtok = pricing.first
+            model.outputPricePerMtok = pricing.second
+            model.priceCurrency = pricing.third
         }
         model.updatedAt = Instant.now()
         configuredModelRepository.save(model)
@@ -236,6 +253,22 @@ class AdminConnectionService(
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "$field must not be blank")
 
     private fun userNotFound() = ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+
+    private fun validatePricing(
+        input: BigDecimal?,
+        output: BigDecimal?,
+        currency: String?,
+    ): Triple<BigDecimal?, BigDecimal?, String?> {
+        if (input != null && input.signum() < 0 || output != null && output.signum() < 0) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Model prices must not be negative")
+        }
+        if (input == null && output == null && currency.isNullOrBlank()) return Triple(null, null, null)
+        val normalized = currency?.trim()?.uppercase()
+        if (normalized == null || !normalized.matches(Regex("^[A-Z]{3}$"))) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "priceCurrency must be a three-letter uppercase code")
+        }
+        return Triple(input, output, normalized)
+    }
 
     private fun <T> blocking(block: () -> T): Mono<T> =
         Mono.fromCallable(block).subscribeOn(Schedulers.boundedElastic())

@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Download, Link as LinkIcon, Trash2 } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ChatInput from "@/components/chat/ChatInput";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 import ModelResponsePanel from "@/components/chat/ModelResponsePanel";
 import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import SessionSidebar from "@/components/chat/SessionSidebar";
+import ShareConversationButton from "@/components/chat/ShareConversationButton";
 import { getToken } from "@/lib/api/auth";
 import {
   createSessionV2,
@@ -238,6 +239,9 @@ export default function ChatPage() {
             outputTokens={response.outputTokens ?? undefined}
             latencyMs={response.latencyMs}
             capabilityMatrix={modelsById[response.configuredModelId]?.capabilityMatrix}
+            responseId={response.responseId}
+            likeCount={response.likeCount}
+            likedByMe={response.likedByMe}
           />
         ))}
       </div>
@@ -289,7 +293,7 @@ export default function ChatPage() {
               {sessionId ? (
                 <>
                   <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden />
-                  <ShareLinkButton />
+                  <ShareConversationButton sessionId={sessionId} />
                   <button
                     type="button"
                     onClick={handleExport}
@@ -347,6 +351,7 @@ export default function ChatPage() {
                             latencyMs={state?.latencyMs}
                             capabilityNotice={state?.capabilityNotice}
                             capabilityMatrix={model?.capabilityMatrix}
+                            responseId={state?.responseId}
                           />
                         );
                       })}
@@ -377,20 +382,5 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-function ShareLinkButton() {
-  const [copied, setCopied] = useState(false);
-  const handleShare = async () => {
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
-  };
-  return (
-    <button type="button" onClick={handleShare} className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 hover:text-stone-900">
-      {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <LinkIcon className="h-3.5 w-3.5" />}
-      {copied ? "Link copied" : "Share"}
-    </button>
   );
 }

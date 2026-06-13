@@ -48,3 +48,7 @@ app:
     allow-local-http: ${ALLOW_LOCAL_CONNECTION_HTTP:false}
   admin:
     bootstrap-email: ${ADMIN_BOOTSTRAP_EMAIL:}
+  network:
+    trusted-proxies: ${TRUSTED_PROXIES:}
+  anonymous-visitor:
+    hmac-secret: ${ANONYMOUS_VISITOR_HMAC_SECRET:local-development-anonymous-visitor-secret}

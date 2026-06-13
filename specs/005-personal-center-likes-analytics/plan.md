@@ -5,36 +5,39 @@
 
 ## Summary
 
-Deliver three connected, user-scoped capabilities on top of the existing Octopus LLM stack:
+Deliver four connected capabilities on top of the existing Octopus LLM stack:
 
 1. **Personal Center** — a discoverable in-app hub (mirroring `AdminShell`) that surfaces profile
-   editing (new `display_name`), an authenticated *change-password* flow that invalidates all other
-   sessions, email-verification status + resend, and a link into model management.
+   editing (new `display_name`), authenticated password change using the existing `session_epoch`,
+   public self-service password reset, email-verification status + resend, and model management with
+   optional configured-model pricing.
 2. **Response likes** — per-response (per `provider_response`) named likes for registered users
    (idempotent, toggleable) plus anonymous like counts on shared sessions, with opaque, revocable
    share links that expose no identity.
-3. **Usage analytics dashboard** — read-only, user-scoped aggregations over the *existing immutable*
-   `provider_responses` table, extended with the two missing dimensions (client IP, snapshot
-   `connection_id`) and a read-time **cost** estimate derived from new nullable pricing columns on
-   `model_definitions`.
+3. **Personal usage analytics** — read-only, user-scoped aggregations over the *existing immutable*
+   `provider_responses` table, extended with client IP, connection snapshots, and pricing snapshots.
+4. **Public model analytics** — unauthenticated aggregates grouped only by protocol + literal model ID,
+   with no personal, conversation, connection, configured-model, prompt, or response fields.
 
-Technical approach: extend existing packages (`auth`, `chat`) and add three small backend packages
-(`reaction`, `share`, `analytics`); all new surfaces go through `/api/v1` (auth) and `/api/v2`
-(everything else). The frontend adds an `(app)/account` hub and a public `(app)/share/[token]` route,
-plus a like control inside `ModelResponsePanel`. No write-path duplication: `provider_responses`
+Technical approach: extend existing packages (`auth`, `chat`, `connection`) and add three small backend
+packages (`reaction`, `share`, `analytics`). Authenticated account operations use `/api/v2/me/*`; the
+existing public auth namespace remains `/api/v1/auth/*`; chat, sharing, reactions, and analytics use
+`/api/v2`. The frontend adds an authenticated `(app)/account` hub plus public `(public)/share/[token]`
+and `(public)/analytics` routes. Browser calls remain same-origin through the existing Next proxy, and
+rewritten paths are verified with real HTTP requests. No write-path duplication: `provider_responses`
 remains the single immutable per-response analytics record (Constitution IV/V/VII).
 
 ## Technical Context
 
 **Language/Version**: Kotlin on JVM, Java 21 (backend); TypeScript 5 / Node.js 24 (frontend)
 **Primary Dependencies**: Spring Boot WebFlux, Spring Security (reactive), Spring Data JPA/Hibernate, Flyway, jjwt, hypersistence-utils (JSONB); Next.js App Router (React Server Components), Tailwind
-**Storage**: PostgreSQL (Flyway migrations; existing `users`, `chat_sessions`, `chat_turns`, `provider_responses`, `model_definitions`, `connections`, `email_verifications`, `revoked_tokens`)
+**Storage**: PostgreSQL (Flyway migrations; existing `users`, `chat_sessions`, `chat_turns`, `provider_responses`, `configured_models`, `connections`, `email_verifications`, `password_resets`, `revoked_tokens`)
 **Testing**: JUnit 5 + Testcontainers (Postgres) + MockK/springmockk (backend); Vitest (frontend)
 **Target Platform**: Linux server (Docker Compose); modern browsers
 **Project Type**: Web application (Kotlin backend + Next.js frontend)
 **Performance Goals**: Analytics dashboard renders per-model/per-conversation breakdowns over ≥1,000 responses in <2s; statistics capture adds no user-perceptible latency to response streaming (off hot path)
-**Constraints**: No distributed locks; analytics read-only and off the hot write path; `provider_responses` immutable/append-only; share tokens opaque with zero identity; IP never in aggregate views; snake_case schema via Flyway only
-**Scale/Scope**: Single-user-scoped analytics over append-only history; ~6 new migrations, 3 new backend packages + 2 extended, ~4 new frontend routes/views + 1 like control
+**Constraints**: No distributed locks; analytics read-only and off the hot write path; `provider_responses` immutable/append-only; share tokens opaque with zero identity; IP and account-specific dimensions never in aggregate payloads; collection APIs use the standard page envelope with size ≤100; snake_case schema via Flyway only
+**Scale/Scope**: Personal and public analytics over append-only history; 6 new migrations, 3 new backend packages + 3 extended, ~7 new frontend routes/views + 1 like control
 
 ## Constitution Check
 
@@ -43,12 +46,12 @@ remains the single immutable per-response analytics record (Constitution IV/V/VI
 | Principle | Compliance |
 |-----------|-----------|
 | I. Provider-Agnostic Abstraction | ✅ No provider-specific logic touched; no changes to `LLMProvider` adapters. |
-| II. API-First Design | ✅ Every capability exposed via REST first (`/api/v1/auth/*`, `/api/v2/me`, `/api/v2/.../reactions`, `/api/v2/shares`, `/api/v2/shared/{token}`, `/api/v2/analytics/*`); frontend consumes the same endpoints — no server-side DB access from Next.js. |
-| III. Concurrent Execution & Streaming | ✅ Chat streaming path unchanged. Likes/shares/analytics are separate request flows; statistics capture (IP/connection snapshot) is recorded on the already-persisted turn/response, not in the streaming hot path. |
+| II. API-First Design | ✅ Every capability is exposed via REST first (`/api/v1/auth/password-reset/*`, `/api/v2/me/*`, `/api/v2/responses/*`, `/api/v2/chat/sessions/*/shares`, `/api/v2/shared/{token}`, `/api/v2/analytics/*`); collection responses use the standard page envelope and size ≤100; the frontend consumes same-origin proxy routes with no direct DB access. |
+| III. Concurrent Execution & Streaming | ✅ Provider calls and token streaming remain concurrent. Terminal response persistence is awaited before the matching complete/error SSE event, guaranteeing the single immutable record without delaying stream start or adding a second write path. |
 | IV. Data Integrity & Immutable Sessions | ✅ `provider_responses` stays INSERT-once/immutable; likes, anonymous likes, and shares live in **separate** tables referencing it. All schema changes via Flyway, snake_case. |
-| V. Observability & Analytics | ✅ Analytics queries are read-only, user-scoped, and off the hot write path. IP + identity appear only in owner-visible views; no aggregate/cross-user surface is built (and IP is excluded by construction). |
-| VI. Security & User Key Privacy | ✅ Share links use opaque tokens with no identity; anonymous view exposes no liker identity; IP visible only to the owner; password change invalidates all other sessions; auth required everywhere except the explicit anonymous shared read + anonymous like. No API-key handling changes. |
-| VII. Simplicity & Horizontal Scalability | ✅ Reuses existing immutable table instead of a duplicated statistics table; anonymous-like dedup via a UNIQUE constraint (eventual, lock-free); bulk session invalidation via a per-user `sessions_valid_from` timestamp (no jti enumeration, no distributed lock). |
+| V. Observability & Analytics | ✅ Analytics queries are read-only and off the hot write path. The feature provides both owner-scoped analytics and public anonymized model aggregates. IP and identity appear only in owner-visible detail and are excluded from all aggregate payloads. |
+| VI. Security & User Key Privacy | ✅ Share links use opaque tokens with no identity; anonymous view exposes no liker identity; IP is owner-detail only; password change/reset invalidates prior credentials; auth is required except public auth actions, shared read/anonymous like, and public anonymous analytics. No API-key handling changes. |
+| VII. Simplicity & Horizontal Scalability | ✅ Reuses the existing immutable table instead of a duplicated statistics table; anonymous-like dedup uses a server-issued browser cookie plus a UNIQUE constraint; password change reuses the existing `session_epoch` mechanism; no distributed lock or in-memory coordination is introduced. |
 | VIII. UX Consistency & Visual Coherence | ✅ New `AccountShell` mirrors `AdminShell`/`ModelsSettingsPage` design system; connected nav entry from chat; all surfaces visually verified before done. |
 
 **Result**: PASS — no violations. Complexity Tracking not required.
@@ -77,39 +80,40 @@ specs/005-personal-center-likes-analytics/
 
 ```text
 backend/src/main/kotlin/com/octopusllm/
-├── auth/                        # EXTEND: change-password, resend-verification, display_name,
-│   │                            #         sessions_valid_from enforcement in JwtTokenService
-│   ├── AuthController.kt         # + password-change, verify-email/resend
-│   ├── AuthService.kt            # + changePassword(), resendVerification()
-│   ├── MeController.kt           # + emailVerified, displayName; PATCH profile
-│   ├── JwtTokenService.kt        # + reject tokens with iat < user.sessions_valid_from
-│   └── User.kt                   # + displayName, sessionsValidFrom
+├── auth/                        # EXTEND: profile, password change/reset, email verification,
+│   │                            #         persistent auth-action throttling; reuse session_epoch
+│   ├── AuthController.kt         # + public password-reset request; existing confirm reused
+│   ├── AuthService.kt            # + requestPasswordReset(), changePassword(), resendVerification()
+│   ├── MeController.kt           # + profile, password-change, verification status/resend
+│   ├── AuthActionThrottle.kt / AuthActionThrottleRepository.kt
+│   │                              # persistent cross-instance auth action throttling
+│   └── User.kt                   # + displayName; existing sessionEpoch reused
 ├── chat/
-│   ├── ChatService.kt            # EXTEND: capture client IP onto the turn; snapshot connection_id
+│   ├── ChatService.kt            # EXTEND: trusted IP/snapshots; await persistence before terminal SSE
 │   ├── ChatControllerV2.kt       # EXTEND: pass ServerWebExchange for client IP; expose responseId
-│   └── ProviderResponse.kt       # + connectionId (snapshot, nullable)
+│   └── ProviderResponse.kt       # + connectionId and pricing snapshots
 ├── reaction/                     # NEW: named + anonymous likes
 │   ├── ResponseLike.kt / ResponseLikeRepository.kt
-│   ├── AnonymousResponseLike.kt / AnonymousResponseLikeRepository.kt
+│   ├── AnonymousResponseLike.kt / AnonymousResponseLikeRepository.kt # stores scoped HMAC digest
 │   ├── ReactionService.kt
 │   └── ReactionControllerV2.kt   # /api/v2/.../reactions (authenticated)
 ├── share/                        # NEW: session share links + public read
 │   ├── SessionShare.kt / SessionShareRepository.kt
 │   ├── ShareService.kt
-│   ├── ShareControllerV2.kt      # /api/v2/chat/sessions/{id}/shares (owner)
-│   └── SharedSessionController.kt# /api/v2/shared/{token} (+ anonymous like) — public
+│   ├── ShareControllerV2.kt      # paged /api/v2/chat/sessions/{id}/shares (owner)
+│   └── SharedSessionController.kt# /api/v2/shared/{token}; issues HttpOnly visitor cookie
 ├── analytics/                    # NEW: read-only aggregations
-│   ├── AnalyticsService.kt       # aggregate by model / by session; per-response detail
+│   ├── AnalyticsService.kt       # personal aggregates/detail + public anonymized aggregates
 │   ├── AnalyticsController.kt    # /api/v2/analytics/*
-│   └── ModelPricing.kt           # read-time cost = tokens × model_definitions pricing
-└── model/                        # EXTEND: pricing columns on ModelDefinition
+│   └── ModelPricing.kt           # read-time cost = tokens × response pricing snapshot
+└── connection/                   # EXTEND: optional prices on ConfiguredModel/API
 
 backend/src/main/resources/db/migration/
-├── V021__user_profile_and_session_invalidation.sql   # users: display_name, sessions_valid_from
-├── V022__model_pricing.sql                            # model_definitions: input/output price, currency
-├── V023__response_ip_and_connection_snapshot.sql      # chat_turns.client_ip; provider_responses.connection_id
+├── V021__user_profile_and_auth_throttles.sql          # users.display_name + auth_action_throttles
+├── V022__configured_model_pricing.sql                 # configured_models: input/output price, currency
+├── V023__response_analytics_snapshots.sql              # trusted IP; connection + pricing snapshots
 ├── V024__response_likes.sql                           # named likes (UNIQUE user+response)
-├── V025__anonymous_response_likes.sql                 # anonymous likes (UNIQUE token+response)
+├── V025__anonymous_response_likes.sql                 # anonymous likes (UNIQUE digest+response)
 └── V026__session_shares.sql                           # opaque token, revocable, no expiry
 
 frontend/src/
@@ -117,22 +121,26 @@ frontend/src/
 │   ├── layout.tsx                # AccountShell wrapper (connected nav: Profile / Security / Analytics)
 │   ├── page.tsx                  # Profile (display name, email + verification status/resend)
 │   ├── security/page.tsx         # Change password
-│   └── analytics/page.tsx        # Usage analytics dashboard
-├── app/(app)/share/[token]/page.tsx   # public read-only shared session + anonymous likes
+│   └── analytics/page.tsx        # Personal usage analytics dashboard
+├── app/(public)/share/[token]/page.tsx # public read-only shared session + anonymous likes
+├── app/(public)/analytics/page.tsx     # public anonymized model analytics
+├── app/(auth)/forgot-password/page.tsx # non-disclosing self-service reset request
 ├── components/account/AccountShell.tsx
 ├── components/chat/ModelResponsePanel.tsx   # EXTEND: like button + count
 └── lib/api/
     ├── account.ts                # profile, change-password, resend-verification
+    ├── auth.ts                   # EXTEND: password-reset request
     ├── reactions.ts              # like/unlike
     ├── shares.ts                 # create/revoke share, fetch shared session, anonymous like
-    └── analytics.ts              # dashboard data
+    └── analytics.ts              # personal + public dashboard data
 ```
 
 **Structure Decision**: Web application (Option 2). Reuse the existing `backend/` (Kotlin/Spring
 WebFlux) and `frontend/` (Next.js App Router) trees. Backend follows the established
-package-per-feature convention (`admin`, `auth`, `chat`, `connection`, `analytics` new). Frontend
+package-per-feature convention (`admin`, `auth`, `chat`, `connection`, with `analytics` new). Frontend
 follows the existing `(app)` route-group + shared-shell pattern (`AccountShell` mirrors `AdminShell`),
-and a public route group entry for the shareable view.
+and uses a separate public route group so shared/public analytics pages do not inherit the authenticated
+`(app)` layout.
 
 ## Complexity Tracking
 

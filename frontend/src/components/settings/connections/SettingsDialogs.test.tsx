@@ -55,6 +55,9 @@ const model: ConfiguredModelV2 = {
   customParams: { temperature: 0.2 },
   isEnabled: true,
   sortOrder: 0,
+  inputPricePerMtok: null,
+  outputPricePerMtok: null,
+  priceCurrency: null,
   createdAt: "2026-06-12T00:00:00Z",
   updatedAt: "2026-06-12T00:00:00Z",
 };
@@ -89,7 +92,7 @@ describe("connection settings", () => {
     expect(onSaved).toHaveBeenCalled();
   });
 
-  it("parses and saves edited custom model parameters", async () => {
+  it("parses and saves edited custom model parameters and pricing", async () => {
     api.patchConfiguredModel.mockResolvedValue({
       ...model,
       customParams: { temperature: 0.7, max_tokens: 2048 },
@@ -100,6 +103,9 @@ describe("connection settings", () => {
     fireEvent.change(screen.getByLabelText("Custom request parameters"), {
       target: { value: '{"temperature":0.7,"max_tokens":2048}' },
     });
+    fireEvent.change(screen.getByLabelText("Input price / 1M tokens"), { target: { value: "2.5" } });
+    fireEvent.change(screen.getByLabelText("Output price / 1M tokens"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Currency"), { target: { value: "usd" } });
     fireEvent.click(screen.getByRole("button", { name: "Save model" }));
 
     await waitFor(() => expect(api.patchConfiguredModel).toHaveBeenCalledWith(
@@ -107,6 +113,9 @@ describe("connection settings", () => {
       model.id,
       expect.objectContaining({
         customParams: { temperature: 0.7, max_tokens: 2048 },
+        inputPricePerMtok: 2.5,
+        outputPricePerMtok: 10,
+        priceCurrency: "USD",
       }),
     ));
   });

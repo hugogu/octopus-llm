@@ -17,6 +17,9 @@ class User(
     @Column(name = "password_hash", nullable = false, length = 255)
     var passwordHash: String,
 
+    @Column(name = "display_name", length = 255)
+    var displayName: String? = null,
+
     @Column(name = "email_verified", nullable = false)
     var emailVerified: Boolean = false,
 

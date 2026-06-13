@@ -1,15 +1,18 @@
 # Contract: Usage Analytics Dashboard
 
-All endpoints require authentication and are **strictly scoped to the caller's own data** — no
-other user's records, IPs, or identities are ever returned (FR-024). All queries are read-only
-(Constitution V). Error schema: `{ "code", "message", "details" }`.
+Personal endpoints require authentication and are **strictly scoped to the caller's own data**.
+The public endpoint is unauthenticated and uses a separate anonymous projection. All queries are
+read-only (Constitution V). Error schema: `{ "code", "message", "details" }`.
 
 Common query params (all optional):
 - `from`, `to`: ISO-8601 timestamps — time-range filter (FR-023).
-- `modelId`: filter to one model/configured model (FR-023).
+- `configuredModelId`: filter personal analytics to one configured-model UUID (FR-023).
+- Collection endpoints also accept `page` and `size`; defaults are `0` and `25`, and `size` MUST be
+  between 1 and 100.
 
-`cost` fields are estimates derived from `model_definitions` pricing; `null` when price/tokens are
-unknown (display `—`), and excluded from cost sums.
+`cost` fields are estimates derived from immutable response pricing snapshots. Unknown estimates are
+`null` (display `—`). Aggregate totals use `estimatedCostsByCurrency`; different currencies are never
+summed together.
 
 ## GET /api/v2/analytics/summary  (NEW)
 
@@ -23,7 +26,7 @@ Top-line metrics for the caller across the selected range.
   "avgLatencyMs": 1820,
   "totalInputTokens": 982334,
   "totalOutputTokens": 1233889,
-  "estimatedCost": { "amount": 12.43, "currency": "USD" }
+  "estimatedCostsByCurrency": { "USD": 12.43, "CNY": 4.20 }
 }
 ```
 
@@ -36,7 +39,8 @@ Per-model breakdown (FR-021).
 {
   "items": [
     {
-      "modelId": "…",
+      "configuredModelId": "uuid",
+      "modelId": "literal-provider-model-id",
       "modelDisplayName": "…",
       "responseCount": 420,
       "successRate": 0.98,
@@ -44,11 +48,13 @@ Per-model breakdown (FR-021).
       "p95LatencyMs": 4200,
       "inputTokens": 300000,
       "outputTokens": 410000,
-      "estimatedCost": { "amount": 4.10, "currency": "USD" }
+      "estimatedCostsByCurrency": { "USD": 4.10 }
     }
-  ]
+  ],
+  "page": 0, "size": 25, "totalElements": 4, "totalPages": 1
 }
 ```
+Paginated.
 
 ## GET /api/v2/analytics/by-session  (NEW)
 
@@ -66,7 +72,7 @@ Per-conversation breakdown (FR-021).
       "avgLatencyMs": 1700,
       "inputTokens": 21000,
       "outputTokens": 30000,
-      "estimatedCost": { "amount": 0.31, "currency": "USD" },
+      "estimatedCostsByCurrency": { "USD": 0.31 },
       "successRate": 1.0
     }
   ],
@@ -85,9 +91,14 @@ Per-response detail rows — the drill-down (FR-022). Owner-only fields (IP) inc
   "items": [
     {
       "responseId": "uuid",
+      "userId": "caller-uuid",
       "sessionId": "uuid",
       "createdAt": "…",
+      "configuredModelId": "uuid",
+      "modelId": "literal-provider-model-id",
       "modelDisplayName": "…",
+      "protocol": "openai-compatible",
+      "connectionId": "uuid",
       "connectionLabel": "…",
       "status": "complete",
       "latencyMs": 1820,
@@ -102,10 +113,41 @@ Per-response detail rows — the drill-down (FR-022). Owner-only fields (IP) inc
   "page": 0, "size": 50, "totalElements": 1234, "totalPages": 25
 }
 ```
-Paginated. `clientIp` and identity-bearing fields appear ONLY in this owner-scoped detail, never in
-any aggregate above (FR-025).
+Paginated. `clientIp`, `userId`, connection fields, and configured-model UUID appear ONLY in this
+owner-scoped detail, never in aggregate payloads (FR-025).
+
+## GET /api/v2/analytics/public/by-model  (NEW, PUBLIC)
+
+Public anonymized aggregate required by Constitution V (FR-028/FR-029). Optional filters: `from`,
+`to`, `protocol`, and literal `modelId`; plus bounded `page`/`size`.
+
+200:
+```json
+{
+  "items": [
+    {
+      "protocol": "openai-compatible",
+      "modelId": "provider-model-id",
+      "responseCount": 4200,
+      "successRate": 0.98,
+      "avgLatencyMs": 1600,
+      "p95LatencyMs": 4200,
+      "inputTokens": 3000000,
+      "outputTokens": 4100000,
+      "namedLikeCount": 230,
+      "anonymousLikeCount": 91
+    }
+  ],
+  "page": 0, "size": 25, "totalElements": 12, "totalPages": 1
+}
+```
+
+This DTO MUST contain no user/session/IP/connection/configured-model/user-label/prompt/response
+fields. Cost is omitted because configured prices are user-specific and currencies may differ.
 
 **Behavioral contracts**:
 - Every `complete` and `error` response is represented exactly once (FR-019; SC-005).
 - Empty history → `items: []` / zeroed summary, never an error (SC-008).
-- Results filtered by `from`/`to`/`modelId` update accordingly (FR-023; SC-006).
+- Personal results filtered by `from`/`to`/`configuredModelId` update accordingly (FR-023; SC-006).
+- Every collection response uses `{items, page, size, totalElements, totalPages}` with `size ≤ 100`.
+- Contract and integration tests assert the public DTO contains zero prohibited fields (SC-009).

@@ -29,6 +29,10 @@ abstract class AbstractPostgresIntegrationTest {
             registry.add("app.encryption.master-key") { "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=" }
             registry.add("app.frontend.url") { "http://localhost:3000" }
             registry.add("app.admin.bootstrap-email") { "" }
+            registry.add("app.network.trusted-proxies") { "127.0.0.1" }
+            registry.add("app.anonymous-visitor.hmac-secret") {
+                "test-anonymous-visitor-secret-that-is-long-enough"
+            }
         }
     }
 }

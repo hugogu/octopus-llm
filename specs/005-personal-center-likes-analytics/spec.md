@@ -11,16 +11,19 @@
 
 - Q: 「消耗」(consumption) 在统计与面板里到底要记什么？ → A: Token 用量始终记录；仅在已配置该模型单价时显示估算金额（未知显示「—」），不引入计费级价格目录
 - Q: 分享链接的有效期/生命周期如何控制？ → A: 永不过期，访问权完全由所有者「撤销」控制，无自动过期
-- Q: 修改密码后该用户在其它设备上的已登录会话如何处理？ → A: 改密码即使该用户其它所有已登录会话全部失效（复用 revoked_tokens）
+- Q: 修改密码后该用户在其它设备上的已登录会话如何处理？ → A: 改密码即使该用户其它所有已登录会话全部失效
 - Q: 响应统计记录(含 IP/connection)的保留期限？ → A: 长期保留，无固定过期；仅在对应会话/用户被删除时级联清除
+- Q: 平台是否需要展示跨用户统计？ → A: 除个人中心的私有统计外，还需提供所有人可见的匿名模型汇总；不得包含用户、会话、IP、connection 或 configured-model UUID
+- Q: 修改密码后当前设备如何处理？ → A: 使所有旧登录凭据失效，同时向当前设备签发替代凭据；其它设备必须重新登录
+- Q: 匿名点赞如何去重？ → A: 使用服务端签发、不可关联账号的浏览器标识做尽力去重；客户端不能自行提交任意标识来增加计数
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Personal Center: manage my account (Priority: P1)
 
 A registered user wants a single, self-service hub where they can review and change their own
-account settings: update their display profile, change their password, re-trigger / confirm email
-verification, and reach the model-management screen. Today these capabilities are scattered (some
+account settings: update their display profile, change or reset their password, re-trigger / confirm
+email verification, and reach the model-management screen. Today these capabilities are scattered (some
 reachable only by hand-typed URLs) and there is no single landing place.
 
 **Why this priority**: This is the foundational "home for the user" the rest of the feature hangs
@@ -50,6 +53,12 @@ URL manually.
    name), **Then** the change is saved and reflected across the app.
 7. **Given** a user on the Personal Center, **When** they choose to manage models, **Then** they reach
    the model-management screen via in-app navigation.
+8. **Given** a user who cannot authenticate, **When** they request a password-reset email from the
+   sign-in flow, **Then** they receive the same non-disclosing confirmation whether or not the address
+   exists and can complete the reset through a valid, single-use link.
+9. **Given** a user who successfully changes their password, **When** the operation completes, **Then**
+   the current device remains signed in with replacement credentials while every previously issued
+   credential is rejected on its next use.
 
 ---
 
@@ -111,8 +120,8 @@ any account, and without exposing any liker identity.
 6. **Given** an owner who revokes a share link, **When** a visitor opens the revoked link, **Then** the
    conversation is no longer accessible.
 7. **Given** an anonymous visitor who already liked a response in their browser session, **When** they
-   attempt to like it again, **Then** repeated rapid likes from the same visitor are not counted (best-
-   effort de-duplication; the count is not trivially inflatable by one visitor).
+   attempt to like it again, **Then** repeated likes from the same server-recognized browser are not
+   counted (best-effort de-duplication; clearing browser state or changing devices remains out of scope).
 
 ---
 
@@ -150,12 +159,40 @@ connection) — scoped to only the viewing user's own data.
 
 ---
 
+### User Story 5 - Public anonymized model analytics (Priority: P3)
+
+Any visitor wants to compare aggregate model performance across the platform without seeing personal
+or account-specific data. The view summarizes response volume, latency, token use, success rate, and
+satisfaction signals by provider protocol and literal model ID.
+
+**Why this priority**: Anonymous aggregate analytics are required by the platform's analytics
+principle. They reuse the same immutable response and reaction records as the personal dashboard but
+must enforce a stricter privacy boundary.
+
+**Independent Test**: Open the public analytics view without signing in and confirm that model-level
+aggregates are available while user IDs, session IDs/titles, IP addresses, connection details,
+configured-model UUIDs, and user-defined model labels are absent.
+
+**Acceptance Scenarios**:
+
+1. **Given** any visitor, **When** they open public model analytics, **Then** they see anonymized
+   aggregate response count, latency, token use, success rate, and named/anonymous satisfaction totals
+   grouped by provider protocol and literal model ID.
+2. **Given** public aggregate data, **When** its response or rendered page is inspected, **Then** it
+   contains no personal, conversation, connection, or user-configured identity fields.
+3. **Given** no matching data for the selected filters, **When** the view loads, **Then** it shows a
+   clear empty state rather than exposing fallback detail records.
+
+---
+
 ### Edge Cases
 
 - **Password change while logged in elsewhere**: changing the password MUST invalidate all of the
   user's other active sessions/tokens, forcing re-authentication on other devices.
 - **Verification email throttling**: rapid repeated "resend verification" requests MUST be rate-limited
   to prevent abuse; the user sees a "please wait" state rather than an error.
+- **Multiple verification links**: issuing a replacement verification email MUST invalidate any prior
+  unused verification link for that user.
 - **Liking on a session that is later deleted**: likes for a deleted conversation MUST be removed with
   it (no orphaned counters).
 - **Share link to a conversation that is later deleted**: the link MUST become inaccessible, not 500.
@@ -169,6 +206,12 @@ connection) — scoped to only the viewing user's own data.
   broken page.
 - **Like on a shared session by a logged-in non-owner**: treated as a named like (attributed), the same
   as US2, not as an anonymous counter.
+- **Mixed pricing currencies**: estimated cost totals MUST remain separated by currency; amounts in
+  different currencies MUST NOT be added together.
+- **Pricing changes or model deletion**: historical response estimates MUST continue to use the pricing
+  basis captured when the response was generated.
+- **Spoofed forwarding headers**: the recorded originating IP MUST come from the deployment's trusted
+  proxy configuration, not from arbitrary client-supplied forwarding headers.
 
 ## Requirements *(mandatory)*
 
@@ -179,16 +222,19 @@ connection) — scoped to only the viewing user's own data.
 - **FR-001**: The system MUST provide a Personal Center destination reachable through in-app
   navigation, showing active-section state, for authenticated users.
 - **FR-002**: Users MUST be able to change their password by supplying their current password and a new
-  password that meets the platform's password policy. A successful password change MUST invalidate all
-  of the user's other active sessions/tokens (via the existing token-revocation mechanism), requiring
-  re-authentication on other devices.
+  password that meets the platform's password policy. A successful password change MUST invalidate
+  every previously issued login credential, return replacement credentials for the current device,
+  and require re-authentication on other devices.
 - **FR-003**: Users MUST be able to trigger (resend) an email-verification message and see their
-  current verification status (verified / unverified / pending).
+  current verification status (verified / unverified / pending). New registrations MUST start
+  unverified and receive a verification message; issuing a replacement MUST invalidate prior unused
+  verification links.
 - **FR-004**: The system MUST verify a user's email when they follow a valid, unexpired verification
   link, and MUST reject expired or already-used links with a clear, recoverable error.
 - **FR-005**: Users MUST be able to view and update their editable profile attributes (at minimum a
   display name) from the Personal Center.
-- **FR-006**: The Personal Center MUST link to model management via in-app navigation.
+- **FR-006**: The Personal Center MUST link to model management via in-app navigation, where optional
+  input-token price, output-token price, and currency can be configured for each configured model.
 - **FR-007**: Email-verification resend and password-related actions MUST be rate-limited to prevent
   abuse.
 
@@ -212,8 +258,10 @@ connection) — scoped to only the viewing user's own data.
   conversation; such likes MUST be recorded as an anonymous count only, with no identity attribution.
 - **FR-015**: The system MUST NOT expose any liker identity or named-like detail to anonymous visitors
   of a shared conversation.
-- **FR-016**: The system MUST apply best-effort de-duplication so a single anonymous visitor cannot
-  trivially inflate a response's anonymous count (exact prevention is out of scope).
+- **FR-016**: The system MUST apply best-effort de-duplication using a system-controlled browser
+  identifier that is not linkable to an account. Clients MUST NOT be able to choose arbitrary
+  identifiers for repeated likes. Exact prevention across cleared browser state or multiple devices
+  is out of scope.
 - **FR-017**: Owners MUST be able to revoke a share link, after which the link is no longer accessible.
   Share links MUST NOT expire automatically; access remains valid until the owner revokes it (or the
   conversation is deleted).
@@ -222,14 +270,13 @@ connection) — scoped to only the viewing user's own data.
 
 #### Usage Analytics (US4)
 
-- **FR-019**: The system MUST record a statistics entry for every AI response (success and error)
-  capturing at least: owning user, time taken (latency), model name/identifier, consumption (token
-  usage; estimated monetary cost where pricing is known — see Assumptions), response outcome
-  (success/error), originating IP address, and the connection used.
-- **FR-020**: Statistics entries MUST be immutable once written (append-only), consistent with the
-  platform's immutable-session principle, and MUST NOT block or slow the response hot path. Entries MUST
-  be retained indefinitely (no fixed expiry) and removed only when their conversation or owning user is
-  deleted (cascade).
+- **FR-019**: The system MUST retain exactly one immutable record for every dispatched AI response
+  (success and error) capturing at least: owning user, time taken (latency), configured-model UUID,
+  literal provider model ID, model display snapshot, token usage, response outcome, originating IP
+  address, connection UUID/label/protocol snapshot, and the pricing basis used for any estimate.
+- **FR-020**: Response data and its statistics MUST have one immutable source of truth rather than
+  parallel records that can diverge. Analytics capture MUST NOT delay response streaming. Records MUST
+  be retained indefinitely and removed only when their conversation or owning user is deleted.
 - **FR-021**: The Personal Center MUST provide an analytics dashboard presenting, for the viewing
   user's own data, aggregate metrics broken down by model and by conversation (at minimum: response
   count, average/percentile latency, token usage / cost, and success vs error rate).
@@ -238,8 +285,19 @@ connection) — scoped to only the viewing user's own data.
 - **FR-023**: The dashboard MUST support filtering by at least time range and model.
 - **FR-024**: Analytics queries MUST be read-only, MUST be scoped to the requesting user's own data,
   and MUST NOT expose another user's records, IP addresses, or identities.
-- **FR-025**: IP addresses and any other personal data captured in statistics MUST NOT appear in any
-  cross-user / aggregate view.
+- **FR-025**: IP addresses, user identity fields, and connection identifiers/labels MUST NOT appear in
+  aggregate payloads. A user's private per-conversation aggregate may include that user's own session
+  ID and title; public aggregates remain subject to FR-029.
+
+#### Public Anonymous Analytics (US5)
+
+- **FR-028**: The system MUST provide an unauthenticated, read-only model analytics view grouped only by
+  provider protocol and literal model ID, including response count, latency, token usage, success rate,
+  and named/anonymous satisfaction totals.
+- **FR-029**: Public analytics MUST NOT expose user IDs, session IDs or titles, IP addresses,
+  connection details, configured-model UUIDs, user-defined model labels, prompts, or response content.
+- **FR-030**: Estimated cost MUST use the price and currency captured for the response when it was
+  generated. Unknown prices MUST display as unavailable, and totals MUST remain separated by currency.
 
 #### Cross-cutting
 
@@ -247,29 +305,36 @@ connection) — scoped to only the viewing user's own data.
   dashboard) MUST follow the four UX principles (consistent, fluent, responsive, connected) and be
   visually verified before completion.
 - **FR-027**: All capabilities that read or mutate personal data MUST require authentication, except
-  the explicitly anonymous shared-view read and anonymous-like actions.
+  public registration/email-verification/password-reset actions and the explicitly anonymous
+  shared-view read/anonymous-like actions. These exceptions MUST use non-disclosing, narrowly scoped
+  contracts.
+- **FR-031**: Users MUST be able to request a self-service password-reset email without authenticating.
+  The response MUST not reveal whether the email address exists; reset links MUST be time-bounded,
+  single-use, and rate-limited. Completing a reset MUST invalidate all previously issued login
+  credentials for that user.
 
 ### Key Entities *(include if feature involves data)*
 
-- **User Profile**: The editable, user-facing attributes of an account (display name, email,
-  verification status). Extends the existing user record; does not duplicate authentication data.
+- **User Profile**: The user-facing account attributes shown in Personal Center: editable display
+  name plus read-only email and verification status. Extends the existing user record; does not
+  duplicate authentication data.
 - **Email Verification**: A time-bounded, single-use token associating a user with a pending email
   verification; tracks issued/expiry/used state. (May reuse existing verification mechanism.)
 - **Response Like (named)**: An attributed like by one registered user on one specific response
   (response = a given model's answer within a given conversation turn). Unique per (user, response);
   removable; cascades on conversation/response deletion.
-- **Anonymous Like Counter**: A per-response tally of likes from non-registered visitors. Holds a
-  count, never an identity. Best-effort de-duplication keys (e.g. an opaque per-visitor browser token)
-  MUST NOT be linkable to any account.
+- **Anonymous Response Like**: A per-response anonymous like used to derive the counter. Its
+  server-issued browser de-duplication key is scoped to sharing, stored in non-reversible form, and
+  never linked to an account or exposed as liker identity.
 - **Share Link**: An opaque, revocable token granting read-only public access to one conversation;
   carries no user-identifying information; references its owning conversation; has an active/revoked
   state with no automatic expiry — it stays active until the owner revokes it or the conversation is
   deleted.
-- **Response Statistics Record**: An immutable, append-only analytical record for one AI response,
+- **Response Statistics Record**: The immutable, append-only source-of-truth record for one AI response,
   capturing owning user, timestamp, latency, model name/identifier, consumption (token usage; cost
-  estimate where known), outcome (success/error), originating IP, and connection used. The source of
-  truth for the analytics dashboard. Retained indefinitely; cascades on conversation/user deletion.
-  Personal fields (IP, user) are excluded from any aggregate view.
+  estimate from a captured pricing snapshot where known), outcome (success/error), originating IP, and
+  connection snapshot. It is the source of truth for both dashboards. Personal fields are excluded
+  from every aggregate view.
 
 ## Success Criteria *(mandatory)*
 
@@ -277,22 +342,25 @@ connection) — scoped to only the viewing user's own data.
 
 - **SC-001**: A user can locate and open the Personal Center from in-app navigation in under 10 seconds
   on first attempt, without typing a URL.
-- **SC-002**: 95% of password changes and email-verification resends complete with clear success/error
-  feedback and no dead clicks (every action shows a loading and a result state).
+- **SC-002**: Every password change/reset and email-verification resend exercised in acceptance testing
+  shows a loading state followed by a clear success or error result, with no dead clicks.
 - **SC-003**: A user can like or un-like a response and see the count update within 1 second, with the
   state persisting across page reloads 100% of the time.
 - **SC-004**: An anonymous visitor on a shared link can read a conversation and like a response without
   creating an account, and no liker identity is ever exposed to them (verified by inspection: 0
   identity fields in the anonymous view).
-- **SC-005**: Every generated AI response — success or error — produces exactly one statistics record
-  (100% coverage), verifiable by comparing response count to statistics-record count.
+- **SC-005**: Every dispatched model that reaches a success or error terminal outcome produces exactly
+  one immutable response/statistics record (100% coverage), verifiable by comparing terminal outcomes
+  to persisted records.
 - **SC-006**: The analytics dashboard renders per-model and per-conversation breakdowns for a history
   of at least 1,000 responses in under 2 seconds, and shows only the viewing user's data (0 cross-user
   leakage in audit).
-- **SC-007**: Capturing statistics adds no user-perceptible latency to response delivery (response
-  streaming start time is unchanged within measurement noise when statistics capture is enabled).
+- **SC-007**: Capturing statistics adds no more than 50 ms to p95 response-stream start time in the
+  defined local performance test compared with the same flow without the added capture fields.
 - **SC-008**: New users with no history see a friendly empty state on the dashboard rather than an
   error or blank page (0 broken empty states).
+- **SC-009**: Public model analytics are usable without authentication and expose zero prohibited
+  personal or account-specific fields in contract and integration tests.
 
 ## Assumptions
 
@@ -307,22 +375,22 @@ connection) — scoped to only the viewing user's own data.
 - **"Response" granularity**: A likeable / measured "AI response" is one model's answer within one
   conversation turn (the existing per-model response unit), so a single multi-model turn yields
   multiple independently likeable, independently measured responses.
-- **Statistics vs existing response records**: A dedicated statistics record is introduced because the
-  existing per-response storage does not capture IP, connection, or cost; the new record is the
-  analytics source of truth and is written without coupling to the response hot path.
+- **Statistics source of truth**: Each immutable response and its analytical dimensions remain one
+  source of truth; no parallel statistics record is introduced.
 - **Anonymous de-duplication**: Implemented best-effort (e.g. an opaque per-browser token), explicitly
-  not guaranteed across devices/cleared storage; the user accepted "就只是个计数" (just a count).
+  not guaranteed across devices/cleared storage. The server issues and recognizes the browser token;
+  callers cannot supply arbitrary token values.
 - **Privacy boundary**: IP and user identity live only in user-scoped (owner-visible) views, never in
   any anonymous shared view or cross-user aggregate, per the platform's analytics privacy principle.
 - **Authentication model**: Existing session/token-based auth governs all non-anonymous actions;
   anonymous actions are limited to reading a shared conversation and incrementing anonymous like
-  counts.
+  counts. Public aggregate analytics are also read-only and unauthenticated.
 
 ## Out of Scope
 
 - Billing, invoicing, or payment collection based on computed cost.
-- A global / cross-user leaderboard or public aggregate analytics surface (this feature is
-  user-scoped; aggregate analytics is governed separately by the observability principle).
+- Ranked users, conversations, or configured models; public analytics are limited to anonymized
+  protocol + literal model aggregates.
 - Editing or moderating other users' conversations or likes.
 - Social features beyond like counts (comments, follows, sharing to specific named recipients).
 - Exact, abuse-proof prevention of anonymous like inflation.
