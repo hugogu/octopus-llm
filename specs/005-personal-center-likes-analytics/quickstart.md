@@ -128,3 +128,23 @@ is insufficient.
   exhausted escalation quota. No source or test failure was returned by those blocked commands.
 - Browser visual verification was not performed against the already-running stack because it still
   contained the pre-change images and Docker rebuild access was unavailable.
+
+## Verification continuation (2026-06-13, follow-up session)
+
+- **Full backend suite now green**: `cd backend && ./gradlew test` → BUILD SUCCESSFUL, 62 tests, 0
+  failures. The one remaining failure (`PersonalAnalyticsControllerTest`) was a real bug: PostgreSQL
+  `INET` round-trips a `/32` netmask, so the owner response-detail returned `203.0.113.7/32`. Fixed in
+  `AnalyticsRepository` by selecting `host(ct.client_ip)` instead of `ct.client_ip::text`.
+- **Added shared-link privacy test** (`ShareControllerTest`): asserts the public `/api/v2/shared/{token}`
+  DTO leaks no `userId`/email/IP/`connectionId`/`connectionLabel`/`configuredModelId`/`namedLikeCount`,
+  that an authenticated non-owner like via the token-scoped `PUT` is a named like (FR-018), and that a
+  revoked share returns 404 (FR-017). Passes.
+- **Frontend gates re-confirmed**: `tsc --noEmit`, `eslint .`, and Vitest (25 files / 112 tests) all
+  pass on Node.js 24.
+- **T076/T077/T078 (Docker rebuild + browser visual + manual quickstart) remain blocked** in this
+  environment: `docker compose up -d --build` fails to pull `eclipse-temurin:21-*-alpine` base images
+  (`registry-1.docker.io` DNS i/o timeout). This is a network/registry constraint, not a code defect.
+  The pre-existing stack (frontend `:3001` → 200, backend `:8080` → 401 as expected, db healthy) was
+  left running and untouched. Runtime HTTP+DB behavior is otherwise covered by the 62 Testcontainers
+  integration tests against a real PostgreSQL. Pixel-level visual sign-off should be done once registry
+  access is available (or by running `./gradlew bootRun` + `npm run start` locally against the db).
