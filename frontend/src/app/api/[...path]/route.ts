@@ -19,6 +19,13 @@ const hopByHopHeaders = new Set([
   "upgrade",
 ]);
 
+// Browser-only request headers that must not be forwarded upstream. The browser talks to this
+// route same-origin; the hop to the backend is server-to-server, so the browser's Origin/Referer
+// are meaningless there. Forwarding them makes the backend's CORS filter evaluate (and reject) an
+// otherwise same-origin request. Auth is via Bearer token and backend CSRF is disabled, so dropping
+// these is safe. See SecurityConfig.corsConfigurationSource on the backend.
+const browserOnlyRequestHeaders = new Set(["origin", "referer"]);
+
 type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
@@ -31,7 +38,8 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
 
   const headers = new Headers();
   request.headers.forEach((value, key) => {
-    if (!hopByHopHeaders.has(key.toLowerCase())) {
+    const lowerKey = key.toLowerCase();
+    if (!hopByHopHeaders.has(lowerKey) && !browserOnlyRequestHeaders.has(lowerKey)) {
       headers.set(key, value);
     }
   });
