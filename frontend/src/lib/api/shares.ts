@@ -33,8 +33,9 @@ export function revokeShare(sessionId: string, shareToken: string, token: string
   }));
 }
 
-export function getSharedSession(shareToken: string): Promise<SharedSession> {
+export function getSharedSession(shareToken: string, token?: string): Promise<SharedSession> {
   return checked(fetch(apiUrl(`/api/v2/shared/${encodeURIComponent(shareToken)}`), {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
     credentials: "include",
     cache: "no-store",
   }));

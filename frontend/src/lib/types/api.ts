@@ -159,6 +159,8 @@ export interface SharedResponse {
   responseText: string | null;
   reasoningText: string | null;
   errorMessage: string | null;
+  namedLikeCount: number;
+  likedByMe: boolean;
   anonymousLikeCount: number;
   likedByThisVisitor: boolean;
 }

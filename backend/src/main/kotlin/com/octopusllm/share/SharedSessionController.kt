@@ -22,11 +22,12 @@ class SharedSessionController(
 ) {
     @GetMapping
     fun read(
+        @AuthenticationPrincipal principal: String?,
         @PathVariable token: String,
         @CookieValue(name = AnonymousVisitorService.COOKIE_NAME, required = false) visitorCookie: String?,
     ): Mono<ResponseEntity<SharedSessionDto>> {
         val visitor = visitorService.resolve(token, visitorCookie)
-        return service.read(token, visitor.digest).map { body ->
+        return service.read(token, visitor.digest, principal?.let(UUID::fromString)).map { body ->
             ResponseEntity.ok().apply {
                 visitor.cookie?.let { header("Set-Cookie", it.toString()) }
             }.body(body)

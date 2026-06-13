@@ -8,6 +8,7 @@ import com.octopusllm.chat.ProviderResponseRepository
 import com.octopusllm.reaction.AnonymousResponseLikeRepository
 import com.octopusllm.reaction.LikeState
 import com.octopusllm.reaction.ReactionService
+import com.octopusllm.reaction.ResponseLikeRepository
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
@@ -32,6 +33,10 @@ data class SharedResponseDto(
     val responseText: String?,
     val reasoningText: String?,
     val errorMessage: String?,
+    // Named loves from registered users — an aggregate count only, never any liker identity (FR-015).
+    val namedLikeCount: Long,
+    // True when the (logged-in) viewer has loved this response. Always false for anonymous visitors.
+    val likedByMe: Boolean,
     val anonymousLikeCount: Long,
     val likedByThisVisitor: Boolean,
 )
@@ -60,6 +65,7 @@ class ShareService(
     private val turnRepository: ChatTurnRepository,
     private val responseRepository: ProviderResponseRepository,
     private val anonymousLikeRepository: AnonymousResponseLikeRepository,
+    private val responseLikeRepository: ResponseLikeRepository,
     private val reactionService: ReactionService,
     private val tokenService: ShareTokenService,
 ) {
@@ -93,7 +99,7 @@ class ShareService(
         Unit
     }
 
-    fun read(token: String, visitorDigest: String): Mono<SharedSessionDto> = blocking {
+    fun read(token: String, visitorDigest: String, viewerId: UUID?): Mono<SharedSessionDto> = blocking {
         val share = requireActive(token)
         val turns = turnRepository.findBySessionIdOrderBySequenceNum(share.session.id)
         SharedSessionDto(
@@ -110,6 +116,9 @@ class ShareService(
                             responseText = response.responseText,
                             reasoningText = response.reasoningText,
                             errorMessage = response.errorMessage,
+                            namedLikeCount = responseLikeRepository.countByResponseId(response.id),
+                            likedByMe = viewerId != null &&
+                                responseLikeRepository.existsByResponseIdAndUserId(response.id, viewerId),
                             anonymousLikeCount = anonymousLikeRepository.countByResponseId(response.id),
                             likedByThisVisitor = anonymousLikeRepository
                                 .existsByResponseIdAndVisitorKeyHash(response.id, visitorDigest),

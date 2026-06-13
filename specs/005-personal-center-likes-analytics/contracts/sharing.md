@@ -40,8 +40,10 @@ Revoke a share link (`revoked_at = now()`). Idempotent.
 ## GET /api/v2/shared/{token}  (NEW, PUBLIC — no auth)
 
 Read-only shared session through an **anonymous-safe** DTO. MUST NOT include `user_id`, `client_ip`,
-configured-model UUID, connection details, named-liker identity, or named-like breakdown
-(FR-013, FR-015).
+configured-model UUID, connection details, or any named-liker **identity** (FR-013, FR-015). It MAY
+include the aggregate `namedLikeCount` (a count carries no identity) so loves made in chat are
+visible on the share. When the request carries a valid bearer token, `likedByMe` reflects whether
+that signed-in viewer has loved the response; it is always `false` for anonymous visitors.
 
 200:
 ```json
@@ -58,6 +60,8 @@ configured-model UUID, connection details, named-liker identity, or named-like b
           "status": "complete",
           "responseText": "…",
           "reasoningText": null,
+          "namedLikeCount": 4,
+          "likedByMe": false,
           "anonymousLikeCount": 12,
           "likedByThisVisitor": false
         }

@@ -141,10 +141,11 @@ class ShareControllerTest @Autowired constructor(
             "configuredModelId",
             "clientIp",
             "userId",
-            "namedLikeCount",
         ).forEach { forbidden ->
             assert(!rawJson.contains(forbidden)) { "shared DTO must not expose '$forbidden': $rawJson" }
         }
+        // The aggregate named-love count IS exposed (no identity) so loves made in chat show on the share.
+        assert(rawJson.contains("namedLikeCount")) { "shared DTO should expose the aggregate namedLikeCount: $rawJson" }
 
         // A logged-in non-owner liking via the token-scoped endpoint is recorded as a NAMED like (FR-018).
         val visitor = users.save(User(email = "visitor-${UUID.randomUUID()}@example.com", passwordHash = "hash"))
