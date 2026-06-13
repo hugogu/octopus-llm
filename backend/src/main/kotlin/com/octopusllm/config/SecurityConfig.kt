@@ -1,6 +1,7 @@
 package com.octopusllm.config
 
 import com.octopusllm.auth.JwtTokenService
+import com.octopusllm.auth.UserRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -18,12 +19,14 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import java.net.URI
 
 @Configuration
 @EnableWebFluxSecurity
 class SecurityConfig(
     private val jwtTokenService: JwtTokenService,
+    private val userRepository: UserRepository,
     @Value("\${app.frontend.url}") private val frontendUrl: String,
 ) {
 
@@ -40,6 +43,7 @@ class SecurityConfig(
                     .pathMatchers("/api/v1/auth/**").permitAll()
                     .pathMatchers("/api/v1/health").permitAll()
                     .pathMatchers("/api/v2/protocols", "/api/v2/catalogue").permitAll()
+                    .pathMatchers("/api/v2/admin/**").hasRole("ADMIN")
                     .anyExchange().authenticated()
             }
             .exceptionHandling {
@@ -61,13 +65,24 @@ class SecurityConfig(
                     ?: return Mono.empty()
                 if (!header.startsWith("Bearer ")) return Mono.empty()
                 val token = header.removePrefix("Bearer ")
-                return jwtTokenService.validate(token).map { claims ->
-                    val auth = UsernamePasswordAuthenticationToken(
-                        claims.userId.toString(),
-                        null,
-                        listOf(SimpleGrantedAuthority("ROLE_USER")),
-                    )
-                    SecurityContextImpl(auth) as SecurityContext
+                return jwtTokenService.validate(token).flatMap { claims ->
+                    Mono.fromCallable { userRepository.findById(claims.userId).orElse(null) }
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .flatMap<SecurityContext> { user ->
+                            // Reject disabled accounts and tokens issued before the current session epoch.
+                            if (user == null || user.isDisabled || claims.sessionEpoch < user.sessionEpoch) {
+                                Mono.empty()
+                            } else {
+                                val authorities = mutableListOf(SimpleGrantedAuthority("ROLE_USER"))
+                                if (user.isAdmin) authorities += SimpleGrantedAuthority("ROLE_ADMIN")
+                                val auth = UsernamePasswordAuthenticationToken(
+                                    claims.userId.toString(),
+                                    null,
+                                    authorities,
+                                )
+                                Mono.just(SecurityContextImpl(auth) as SecurityContext)
+                            }
+                        }
                 }.onErrorResume { Mono.empty() }
             }
         }

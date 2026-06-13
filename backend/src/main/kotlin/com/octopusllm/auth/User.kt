@@ -20,6 +20,18 @@ class User(
     @Column(name = "email_verified", nullable = false)
     var emailVerified: Boolean = false,
 
+    @Column(name = "is_admin", nullable = false)
+    var isAdmin: Boolean = false,
+
+    @Column(name = "is_active", nullable = false)
+    var isActive: Boolean = false,
+
+    @Column(name = "is_disabled", nullable = false)
+    var isDisabled: Boolean = false,
+
+    @Column(name = "session_epoch", nullable = false)
+    var sessionEpoch: Int = 0,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 

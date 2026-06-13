@@ -87,7 +87,7 @@ class ChatService(
                     }
                 }
                 val session = requireSession(sessionId, userId)
-                val models = configuredModelService.requireOwned(userId, selectedConfiguredModelIds)
+                val models = configuredModelService.requireSelectable(userId, selectedConfiguredModelIds)
                 if (models.any { !it.isEnabled }) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "One or more configured models are disabled")
                 }

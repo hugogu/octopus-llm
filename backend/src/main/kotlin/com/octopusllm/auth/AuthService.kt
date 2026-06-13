@@ -15,6 +15,7 @@ class AuthService(
     private val userRepository: UserRepository,
     private val emailVerificationRepository: EmailVerificationRepository,
     private val revokedTokenRepository: RevokedTokenRepository,
+    private val passwordResetRepository: PasswordResetRepository,
     private val jwtTokenService: JwtTokenService,
 ) {
     private val bcrypt = BCryptPasswordEncoder(12)
@@ -60,10 +61,31 @@ class AuthService(
         if (!bcrypt.matches(password, user.passwordHash)) {
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
         }
-        user.id
-    }.subscribeOn(Schedulers.boundedElastic()).map { userId ->
-        jwtTokenService.issue(userId)
-    }
+        // A disabled account must not be issued a token even with correct credentials.
+        if (user.isDisabled) {
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
+        }
+        jwtTokenService.issue(user.id, user.sessionEpoch)
+    }.subscribeOn(Schedulers.boundedElastic())
+
+    /**
+     * Completes a password reset. Single-use is enforced atomically by [PasswordResetRepository.consume];
+     * only the caller that flips `used_at` proceeds to set the new password.
+     */
+    fun confirmPasswordReset(token: String, newPassword: String): Mono<Unit> = Mono.fromCallable {
+        val now = Instant.now()
+        val won = passwordResetRepository.consume(token, now) == 1
+        if (!won) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid, expired, or already-used reset token")
+        }
+        val reset = passwordResetRepository.findByToken(token)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid reset token")
+        val user = userRepository.findById(reset.user.id)
+            .orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid reset token") }
+        user.passwordHash = bcrypt.encode(newPassword)
+        user.updatedAt = now
+        userRepository.save(user)
+    }.subscribeOn(Schedulers.boundedElastic()).thenReturn(Unit)
 
     fun logout(jti: String, userId: UUID, exp: Instant): Mono<Unit> = Mono.fromCallable {
         val revoked = RevokedToken(jti = jti, userId = userId, expiresAt = exp)

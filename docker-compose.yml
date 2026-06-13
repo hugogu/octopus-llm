@@ -32,6 +32,7 @@ services:
       MAIL_HOST: mailhog
       MAIL_PORT: 1025
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
     depends_on:
       db:
         condition: service_healthy

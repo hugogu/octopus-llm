@@ -16,6 +16,7 @@ data class JwtClaims(
     val userId: UUID,
     val jti: String,
     val exp: Instant,
+    val sessionEpoch: Int,
 )
 
 @Service
@@ -26,13 +27,18 @@ class JwtTokenService(
 ) {
     private val signingKey: SecretKey = Keys.hmacShaKeyFor(secret.toByteArray(Charsets.UTF_8))
 
-    fun issue(userId: UUID): String {
+    private companion object {
+        const val SESSION_EPOCH_CLAIM = "sepoch"
+    }
+
+    fun issue(userId: UUID, sessionEpoch: Int): String {
         val jti = UUID.randomUUID().toString()
         val now = Instant.now()
         val exp = now.plusSeconds(expirySeconds)
         return Jwts.builder()
             .id(jti)
             .subject(userId.toString())
+            .claim(SESSION_EPOCH_CLAIM, sessionEpoch)
             .issuedAt(Date.from(now))
             .expiration(Date.from(exp))
             .signWith(signingKey)
@@ -49,6 +55,8 @@ class JwtTokenService(
             userId = UUID.fromString(claims.subject),
             jti = claims.id,
             exp = claims.expiration.toInstant(),
+            // Tokens issued before this feature carry no claim; treat them as epoch 0.
+            sessionEpoch = (claims[SESSION_EPOCH_CLAIM] as? Number)?.toInt() ?: 0,
         )
     }.subscribeOn(Schedulers.boundedElastic()).flatMap { claims ->
         Mono.fromCallable {

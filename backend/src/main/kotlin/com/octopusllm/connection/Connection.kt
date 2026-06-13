@@ -37,6 +37,9 @@ class Connection(
     @Column(name = "key_iv", nullable = false)
     var keyIv: ByteArray,
 
+    @Column(name = "is_builtin", nullable = false, updatable = false)
+    val isBuiltin: Boolean = false,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 

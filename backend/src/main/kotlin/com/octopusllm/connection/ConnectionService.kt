@@ -41,6 +41,10 @@ class ConnectionService(
             )
         }
 
+    /** Built-in connections allocated read-only to the user; surfaced alongside owned connections. */
+    fun listAllocatedBuiltin(userId: UUID): Mono<List<Connection>> =
+        blocking { connectionRepository.findBuiltinAllocatedToUser(userId) }
+
     fun add(
         userId: UUID,
         protocol: String,

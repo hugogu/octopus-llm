@@ -52,7 +52,7 @@ class UserConfigControllerTest {
 
     private fun createUserAndToken(): Pair<User, String> {
         val user = userRepository.save(User(email = "config-${java.util.UUID.randomUUID()}@example.com", passwordHash = "hash", emailVerified = true))
-        val token = jwtTokenService.issue(user.id)
+        val token = jwtTokenService.issue(user.id, user.sessionEpoch)
         return user to token
     }
 

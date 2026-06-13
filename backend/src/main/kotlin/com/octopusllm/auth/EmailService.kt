@@ -29,4 +29,23 @@ class EmailService(
         }
         mailSender.send(message)
     }
+
+    fun sendPasswordResetEmail(toEmail: String, token: String) {
+        val resetUrl = "$frontendUrl/reset-password?token=$token"
+        val message = mailSender.createMimeMessage()
+        MimeMessageHelper(message, false, "UTF-8").apply {
+            setTo(toEmail)
+            setSubject("Reset your Octopus LLM password")
+            setText(
+                """
+                <p>An administrator has reset your Octopus LLM password.</p>
+                <p>Your previous password no longer works. Click the link below to set a new one:</p>
+                <p><a href="$resetUrl">$resetUrl</a></p>
+                <p>This link expires in 24 hours and can be used once.</p>
+                """.trimIndent(),
+                true,
+            )
+        }
+        mailSender.send(message)
+    }
 }

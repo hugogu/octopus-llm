@@ -69,6 +69,56 @@ export interface PageResponse<T> {
 }
 
 // ---------------------------------------------------------------------------
+// API v2 — admin control panel
+// ---------------------------------------------------------------------------
+
+export interface MeResponse {
+  id: string;
+  email: string;
+  isAdmin: boolean;
+  isActive: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+  isActive: boolean;
+  isDisabled: boolean;
+  isAdmin: boolean;
+  createdAt: string;
+}
+
+export interface BuiltinConnection {
+  id: string;
+  protocol: string;
+  label: string | null;
+  baseUrl: string;
+  hasKey: boolean;
+  modelCount: number;
+  allocatedUserCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BuiltinModel {
+  id: string;
+  connectionId: string;
+  modelId: string;
+  displayName: string;
+  isEnabled: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConnectionAllocationView {
+  userId: string;
+  email: string;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
 // API v2 — protocol, connection, configured model, and chat
 // ---------------------------------------------------------------------------
 
@@ -96,6 +146,8 @@ export interface ConnectionV2 {
   baseUrl: string;
   hasKey: boolean;
   modelCount: number;
+  builtin: boolean;
+  readOnly: boolean;
   createdAt: string;
   updatedAt: string;
 }

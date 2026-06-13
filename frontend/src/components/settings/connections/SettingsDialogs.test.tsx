@@ -27,6 +27,8 @@ const connection: ConnectionV2 = {
   label: "Primary",
   baseUrl: "https://api.example.com/v1",
   hasKey: true,
+  builtin: false,
+  readOnly: false,
   modelCount: 1,
   createdAt: "2026-06-12T00:00:00Z",
   updatedAt: "2026-06-12T00:00:00Z",

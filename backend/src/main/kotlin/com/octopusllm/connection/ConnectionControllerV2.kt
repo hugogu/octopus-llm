@@ -44,6 +44,8 @@ data class ConnectionResponseV2(
     val baseUrl: String,
     val hasKey: Boolean,
     val modelCount: Long,
+    val builtin: Boolean,
+    val readOnly: Boolean,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
@@ -56,9 +58,26 @@ class ConnectionControllerV2(private val service: ConnectionService) {
         @AuthenticationPrincipal principal: String,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "25") size: Int,
-    ): Mono<PageResponse<ConnectionResponseV2>> =
-        service.list(userId(principal), page, size)
-            .map { result -> result.toPageResponse(::response) }
+    ): Mono<PageResponse<ConnectionResponseV2>> {
+        val uid = userId(principal)
+        return service.list(uid, page, size).flatMap { owned ->
+            // Surface allocated built-in connections (read-only) alongside owned ones, on the first page.
+            if (page > 0) {
+                Mono.just(owned.toPageResponse(::response))
+            } else {
+                service.listAllocatedBuiltin(uid).map { builtins ->
+                    val items = owned.content.map(::response) + builtins.map(::response)
+                    PageResponse(
+                        items = items,
+                        page = owned.number,
+                        size = owned.size,
+                        totalElements = owned.totalElements + builtins.size,
+                        totalPages = owned.totalPages,
+                    )
+                }
+            }
+        }
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -111,6 +130,8 @@ class ConnectionControllerV2(private val service: ConnectionService) {
         baseUrl = connection.baseUrl,
         hasKey = true,
         modelCount = service.modelCount(connection.id),
+        builtin = connection.isBuiltin,
+        readOnly = connection.isBuiltin,
         createdAt = connection.createdAt,
         updatedAt = connection.updatedAt,
     )

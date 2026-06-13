@@ -28,8 +28,8 @@ class ConfiguredModelService(
                 Sort.Order.asc("createdAt"),
                 Sort.Order.asc("id"),
             )
-            if (enabled == null) repository.findByUserId(userId, pageable)
-            else repository.findByUserIdAndIsEnabled(userId, enabled, pageable)
+            if (enabled == null) repository.findOwnedOrAllocated(userId, pageable)
+            else repository.findOwnedOrAllocatedByEnabled(userId, enabled, pageable)
         }
 
     fun add(
@@ -97,6 +97,19 @@ class ConfiguredModelService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate configured model IDs are not allowed")
         }
         val models = repository.findByIdInAndUserId(ids, userId).associateBy { it.id }
+        if (models.size != ids.size) throw notFound()
+        return ids.map { id -> models.getValue(id) }
+    }
+
+    /**
+     * Resolve models the user may use for chat: owned by the user, or on a built-in connection
+     * allocated to the user. Foreign/unallocated/missing IDs are rejected with a non-disclosing 404.
+     */
+    fun requireSelectable(userId: UUID, ids: List<UUID>): List<ConfiguredModel> {
+        if (ids.distinct().size != ids.size) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate configured model IDs are not allowed")
+        }
+        val models = repository.findSelectableByIds(ids, userId).associateBy { it.id }
         if (models.size != ids.size) throw notFound()
         return ids.map { id -> models.getValue(id) }
     }

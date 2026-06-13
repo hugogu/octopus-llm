@@ -87,26 +87,32 @@ export default function ConnectionCard({
             <Cable className="h-4 w-4 text-[#c96442]" />
             <h2 className="truncate font-semibold text-stone-900">{connection.label ?? "Unnamed connection"}</h2>
             <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[11px] text-stone-600">{connection.protocol}</span>
+            {connection.builtin ? (
+              <span className="rounded-full bg-[#c96442]/10 px-2 py-0.5 text-[11px] text-[#c96442]">Built-in</span>
+            ) : null}
           </div>
           <p className="mt-1 truncate font-mono text-xs text-stone-500">{connection.baseUrl}</p>
           <p className="mt-1 text-xs text-stone-400">
             {connection.hasKey ? "Encrypted key stored" : "No key stored"} · {models.length} model(s)
+            {connection.readOnly ? " · provided by an administrator" : ""}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button size="sm" variant="secondary" isLoading={loadingModels} onClick={() => void loadModels()}>
-            <DownloadCloud className="mr-1.5 h-4 w-4" /> Load models
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => onAddModel(connection)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Add model
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => onEditConnection(connection)} aria-label="Edit connection">
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => void remove()} className="text-red-600" aria-label="Delete connection">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+        {connection.readOnly ? null : (
+          <div className="flex shrink-0 items-center gap-1">
+            <Button size="sm" variant="secondary" isLoading={loadingModels} onClick={() => void loadModels()}>
+              <DownloadCloud className="mr-1.5 h-4 w-4" /> Load models
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => onAddModel(connection)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add model
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => onEditConnection(connection)} aria-label="Edit connection">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => void remove()} className="text-red-600" aria-label="Delete connection">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
       {loadNotice ? (
         <p className="border-b border-stone-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">{loadNotice}</p>

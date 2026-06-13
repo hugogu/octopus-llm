@@ -25,6 +25,11 @@ data class LoginRequest(
 
 data class LoginResponse(val token: String, val expiresAt: Instant)
 
+data class PasswordResetConfirmRequest(
+    @field:NotBlank val token: String,
+    @field:NotBlank @field:Size(min = 8) val password: String,
+)
+
 @RestController
 @RequestMapping("/api/v1/auth")
 class AuthController(
@@ -42,6 +47,11 @@ class AuthController(
     fun verifyEmail(@Valid @RequestBody request: VerifyEmailRequest): Mono<Map<String, String>> =
         authService.verifyEmail(request.token)
             .thenReturn(mapOf("message" to "Email verified. You may now log in."))
+
+    @PostMapping("/password-reset/confirm")
+    fun confirmPasswordReset(@Valid @RequestBody request: PasswordResetConfirmRequest): Mono<Map<String, String>> =
+        authService.confirmPasswordReset(request.token, request.password)
+            .thenReturn(mapOf("status" to "password_updated"))
 
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): Mono<LoginResponse> =
