@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Cable, DownloadCloud, Plus, Search, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Cable, DownloadCloud, Plus, Search, Sparkles, Trash2, UserMinus, UserPlus } from "lucide-react";
 import Button from "@/components/ui/Button";
 import AdminShell from "@/components/admin/AdminShell";
+import { buildCapabilityOverrides, togglesFromOverrides } from "@/components/settings/connections/formUtils";
 import { getToken } from "@/lib/api/auth";
 import {
   addBuiltinModel,
@@ -11,14 +12,18 @@ import {
   createBuiltinConnection,
   deleteBuiltinConnection,
   deleteBuiltinModel,
+  detectBuiltinCapabilities,
   listAllocations,
   listBuiltinConnections,
   listBuiltinModels,
   listUsers,
   loadBuiltinEndpointModels,
+  patchBuiltinModel,
   revokeConnection,
 } from "@/lib/api/admin";
 import type { AdminUser, BuiltinConnection, BuiltinModel, ConnectionAllocationView } from "@/lib/types/api";
+
+const MODALITY_KEYS = ["image", "video", "audio"] as const;
 
 const inputClass =
   "rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]";
@@ -248,6 +253,15 @@ function ConnectionCard({
           <Button size="sm" variant="secondary" isLoading={loadingModels} onClick={() => void loadModels()}>
             <DownloadCloud className="mr-1 h-4 w-4" /> Load models
           </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            isLoading={busy}
+            title="Detect image/video/audio capability for this connection's models (OpenRouter + catalogue)"
+            onClick={() => void act(() => detectBuiltinCapabilities(token, connection.id))}
+          >
+            <Sparkles className="mr-1 h-4 w-4" /> Detect
+          </Button>
           <Button size="sm" variant="ghost" isLoading={busy} className="text-red-600" onClick={() => void act(() => deleteBuiltinConnection(token, connection.id))}>
             <Trash2 className="mr-1 h-4 w-4" /> Delete
           </Button>
@@ -260,18 +274,46 @@ function ConnectionCard({
         {models.length > 0 ? (
           <ul className="mb-3 divide-y divide-stone-100">
             {models.map((m) => (
-              <li key={m.id} className="flex items-center justify-between py-1.5 text-sm">
+              <li key={m.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
                 <span className="min-w-0 truncate">
                   <span className="font-medium text-stone-800">{m.displayName}</span>{" "}
                   <span className="font-mono text-xs text-stone-400">{m.modelId}</span>
                 </span>
-                <button
-                  onClick={() => void act(() => deleteBuiltinModel(token, connection.id, m.id))}
-                  className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
-                  aria-label="Delete model"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {MODALITY_KEYS.map((key) => {
+                    const toggles = togglesFromOverrides(m.capabilityOverrides);
+                    const on = toggles[key];
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={on}
+                        title={`${on ? "Disable" : "Enable"} ${key} input`}
+                        onClick={() =>
+                          void act(() =>
+                            patchBuiltinModel(token, connection.id, m.id, {
+                              capabilityOverrides: buildCapabilityOverrides("", { ...toggles, [key]: !on }, true),
+                            }),
+                          )
+                        }
+                        className={`rounded-full border px-1.5 py-0.5 text-[10px] uppercase transition ${
+                          on
+                            ? "border-[#c96442] bg-[#c96442]/10 text-[#b75536]"
+                            : "border-stone-200 bg-white text-stone-400 hover:bg-stone-50"
+                        }`}
+                      >
+                        {key.slice(0, 3)}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => void act(() => deleteBuiltinModel(token, connection.id, m.id))}
+                    className="rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                    aria-label="Delete model"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

@@ -2,9 +2,10 @@ package com.octopusllm.connection
 
 import com.octopusllm.api.v2.boundedPageRequest
 import com.octopusllm.auth.UserRepository
-import com.octopusllm.model.ModelCatalogue
+import com.octopusllm.model.CapabilityDetector
 import com.octopusllm.model.ProtocolDefinitions
 import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -20,6 +21,8 @@ class ConfiguredModelService(
     private val userRepository: UserRepository,
     private val connectionService: ConnectionService,
     private val repository: ConfiguredModelRepository,
+    private val capabilityDetector: CapabilityDetector,
+    private val capabilityFiller: CapabilityFiller,
 ) {
     fun list(userId: UUID, enabled: Boolean?, page: Int, size: Int): Mono<Page<ConfiguredModel>> =
         blocking {
@@ -111,21 +114,13 @@ class ConfiguredModelService(
         }
 
     /**
-     * Auto-detect media capability for the user's own models from the catalogue (feature 007).
-     * Fill-only: models whose `input_modalities` is already set (manually) are left untouched.
-     * Returns the models that were updated.
+     * Detect media capability for a connection's own models (feature 007, US7). Connection-scoped and
+     * fill-only — manually set modalities are preserved. Returns the models that were updated.
      */
-    fun refreshCapabilities(userId: UUID): Mono<List<ConfiguredModel>> = blocking {
-        val updated = mutableListOf<ConfiguredModel>()
-        repository.findByUserId(userId).forEach { model ->
-            if (model.capabilityOverrides.containsKey("input_modalities")) return@forEach
-            val modalities = ModelCatalogue.modalitiesFor(model.connection.protocol, model.modelId) ?: return@forEach
-            model.capabilityOverrides = model.capabilityOverrides.toMutableMap()
-                .apply { put("input_modalities", modalities) }
-            model.updatedAt = Instant.now()
-            updated += repository.save(model)
-        }
-        updated
+    fun detectCapabilities(userId: UUID, connectionId: UUID): Mono<List<ConfiguredModel>> = blocking {
+        connectionService.requireOwned(userId, connectionId)
+        val models = repository.findByConnectionId(connectionId, Pageable.unpaged()).content
+        capabilityFiller.fill(models).map { repository.save(it) }
     }
 
     private fun applyCatalogueModalities(
@@ -134,7 +129,9 @@ class ConfiguredModelService(
         overrides: Map<String, Any?>,
     ): Map<String, Any?> {
         if (overrides.containsKey("input_modalities")) return overrides
-        val modalities = ModelCatalogue.modalitiesFor(protocol, modelId.trim()) ?: return overrides
+        // Cached detection only (no network) on the hot add path; the connection-level detect action
+        // does the thorough OpenRouter refresh.
+        val modalities = capabilityDetector.detectCached(protocol, modelId.trim()) ?: return overrides
         return overrides.toMutableMap().apply { put("input_modalities", modalities) }
     }
 

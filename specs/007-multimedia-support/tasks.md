@@ -172,6 +172,24 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ---
 
+## Phase 7c: User Story 7 - Connection-level + cross-provider (OpenRouter) detection & admin editor (Priority: P2)
+
+**Goal**: Detection is per-connection (incl. built-in via admin), sourced from OpenRouter with a local fallback, and an admin can manually correct built-in model capabilities.
+
+**Independent Test**: Per-connection "Detect" sets modalities from OpenRouter; admin "Detect" + per-model toggles work on built-in connections; manual settings survive re-detect (spec US7).
+
+- [X] T057 [US7] `OpenRouterModelCatalogue` (fetch + TTL cache + normalized id index, supported-modality filter) + `OpenRouterModelCatalogueTest` (pure parse/normalize) in `backend/.../model/`
+- [X] T058 [US7] `CapabilityDetector` (OpenRouter primary → local catalogue fallback) + `CapabilityFiller` (fill-only batch) in `backend/.../model` and `backend/.../connection`
+- [X] T059 [US7] Refactor `ConfiguredModelService`: connection-scoped `detectCapabilities`, add auto-fill via detector; `POST /api/v2/connections/{id}/detect-capabilities`; remove the global `refresh-capabilities` endpoint
+- [X] T060 [US7] Admin: `AdminConnectionService.detectCapabilities` + addModel auto-fill + `patchModel` capabilityOverrides + `POST /api/v2/admin/connections/{id}/detect-capabilities`; expose `capabilityOverrides` on the admin model response
+- [X] T061 [US7] Frontend user: per-connection "Detect" button on `ConnectionCard` (auto-runs after Load models); `detectConnectionCapabilities` client; remove the global page button
+- [X] T062 [US7] Frontend admin: per-connection "Detect" button + inline per-model image/video/audio toggles on `AdminConnectionsPage`; `detectBuiltinCapabilities` + `patchBuiltinModel` clients
+- [X] T063 [US7] Config: `openrouter.base-url`/`api-key` (application.yml) + `OPENROUTER_API_KEY` in docker-compose; tests adapted (`ConfiguredModelCapabilityTest` → connection-scoped + detector mocks)
+
+**Checkpoint**: Capability detection is per-connection and cross-provider; admins can correct built-in models.
+
+---
+
 ## Phase 8: Polish & Cross-Cutting Concerns
 
 - [ ] T046 [P] Implement the idempotent orphaned-media cleanup sweep (delete `media` rows + stored objects with `turn_id IS NULL` older than the TTL) as a scheduled job in `backend/src/main/kotlin/com/octopusllm/media/MediaService.kt` (FR-023)

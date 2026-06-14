@@ -247,6 +247,7 @@ export interface BuiltinModel {
   inputPricePerMtok: number | null;
   outputPricePerMtok: number | null;
   priceCurrency: string | null;
+  capabilityOverrides: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

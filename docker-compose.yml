@@ -41,6 +41,9 @@ services:
       # MEDIA_PUBLIC_BASE_URL; switch to S3/OSS at runtime via the admin storage settings.
       MEDIA_LOCAL_DIR: ${MEDIA_LOCAL_DIR:-/app/media}
       MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-http://localhost:8080/media}
+      # Cross-provider model capability detection (feature 007). Optional — the OpenRouter models list
+      # is public; the key is sent when present.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:
       - ./data/media:/app/media
     depends_on:

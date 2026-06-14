@@ -52,7 +52,10 @@ data class ConnectionResponseV2(
 
 @RestController
 @RequestMapping("/api/v2/connections")
-class ConnectionControllerV2(private val service: ConnectionService) {
+class ConnectionControllerV2(
+    private val service: ConnectionService,
+    private val configuredModelService: ConfiguredModelService,
+) {
     @GetMapping
     fun list(
         @AuthenticationPrincipal principal: String,
@@ -115,6 +118,18 @@ class ConnectionControllerV2(private val service: ConnectionService) {
         @PathVariable id: UUID,
     ): Mono<Map<String, List<String>>> =
         service.listEndpointModels(userId(principal), id).map { mapOf("items" to it) }
+
+    /**
+     * Detect media capability (image/video/audio) for this connection's models (feature 007, US7),
+     * sourced from OpenRouter with a local-catalogue fallback. Fill-only — manual settings are kept.
+     */
+    @PostMapping("/{id}/detect-capabilities")
+    fun detectCapabilities(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable id: UUID,
+    ): Mono<Map<String, Any>> =
+        configuredModelService.detectCapabilities(userId(principal), id)
+            .map { updated -> mapOf("updatedCount" to updated.size) }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

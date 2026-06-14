@@ -155,6 +155,31 @@ export function addBuiltinModel(
   );
 }
 
+export function patchBuiltinModel(
+  token: string,
+  connectionId: string,
+  configuredModelId: string,
+  body: { capabilityOverrides?: Record<string, unknown>; displayName?: string; isEnabled?: boolean },
+): Promise<BuiltinModel> {
+  return request(
+    `/api/v2/admin/connections/${connectionId}/models/${configuredModelId}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+    token,
+  );
+}
+
+/** Detect media capability for a built-in connection's models (feature 007, US7). Fill-only. */
+export function detectBuiltinCapabilities(
+  token: string,
+  connectionId: string,
+): Promise<{ updatedCount: number }> {
+  return request(
+    `/api/v2/admin/connections/${connectionId}/detect-capabilities`,
+    { method: "POST" },
+    token,
+  );
+}
+
 export function deleteBuiltinModel(
   token: string,
   connectionId: string,

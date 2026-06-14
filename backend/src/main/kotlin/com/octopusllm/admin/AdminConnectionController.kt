@@ -68,6 +68,7 @@ data class PatchBuiltinModelRequest(
     val inputPricePerMtok: BigDecimal? = null,
     val outputPricePerMtok: BigDecimal? = null,
     val priceCurrency: String? = null,
+    val capabilityOverrides: Map<String, Any?>? = null,
 )
 
 data class BuiltinModelResponse(
@@ -80,6 +81,7 @@ data class BuiltinModelResponse(
     val inputPricePerMtok: BigDecimal?,
     val outputPricePerMtok: BigDecimal?,
     val priceCurrency: String?,
+    val capabilityOverrides: Map<String, Any?>,
     val createdAt: Instant,
     val updatedAt: Instant,
 )
@@ -159,6 +161,11 @@ class AdminConnectionController(private val service: AdminConnectionService) {
     fun listEndpointModels(@PathVariable id: UUID): Mono<Map<String, List<String>>> =
         service.listEndpointModels(id).map { mapOf("items" to it) }
 
+    /** Detect media capability for this built-in connection's models (feature 007, US7). Fill-only. */
+    @PostMapping("/{id}/detect-capabilities")
+    fun detectCapabilities(@PathVariable id: UUID): Mono<Map<String, Any>> =
+        service.detectCapabilities(id).map { mapOf("updatedCount" to it) }
+
     @PatchMapping("/{id}/models/{configuredModelId}")
     fun patchModel(
         @PathVariable id: UUID,
@@ -174,6 +181,7 @@ class AdminConnectionController(private val service: AdminConnectionService) {
             request.inputPricePerMtok,
             request.outputPricePerMtok,
             request.priceCurrency,
+            request.capabilityOverrides,
         )
             .map(::modelResponse)
 
@@ -234,6 +242,7 @@ class AdminConnectionController(private val service: AdminConnectionService) {
         inputPricePerMtok = model.inputPricePerMtok,
         outputPricePerMtok = model.outputPricePerMtok,
         priceCurrency = model.priceCurrency,
+        capabilityOverrides = model.capabilityOverrides,
         createdAt = model.createdAt,
         updatedAt = model.updatedAt,
     )

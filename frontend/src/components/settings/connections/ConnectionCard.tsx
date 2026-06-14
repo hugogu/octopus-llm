@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Cable, DownloadCloud, Pencil, Plus, Trash2 } from "lucide-react";
+import { Cable, DownloadCloud, Pencil, Plus, Sparkles, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { getToken } from "@/lib/api/auth";
 import {
   addConfiguredModel,
   deleteConnection,
+  detectConnectionCapabilities,
   listConnectionEndpointModels,
 } from "@/lib/api/connections";
 import type { ConfiguredModelV2, ConnectionV2 } from "@/lib/types/api";
@@ -31,6 +32,27 @@ export default function ConnectionCard({
 }: Props) {
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadNotice, setLoadNotice] = useState<string | null>(null);
+  const [detecting, setDetecting] = useState(false);
+
+  const detectCapabilities = async () => {
+    const token = getToken();
+    if (!token) return;
+    setDetecting(true);
+    setLoadNotice(null);
+    try {
+      const { updatedCount } = await detectConnectionCapabilities(token, connection.id);
+      setLoadNotice(
+        updatedCount === 0
+          ? "No new capabilities detected for this connection."
+          : `Detected media capabilities for ${updatedCount} model(s).`,
+      );
+      onChanged();
+    } catch (cause) {
+      setLoadNotice(cause instanceof Error ? cause.message : "Capability detection failed");
+    } finally {
+      setDetecting(false);
+    }
+  };
 
   const loadModels = async () => {
     const token = getToken();
@@ -56,11 +78,18 @@ export default function ConnectionCard({
         ),
       );
       const failed = results.filter((result) => result.status === "rejected").length;
-      setLoadNotice(
-        failed === 0
-          ? `Added ${missing.length} model(s).`
-          : `Added ${missing.length - failed} model(s); ${failed} failed.`,
-      );
+      const addedMsg = failed === 0
+        ? `Added ${missing.length} model(s).`
+        : `Added ${missing.length - failed} model(s); ${failed} failed.`;
+      // Auto-detect capability for the newly added models (feature 007, US7), best-effort.
+      let detectMsg = "";
+      try {
+        const { updatedCount } = await detectConnectionCapabilities(token, connection.id);
+        if (updatedCount > 0) detectMsg = ` Detected capabilities for ${updatedCount} model(s).`;
+      } catch {
+        /* detection is best-effort; the per-connection "Detect" button can retry */
+      }
+      setLoadNotice(addedMsg + detectMsg);
       onChanged();
     } catch (cause) {
       setLoadNotice(
@@ -101,6 +130,15 @@ export default function ConnectionCard({
           <div className="flex shrink-0 items-center gap-1">
             <Button size="sm" variant="secondary" isLoading={loadingModels} onClick={() => void loadModels()}>
               <DownloadCloud className="mr-1.5 h-4 w-4" /> Load models
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              isLoading={detecting}
+              onClick={() => void detectCapabilities()}
+              title="Detect image/video/audio capability for this connection's models (OpenRouter + catalogue)"
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" /> Detect
             </Button>
             <Button size="sm" variant="secondary" onClick={() => onAddModel(connection)}>
               <Plus className="mr-1.5 h-4 w-4" /> Add model

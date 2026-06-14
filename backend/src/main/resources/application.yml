@@ -72,3 +72,9 @@ media:
   local:
     dir: ${MEDIA_LOCAL_DIR:./data/media}
     public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080/media}
+
+# Cross-provider model capability detection (feature 007). OpenRouter's public models list exposes
+# per-model input modalities; the key is optional (the list endpoint is public) but sent when present.
+openrouter:
+  base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1}
+  api-key: ${OPENROUTER_API_KEY:}

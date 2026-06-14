@@ -138,11 +138,19 @@ export function patchConfiguredModel(
   );
 }
 
-/** Auto-detect media capability for the user's models from the catalogue (feature 007, fill-only). */
-export function refreshModelCapabilities(
+/**
+ * Detect media capability for one connection's models (feature 007, US7) — OpenRouter-sourced with a
+ * local-catalogue fallback, fill-only. Returns how many models were updated.
+ */
+export function detectConnectionCapabilities(
   token: string,
-): Promise<{ updatedCount: number; items: ConfiguredModelV2[] }> {
-  return request("/api/v2/configured-models/refresh-capabilities", { method: "POST" }, token);
+  connectionId: string,
+): Promise<{ updatedCount: number }> {
+  return request(
+    `/api/v2/connections/${encodeURIComponent(connectionId)}/detect-capabilities`,
+    { method: "POST" },
+    token,
+  );
 }
 
 export function deleteConfiguredModel(token: string, id: string): Promise<void> {

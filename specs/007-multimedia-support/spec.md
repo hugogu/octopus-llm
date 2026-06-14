@@ -158,6 +158,32 @@ known existing models gain their modalities while manually-set ones are untouche
 
 ---
 
+### User Story 7 - Connection-level, cross-provider capability detection + admin editor (Priority: P2)
+
+Different providers expose capability differently (and most not at all), so capability detection is
+per connection and sourced from OpenRouter's cross-provider model list (curated catalogue as
+fallback). Each connection — including built-in ones managed by an administrator — has a "detect
+capabilities" action; when auto-detection is wrong or missing, an administrator can manually toggle a
+built-in model's image/video/audio support from the admin connection screen.
+
+**Why this priority**: Capability is a per-connection/per-provider property; a single global "detect"
+can't reflect that, and built-in connections (the models most users actually use) are admin-owned and
+weren't editable for capability. This makes detection accurate and correctable everywhere.
+
+**Independent Test**: Run "detect" on a connection whose models OpenRouter knows and confirm they gain
+the right modalities without manual JSON; on a built-in connection in the admin panel, run detect and
+also flip an image toggle on a model and confirm it takes effect; confirm manual settings survive a
+re-detect.
+
+**Acceptance Scenarios**:
+
+1. **Given** a connection with models OpenRouter recognizes, **When** the user runs "detect capabilities" on that connection, **Then** those models gain their detected modalities (fill-only).
+2. **Given** the admin connection screen, **When** an administrator runs "detect" on a built-in connection, **Then** its models' capabilities are detected the same way.
+3. **Given** a built-in model with wrong/missing detection, **When** an administrator toggles image/video/audio on it, **Then** the change persists and gates the chat attach control for users allocated that model.
+4. **Given** a model with a manually-set modality, **When** detection runs again, **Then** the manual setting is preserved.
+
+---
+
 ### Edge Cases
 
 - A model's media capability is unknown or the provider has not declared it — treat as "not
@@ -226,7 +252,9 @@ known existing models gain their modalities while manually-set ones are untouche
 - **FR-026**: When a model is added (single add or bulk "Load models"), the system MUST auto-detect its media capability for known models and set its accepted modalities, without requiring the user to write capability JSON.
 - **FR-027**: Users MUST be able to set a model's accepted media types (image, video, audio) via one-click toggles in the add/edit model form; the raw capability JSON remains available for advanced (non-modality) settings.
 - **FR-028**: Users MUST be able to trigger detection for existing models; detection MUST fill in known models' modalities and MUST NOT overwrite modalities a user has set manually.
-- **FR-029**: Capability detection MUST derive modalities from the platform's curated model catalogue (no provider API reports modalities); models not in the catalogue remain text-only until a user toggles modalities on.
+- **FR-029**: Capability detection MUST derive modalities from a cross-provider source — OpenRouter's public model list (matched by normalized model id) as primary, with the platform's curated catalogue as fallback; models unknown to both remain text-only until a user toggles modalities on.
+- **FR-030**: Capability detection MUST be triggerable per connection (not only globally), and MUST be available for built-in connections through the admin control panel as well as for users' own connections.
+- **FR-031**: An administrator MUST be able to manually toggle a built-in connection model's media types (image/video/audio) when auto-detection is wrong or missing, from the existing admin connection-management surface.
 
 ### Key Entities *(include if feature involves data)*
 

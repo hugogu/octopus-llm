@@ -35,6 +35,8 @@ class AdminConnectionService(
     private val endpointPolicy: ConnectionEndpointPolicy,
     private val auditService: AdminAuditService,
     private val connectionService: com.octopusllm.connection.ConnectionService,
+    private val capabilityDetector: com.octopusllm.model.CapabilityDetector,
+    private val capabilityFiller: com.octopusllm.connection.CapabilityFiller,
 ) {
     // --- Connection CRUD -----------------------------------------------------
 
@@ -112,7 +114,15 @@ class AdminConnectionService(
         priceCurrency: String?,
     ): Mono<ConfiguredModel> = blocking {
         val connection = requireBuiltin(connectionId)
-        validateCapabilities(connection, capabilityOverrides)
+        // Auto-detect modalities from the catalogue when not provided (feature 007, US7).
+        val effectiveOverrides = if (capabilityOverrides.containsKey("input_modalities")) {
+            capabilityOverrides
+        } else {
+            capabilityDetector.detectCached(connection.protocol, modelId.trim())
+                ?.let { capabilityOverrides.toMutableMap().apply { put("input_modalities", it) } }
+                ?: capabilityOverrides
+        }
+        validateCapabilities(connection, effectiveOverrides)
         val pricing = validatePricing(inputPricePerMtok, outputPricePerMtok, priceCurrency)
         configuredModelRepository.save(
             ConfiguredModel(
@@ -120,7 +130,7 @@ class AdminConnectionService(
                 connection = connection,
                 modelId = requiredText(modelId, "modelId"),
                 displayName = requiredText(displayName, "displayName"),
-                capabilityOverrides = capabilityOverrides,
+                capabilityOverrides = effectiveOverrides,
                 customParams = customParams,
                 isEnabled = isEnabled,
                 sortOrder = configuredModelRepository.countByConnectionId(connectionId).toInt(),
@@ -134,6 +144,16 @@ class AdminConnectionService(
     /** Discover model IDs from the built-in connection's provider endpoint (for bulk-add). */
     fun listEndpointModels(connectionId: UUID): Mono<List<String>> =
         blocking { requireBuiltin(connectionId) }.flatMap { connectionService.fetchEndpointModels(it) }
+
+    /**
+     * Detect media capability for a built-in connection's models (feature 007, US7). Fill-only —
+     * manual settings are preserved. Returns how many models were updated.
+     */
+    fun detectCapabilities(connectionId: UUID): Mono<Int> = blocking {
+        requireBuiltin(connectionId)
+        val models = configuredModelRepository.findByConnectionId(connectionId, org.springframework.data.domain.Pageable.unpaged()).content
+        capabilityFiller.fill(models).map { configuredModelRepository.save(it) }.size
+    }
 
     fun listModels(connectionId: UUID, page: Int, size: Int): Mono<Page<ConfiguredModel>> = blocking {
         requireBuiltin(connectionId)
@@ -152,10 +172,16 @@ class AdminConnectionService(
         inputPricePerMtok: BigDecimal?,
         outputPricePerMtok: BigDecimal?,
         priceCurrency: String?,
+        capabilityOverrides: Map<String, Any?>? = null,
     ): Mono<ConfiguredModel> = blocking {
         val model = requireModel(connectionId, configuredModelId)
         if (displayName != null) model.displayName = requiredText(displayName, "displayName")
         if (isEnabled != null) model.isEnabled = isEnabled
+        if (capabilityOverrides != null) {
+            // Merge so toggles (which send only input_modalities) preserve other override keys.
+            model.capabilityOverrides = model.capabilityOverrides.toMutableMap().apply { putAll(capabilityOverrides) }
+            validateCapabilities(model.connection, model.capabilityOverrides)
+        }
         if (sortOrder != null) {
             if (sortOrder < 0) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "sortOrder must not be negative")
             model.sortOrder = sortOrder
