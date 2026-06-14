@@ -140,16 +140,16 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ### Tests for User Story 5
 
-- [ ] T039 [P] [US5] Integration test (MinIO Testcontainer): `PUT /api/v2/admin/storage-settings` validates connectivity before persist (good saves, bad creds rejected with previous config retained) and secret is never returned, in `backend/src/test/kotlin/com/octopusllm/admin/StorageSettingsControllerTest.kt`
+- [X] T039 [P] [US5] Integration test (MinIO Testcontainer): `PUT /api/v2/admin/storage-settings` validates connectivity before persist (good saves, bad creds rejected with previous config retained) and secret is never returned, in `backend/src/test/kotlin/com/octopusllm/admin/StorageSettingsControllerTest.kt`
 
 ### Implementation for User Story 5
 
-- [ ] T040 [US5] Implement `S3MediaStorage` (AWS SDK v2, path-style endpoint, opaque object key, public/CDN base URL) in `backend/src/main/kotlin/com/octopusllm/media/S3MediaStorage.kt` and wire it into `MediaStorageFactory` (depends on T011)
-- [ ] T041 [US5] Extend `StorageSettingsService` with an update path: field-coherence validation, S3 connectivity check (HEAD bucket / probe object) before persist, secret encryption at rest, and admin audit-log entry, in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettingsService.kt` (depends on T008, T040)
-- [ ] T042 [US5] Implement `StorageSettingsController` `GET`/`PUT /api/v2/admin/storage-settings` (admin-only; secret returned only as `s3_secret_key_set`) per contracts/storage-settings.md in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettingsController.kt` (depends on T041)
-- [ ] T043 [US5] Surface configured size limits + per-prompt ceiling to the client (chat config/capabilities payload) and enforce updated limits in `MediaService` + the tray, replacing hardcoded defaults (depends on T012, T028, T042)
-- [ ] T044 [P] [US5] Add admin storage-settings API client in `frontend/src/lib/api/storageSettings.ts`
-- [ ] T045 [US5] Create admin storage settings page (backend selector, conditional S3 fields with write-only secret, size limits, Test & Save with loading/disabled/error states) using `AdminShell` + design system in `frontend/src/app/(app)/admin/storage/page.tsx`, and link it in admin navigation (depends on T044)
+- [X] T040 [US5] Implement `S3MediaStorage` (AWS SDK v2, path-style endpoint, opaque object key, public/CDN base URL) in `backend/src/main/kotlin/com/octopusllm/media/S3MediaStorage.kt` and wire it into `MediaStorageFactory` (depends on T011)
+- [X] T041 [US5] Extend `StorageSettingsService` with an update path: field-coherence validation, S3 connectivity check (HEAD bucket / probe object) before persist, secret encryption at rest, and admin audit-log entry, in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettingsService.kt` (depends on T008, T040)
+- [X] T042 [US5] Implement `StorageSettingsController` `GET`/`PUT /api/v2/admin/storage-settings` (admin-only; secret returned only as `s3_secret_key_set`) per contracts/storage-settings.md in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettingsController.kt` (depends on T041)
+- [X] T043 [US5] Surface configured size limits + per-prompt ceiling to the client (chat config/capabilities payload) and enforce updated limits in `MediaService` + the tray, replacing hardcoded defaults (depends on T012, T028, T042)
+- [X] T044 [P] [US5] Add admin storage-settings API client in `frontend/src/lib/api/storageSettings.ts`
+- [X] T045 [US5] Create admin storage settings page (backend selector, conditional S3 fields with write-only secret, size limits, Test & Save with loading/disabled/error states) using `AdminShell` + design system in `frontend/src/app/(app)/admin/storage/page.tsx`, and link it in admin navigation (depends on T044)
 
 **Checkpoint**: Operators can configure storage backend + limits; local direct-serve verified.
 
@@ -193,10 +193,10 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T046 [P] Implement the idempotent orphaned-media cleanup sweep (delete `media` rows + stored objects with `turn_id IS NULL` older than the TTL) as a scheduled job in `backend/src/main/kotlin/com/octopusllm/media/MediaService.kt` (FR-023)
-- [ ] T047 Ensure session/turn deletion cascades media deletion (rows + stored objects) consistent with share revocation (FR-024) across `ChatService`/`MediaService`
-- [ ] T048 [P] Structured logging for uploads and per-model exclusions (media_type, size_bytes, backend, excluded model + reason) per Constitution V
-- [ ] T049 Run code-quality gates: `cd backend && ./gradlew build` and `cd frontend && npx tsc --noEmit` — fix all errors
+- [X] T046 [P] Implement the idempotent orphaned-media cleanup sweep (delete `media` rows + stored objects with `turn_id IS NULL` older than the TTL) as a scheduled job in `backend/src/main/kotlin/com/octopusllm/media/MediaService.kt` (FR-023)
+- [X] T047 Ensure session/turn deletion cascades media deletion (rows + stored objects) consistent with share revocation (FR-024) across `ChatService`/`MediaService`
+- [X] T048 [P] Structured logging for uploads and per-model exclusions (media_type, size_bytes, backend, excluded model + reason) per Constitution V
+- [X] T049 Run code-quality gates: `cd backend && ./gradlew build` and `cd frontend && npx tsc --noEmit` — fix all errors
 - [ ] T050 Execute `specs/007-multimedia-support/quickstart.md` scenarios 1–6 end-to-end and confirm expected outcomes
 
 ---

@@ -3,11 +3,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Cable, Users } from "lucide-react";
+import { ArrowLeft, Cable, HardDrive, Users } from "lucide-react";
 
 const TABS = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/connections", label: "Built-in connections", icon: Cable },
+  { href: "/admin/storage", label: "Storage", icon: HardDrive },
 ] as const;
 
 interface Props {

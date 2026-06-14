@@ -4,13 +4,14 @@ import { useState, useRef } from "react";
 import { Paperclip, ArrowUp } from "lucide-react";
 import AttachmentTray, { type PendingAttachment } from "@/components/chat/AttachmentTray";
 import VoiceRecorder from "@/components/chat/VoiceRecorder";
-import { validateCandidate } from "@/lib/media/limits";
+import { DEFAULT_MEDIA_LIMITS, validateCandidate, type MediaLimits } from "@/lib/media/limits";
 
 interface ChatInputProps {
   onSubmit: (promptText: string, files: File[]) => void;
   disabled?: boolean;
   supportsAttachments?: boolean;
   supportsAudio?: boolean;
+  limits?: MediaLimits;
 }
 
 export default function ChatInput({
@@ -18,6 +19,7 @@ export default function ChatInput({
   disabled = false,
   supportsAttachments = false,
   supportsAudio = false,
+  limits = DEFAULT_MEDIA_LIMITS,
 }: ChatInputProps) {
   const [text, setText] = useState("");
   const [items, setItems] = useState<PendingAttachment[]>([]);
@@ -29,7 +31,7 @@ export default function ChatInput({
     setItems((prev) => {
       const next = [...prev];
       for (const file of selected) {
-        const error = validateCandidate(file, next.map((p) => p.file));
+        const error = validateCandidate(file, next.map((p) => p.file), limits);
         if (error) {
           setLimitError(error);
           continue;

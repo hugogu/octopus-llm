@@ -1,5 +1,20 @@
 import { apiUrl } from "@/lib/api/base";
+import { DEFAULT_MEDIA_LIMITS, type MediaLimits } from "@/lib/media/limits";
 import type { MediaReference } from "@/lib/types/api";
+
+/** Fetch the admin-configured media limits (feature 007); falls back to defaults on any error. */
+export async function getMediaLimits(token: string): Promise<MediaLimits> {
+  try {
+    const response = await fetch(apiUrl("/api/v2/media/limits"), {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return DEFAULT_MEDIA_LIMITS;
+    return (await response.json()) as MediaLimits;
+  } catch {
+    return DEFAULT_MEDIA_LIMITS;
+  }
+}
 
 /**
  * Upload one media file (image/video/audio) to the uniform media endpoint (feature 007). Returns an

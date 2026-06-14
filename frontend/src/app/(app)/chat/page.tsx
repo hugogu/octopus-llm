@@ -18,7 +18,8 @@ import {
   streamTurnV2,
 } from "@/lib/api/chatV2";
 import { listConfiguredModels } from "@/lib/api/connections";
-import { uploadMedia } from "@/lib/api/media";
+import { getMediaLimits, uploadMedia } from "@/lib/api/media";
+import { DEFAULT_MEDIA_LIMITS, type MediaLimits } from "@/lib/media/limits";
 import { useParallelStream } from "@/lib/hooks/useParallelStream";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { useSessions } from "@/lib/hooks/useSessions";
@@ -65,6 +66,7 @@ export default function ChatPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [liveTurns, setLiveTurns] = useState<Record<string, DraftTurnState>>({});
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
+  const [mediaLimits, setMediaLimits] = useState<MediaLimits>(DEFAULT_MEDIA_LIMITS);
   const initializedSelectionRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const { streams, start, clear, handleEvent } = useParallelStream();
@@ -211,6 +213,12 @@ export default function ChatPage() {
   const supportsAudio = selectedIds.some((id) =>
     (modelsById[id]?.capabilityMatrix.input_modalities ?? []).includes("audio"),
   );
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) return;
+    queueMicrotask(() => void getMediaLimits(token).then(setMediaLimits).catch(() => {}));
+  }, []);
   const currentSessionMeta = sessionId
     ? sessions.find((session) => session.id === sessionId)
     : null;
@@ -529,7 +537,7 @@ export default function ChatPage() {
               {attachmentNotice}
             </div>
           )}
-          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} supportsAudio={supportsAudio} />
+          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} supportsAudio={supportsAudio} limits={mediaLimits} />
         </div>
       </div>
     </div>

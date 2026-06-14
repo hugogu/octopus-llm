@@ -1,11 +1,13 @@
 package com.octopusllm.media
 
+import com.octopusllm.admin.StorageSettingsService
 import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -25,7 +27,22 @@ import java.util.UUID
 @RequestMapping("/api/v2/media")
 class MediaController(
     private val mediaService: MediaService,
+    private val storageSettingsService: StorageSettingsService,
 ) {
+    /** Current media limits (admin-configurable) so the attachment tray messages them accurately. */
+    @GetMapping("/limits")
+    fun limits(): Mono<Map<String, Any>> =
+        Mono.fromCallable {
+            val s = storageSettingsService.get()
+            mapOf<String, Any>(
+                "maxImageBytes" to s.maxImageBytes,
+                "maxVideoBytes" to s.maxVideoBytes,
+                "maxAudioBytes" to s.maxAudioBytes,
+                "maxFilesPerPrompt" to s.maxFilesPerPrompt,
+                "maxTotalBytesPerPrompt" to s.maxTotalBytesPerPrompt,
+            )
+        }.subscribeOn(Schedulers.boundedElastic())
+
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     @ResponseStatus(HttpStatus.CREATED)
     fun upload(

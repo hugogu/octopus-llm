@@ -75,7 +75,14 @@ class ChatService(
 
     fun deleteSession(sessionId: UUID, userId: UUID): Mono<Unit> =
         blocking {
-            sessionRepository.delete(requireSession(sessionId, userId))
+            val session = requireSession(sessionId, userId)
+            // Delete stored media objects for this session's turns (rows cascade-delete; FR-024).
+            turnRepository.findBySessionIdOrderBySequenceNum(sessionId).forEach { turn ->
+                mediaRepository.findByTurnId(turn.id).forEach { media ->
+                    runCatching { mediaStorageFactory.resolveByBackend(media.storageBackend)?.delete(media.storageKey) }
+                }
+            }
+            sessionRepository.delete(session)
             Unit
         }
 
@@ -164,6 +171,12 @@ class ChatService(
                         modelId = model.modelId,
                         notice = "${model.displayName} does not support ${attachedTypes.joinToString(", ")} input",
                         configuredModelId = model.id,
+                    )
+                }
+                if (excluded.isNotEmpty()) {
+                    log.info(
+                        "media_capability_excluded user={} types={} excludedModels={}",
+                        userId.toString().take(8), attachedTypes, excluded.map { it.modelId },
                     )
                 }
                 TurnSetup(turn, targets, request, excludedNotices)

@@ -66,6 +66,7 @@ class ChatServiceTest {
         val user = Feature003Fixtures.user()
         val session = ChatSession(user = user, title = "Test")
         every { sessionRepository.findById(session.id) } returns Optional.of(session)
+        every { turnRepository.findBySessionIdOrderBySequenceNum(session.id) } returns emptyList()
         every { sessionRepository.delete(session) } returns Unit
 
         StepVerifier.create(service.deleteSession(session.id, user.id))

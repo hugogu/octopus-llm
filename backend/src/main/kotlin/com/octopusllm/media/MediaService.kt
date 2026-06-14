@@ -3,9 +3,11 @@ package com.octopusllm.media
 import com.octopusllm.admin.StorageSettingsService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -21,6 +23,10 @@ class MediaService(
     private val storageFactory: MediaStorageFactory,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    private companion object {
+        const val ORPHAN_TTL_SECONDS = 86_400L // 24h
+    }
 
     @Transactional
     fun upload(ownerUserId: UUID, bytes: ByteArray, declaredContentType: String?, originalFilename: String?): Media {
@@ -60,6 +66,34 @@ class MediaService(
             ownerUserId.toString().take(8), media.mediaType, media.mimeType, media.sizeBytes, media.storageBackend,
         )
         return media
+    }
+
+    /**
+     * Scheduled orphan sweep (feature 007, FR-023): remove media uploaded but never bound to a turn
+     * once it is older than the TTL, deleting both the stored object and the row. Idempotent and
+     * lock-free, so it is safe to run on every instance.
+     */
+    @Scheduled(fixedDelayString = "\${media.orphan-sweep.interval-ms:3600000}")
+    @Transactional
+    fun sweepOrphans() {
+        val cutoff = Instant.now().minusSeconds(ORPHAN_TTL_SECONDS)
+        val orphans = mediaRepository.findByTurnIdIsNullAndCreatedAtBefore(cutoff)
+        if (orphans.isEmpty()) return
+        orphans.forEach { media ->
+            runCatching { storageFactory.resolveByBackend(media.storageBackend)?.delete(media.storageKey) }
+            mediaRepository.delete(media)
+        }
+        log.info("media_orphan_sweep removed={}", orphans.size)
+    }
+
+    /** Delete stored objects for the given turns' media (rows are cascade-removed by the DB, FR-024). */
+    @Transactional
+    fun purgeStoredForTurns(turnIds: Collection<UUID>) {
+        turnIds.forEach { turnId ->
+            mediaRepository.findByTurnId(turnId).forEach { media ->
+                runCatching { storageFactory.resolveByBackend(media.storageBackend)?.delete(media.storageKey) }
+            }
+        }
     }
 
     @Transactional
