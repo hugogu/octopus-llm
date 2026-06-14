@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatusCode
 import org.springframework.http.client.reactive.ReactorClientHttpConnector
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Flux
+import reactor.core.scheduler.Schedulers
 import reactor.netty.http.HttpProtocol
 import reactor.netty.http.client.HttpClient
 import java.nio.charset.StandardCharsets
@@ -44,10 +45,24 @@ internal fun providerEndpoint(baseUrl: String, path: String): URI {
 internal object SseStreaming {
     fun dataPayloads(body: Flux<DataBuffer>): Flux<String> {
         var pending = ByteArray(0)
-        return body.concatMap { buffer ->
-            try {
-                val bytes = ByteArray(buffer.readableByteCount())
-                buffer.read(bytes)
+        return body
+            // Copy + release the pooled buffer on the reactor-netty event loop (cheap memcpy), then
+            // hand off the SSE line-splitting and the adapter's JSON parsing to a worker pool via
+            // publishOn. Reactor-netty has only a handful of event-loop threads shared across all
+            // provider connections; doing per-token parsing on the loop lets one fast model monopolize
+            // its loop and starve the others multiplexed on it (they update only in bursts). Keeping
+            // the loop free for IO lets every model stream concurrently.
+            .map { buffer ->
+                try {
+                    val bytes = ByteArray(buffer.readableByteCount())
+                    buffer.read(bytes)
+                    bytes
+                } finally {
+                    DataBufferUtils.release(buffer)
+                }
+            }
+            .publishOn(Schedulers.boundedElastic())
+            .concatMap { bytes ->
                 pending += bytes
                 val payloads = mutableListOf<String>()
                 var lineStart = 0
@@ -70,10 +85,7 @@ internal object SseStreaming {
                     pending = pending.copyOfRange(lineStart, pending.size)
                 }
                 Flux.fromIterable(payloads)
-            } finally {
-                DataBufferUtils.release(buffer)
             }
-        }
     }
 }
 
