@@ -52,6 +52,8 @@ data class SharedResponseDto(
 data class SharedTurnDto(
     val sequenceNum: Int,
     val promptText: String,
+    // Ordered media references (feature 007); no owner identity. Inaccessible once the share is revoked.
+    val attachments: List<Map<String, Any?>>,
     val responses: List<SharedResponseDto>,
 )
 
@@ -116,6 +118,8 @@ class ShareService(
                 SharedTurnDto(
                     sequenceNum = turn.sequenceNum,
                     promptText = turn.promptText,
+                    attachments = turn.attachments.orEmpty()
+                        .sortedBy { (it["order"] as? Number)?.toInt() ?: 0 },
                     responses = latestProviderResponses(
                         turn,
                         responseRepository.findByTurnId(turn.id),

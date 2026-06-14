@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Heart, ThumbsUp } from "lucide-react";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
+import MediaAttachments from "@/components/chat/MediaAttachments";
 import ExpandableContent from "@/components/chat/ExpandableContent";
 import ResponseDetails from "@/components/chat/ResponseDetails";
 import ShareExportButton from "@/components/share/ShareExportButton";
@@ -80,7 +81,7 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
         <div className="mt-7 space-y-6">
           {session.turns.map((turn) => (
             <section key={turn.sequenceNum} className="space-y-3">
-              <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white"><MarkdownRenderer content={turn.promptText} className="text-sm [&_*]:text-white" /></div>
+              <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white"><MediaAttachments items={turn.attachments} dark /><MarkdownRenderer content={turn.promptText} className="text-sm [&_*]:text-white" /></div>
               <div className="grid gap-3 md:grid-cols-2">
                 {turn.responses.map((response) => (
                   <article key={response.responseId} className="overflow-hidden rounded-xl border border-stone-200 bg-white">

@@ -190,6 +190,7 @@ export interface SharedSession {
   turns: Array<{
     sequenceNum: number;
     promptText: string;
+    attachments?: MediaReference[];
     responses: SharedResponse[];
   }>;
 }
