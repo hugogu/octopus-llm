@@ -1,7 +1,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-specs/005-personal-center-likes-analytics/plan.md
+specs/006-rich-response-rendering/plan.md
 <!-- SPECKIT END -->
 
 ## Active Technologies
@@ -9,6 +9,7 @@ specs/005-personal-center-likes-analytics/plan.md
 - PostgreSQL (Flyway migrations; existing `users`, `connections`, `configured_models`, `email_verifications`, `revoked_tokens`) (004-admin-control-panel)
 
 ## Recent Changes
+- 006-rich-response-rendering: Conversation/share rendering upgrade — bounded+copyable fenced blocks; source/preview toggle for Mermaid (client) / PlantUML (self-hosted render proxy `/api/v2/render/plantuml`) / SVG (DOMPurify); HTML defaults to source, runs in a sandboxed `<iframe>` without `allow-same-origin`; per-response details popover with normalized cache-read/cache-write tokens (new `provider_responses.cache_read_tokens`/`cache_write_tokens`, forward-only); full parity on the public share view; client-side long-image export (html-to-image + QR). New frontend deps: `mermaid`, `qrcode`, `html-to-image`, `dompurify`. New backend `render` package + internal `plantuml` compose service.
 - 005-personal-center-likes-analytics: Personal Center hub (profile/display_name, authenticated password change invalidating other sessions via `users.sessions_valid_from`, email-verification resend); per-response named likes + anonymous likes on opaque revocable share links; user-scoped usage analytics over the existing immutable `provider_responses` (extended with `chat_turns.client_ip` + snapshot `connection_id`, read-time cost from new `model_definitions` pricing columns). New backend packages: `reaction`, `share`, `analytics`. Frontend `(app)/account` (AccountShell) + public `(app)/share/[token]`.
 - 004-admin-control-panel: Added Kotlin on JVM, Java 21 (backend); TypeScript 5 / Node.js 24 (frontend) + Spring Boot WebFlux, Spring Security (reactive), Spring Data JPA/Hibernate, Flyway, jjwt; Next.js App Router, Reac
 
