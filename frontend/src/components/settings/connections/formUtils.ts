@@ -24,3 +24,44 @@ export function normalizeCurrency(value: string, hasPrice: boolean): string | nu
   if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Currency must be a three-letter code");
   return currency;
 }
+
+// --- Media capability toggles (feature 007) -------------------------------------------------------
+
+export interface ModalityToggles {
+  image: boolean;
+  video: boolean;
+  audio: boolean;
+}
+
+/** Derive the image/video/audio toggle state from a model's `input_modalities`. */
+export function togglesFromOverrides(overrides: Record<string, unknown>): ModalityToggles {
+  const mods = Array.isArray(overrides.input_modalities) ? (overrides.input_modalities as unknown[]) : [];
+  const has = (m: string) => mods.includes(m);
+  return { image: has("image"), video: has("video"), audio: has("audio") };
+}
+
+/** Capability overrides with `input_modalities` removed, pretty-printed for the advanced JSON box. */
+export function advancedOverridesJson(overrides: Record<string, unknown>): string {
+  const rest = { ...overrides };
+  delete rest.input_modalities;
+  return prettyJson(rest);
+}
+
+/**
+ * Combine the advanced-overrides JSON with the modality toggles. When `explicit` is false (Add) and no
+ * modality is on, `input_modalities` is omitted so the backend can auto-detect from the catalogue.
+ * When `explicit` is true (Edit), it is always written so a toggle can turn a modality off.
+ */
+export function buildCapabilityOverrides(
+  advancedJson: string,
+  toggles: ModalityToggles,
+  explicit: boolean,
+): Record<string, unknown> {
+  const base = parseJsonObject(advancedJson, "Advanced capability overrides");
+  delete base.input_modalities;
+  const on = (["image", "video", "audio"] as const).filter((m) => toggles[m]);
+  if (on.length > 0 || explicit) {
+    base.input_modalities = ["text", ...on];
+  }
+  return base;
+}

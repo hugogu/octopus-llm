@@ -30,6 +30,11 @@ and share, plus operator-configurable storage. Five connected capabilities:
    sent as an audio file under the same gating (FR-016/017); an admin storage-settings page selects
    backend + credentials and per-type size limits, validated before apply, with orphaned-upload
    cleanup (FR-018/020/021/023).
+6. **Easy + auto-detected capability (US6)** — model media capability is set via one-click
+   image/video/audio toggles (raw JSON only for advanced keys) and auto-detected from the curated
+   `ModelCatalogue` on add / bulk "Load models", with a fill-only "detect capabilities" backfill for
+   existing models. Without this the whole feature is hidden behind hand-written capability JSON
+   (FR-026/027/028/029).
 
 Technical approach: introduce a `media` backend package with a `MediaStorage` strategy interface
 (`LocalMediaStorage`, `S3MediaStorage`) behind one upload controller, plus a platform-level

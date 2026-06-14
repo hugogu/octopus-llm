@@ -2,6 +2,7 @@ package com.octopusllm.connection
 
 import com.octopusllm.api.v2.boundedPageRequest
 import com.octopusllm.auth.UserRepository
+import com.octopusllm.model.ModelCatalogue
 import com.octopusllm.model.ProtocolDefinitions
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Sort
@@ -47,7 +48,10 @@ class ConfiguredModelService(
     ): Mono<ConfiguredModel> = blocking {
         val user = userRepository.findById(userId).orElseThrow { notFound() }
         val connection = connectionService.requireOwned(userId, connectionId)
-        validateCapabilities(connection, capabilityOverrides)
+        // Auto-detect media capability from the catalogue when the caller didn't set modalities
+        // (feature 007). Covers single Add Model and bulk "Load models"; manual settings win.
+        val effectiveOverrides = applyCatalogueModalities(connection.protocol, modelId, capabilityOverrides)
+        validateCapabilities(connection, effectiveOverrides)
         val pricing = validatePricing(inputPricePerMtok, outputPricePerMtok, priceCurrency)
         repository.save(
             ConfiguredModel(
@@ -55,7 +59,7 @@ class ConfiguredModelService(
                 connection = connection,
                 modelId = requiredText(modelId, "modelId"),
                 displayName = requiredText(displayName, "displayName"),
-                capabilityOverrides = capabilityOverrides,
+                capabilityOverrides = effectiveOverrides,
                 customParams = customParams,
                 isEnabled = isEnabled,
                 sortOrder = repository.countByConnectionId(connectionId).toInt(),
@@ -105,6 +109,34 @@ class ConfiguredModelService(
             repository.delete(requireOwned(userId, id))
             Unit
         }
+
+    /**
+     * Auto-detect media capability for the user's own models from the catalogue (feature 007).
+     * Fill-only: models whose `input_modalities` is already set (manually) are left untouched.
+     * Returns the models that were updated.
+     */
+    fun refreshCapabilities(userId: UUID): Mono<List<ConfiguredModel>> = blocking {
+        val updated = mutableListOf<ConfiguredModel>()
+        repository.findByUserId(userId).forEach { model ->
+            if (model.capabilityOverrides.containsKey("input_modalities")) return@forEach
+            val modalities = ModelCatalogue.modalitiesFor(model.connection.protocol, model.modelId) ?: return@forEach
+            model.capabilityOverrides = model.capabilityOverrides.toMutableMap()
+                .apply { put("input_modalities", modalities) }
+            model.updatedAt = Instant.now()
+            updated += repository.save(model)
+        }
+        updated
+    }
+
+    private fun applyCatalogueModalities(
+        protocol: String,
+        modelId: String,
+        overrides: Map<String, Any?>,
+    ): Map<String, Any?> {
+        if (overrides.containsKey("input_modalities")) return overrides
+        val modalities = ModelCatalogue.modalitiesFor(protocol, modelId.trim()) ?: return overrides
+        return overrides.toMutableMap().apply { put("input_modalities", modalities) }
+    }
 
     fun requireOwned(userId: UUID, id: UUID): ConfiguredModel =
         repository.findByIdAndUserId(id, userId) ?: throw notFound()

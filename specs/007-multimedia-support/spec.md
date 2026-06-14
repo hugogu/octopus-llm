@@ -132,6 +132,32 @@ enforced at attach time.
 
 ---
 
+### User Story 6 - Easy, auto-detected media capability per model (Priority: P2)
+
+Because capability gating only helps if capability is easy to set, configuring which media a model
+accepts must be one-click — not hand-written JSON. When a user adds models (including bulk "Load
+models" from an endpoint), the system auto-detects known models' media capability and sets it up; a
+"detect capabilities" action backfills existing models. For everything else, the user toggles
+image/video/audio on or off directly.
+
+**Why this priority**: Without this, the entire feature is effectively hidden — a model only shows the
+attach control when it declares an image/video/audio modality, and previously the only way to set that
+was raw capability JSON most users won't write. This unblocks discovery of US1–US4.
+
+**Independent Test**: Use "Load models" on a connection that returns a known vision model and confirm
+it comes in image-capable without manual JSON; open a model's editor and toggle Image on/off and
+confirm the chat attach control appears/disappears accordingly; run "detect capabilities" and confirm
+known existing models gain their modalities while manually-set ones are untouched.
+
+**Acceptance Scenarios**:
+
+1. **Given** a user adds a model whose id is a known multimodal model, **When** it is created (single add or bulk load), **Then** its media capability is set automatically without the user editing JSON.
+2. **Given** the add/edit model form, **When** the user toggles Image/Video/Audio, **Then** the model's accepted media types update accordingly and gate the chat attach control.
+3. **Given** existing models configured before this feature, **When** the user runs "detect capabilities", **Then** known models gain their catalogue modalities and models with a manually-set modality are left unchanged.
+4. **Given** a model whose id is not in the catalogue, **When** capabilities are auto-detected, **Then** it remains text-only and the user can still enable modalities by toggle.
+
+---
+
 ### Edge Cases
 
 - A model's media capability is unknown or the provider has not declared it — treat as "not
@@ -194,6 +220,13 @@ enforced at attach time.
 - **FR-022**: Uploaded media URLs MUST be publicly readable but MUST use unguessable, non-enumerable identifiers so that media cannot be discovered by guessing URLs.
 - **FR-023**: Media uploaded but never sent (orphaned) MUST be cleaned up so storage does not grow unbounded.
 - **FR-024**: Stored media MUST be retained for as long as the conversation or share that references it exists, and become inaccessible when that record is deleted.
+
+#### Capability detection & configuration
+
+- **FR-026**: When a model is added (single add or bulk "Load models"), the system MUST auto-detect its media capability for known models and set its accepted modalities, without requiring the user to write capability JSON.
+- **FR-027**: Users MUST be able to set a model's accepted media types (image, video, audio) via one-click toggles in the add/edit model form; the raw capability JSON remains available for advanced (non-modality) settings.
+- **FR-028**: Users MUST be able to trigger detection for existing models; detection MUST fill in known models' modalities and MUST NOT overwrite modalities a user has set manually.
+- **FR-029**: Capability detection MUST derive modalities from the platform's curated model catalogue (no provider API reports modalities); models not in the catalogue remain text-only until a user toggles modalities on.
 
 ### Key Entities *(include if feature involves data)*
 

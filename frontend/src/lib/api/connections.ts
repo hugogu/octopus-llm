@@ -138,6 +138,13 @@ export function patchConfiguredModel(
   );
 }
 
+/** Auto-detect media capability for the user's models from the catalogue (feature 007, fill-only). */
+export function refreshModelCapabilities(
+  token: string,
+): Promise<{ updatedCount: number; items: ConfiguredModelV2[] }> {
+  return request("/api/v2/configured-models/refresh-capabilities", { method: "POST" }, token);
+}
+
 export function deleteConfiguredModel(token: string, id: string): Promise<void> {
   return request(
     `/api/v2/configured-models/${encodeURIComponent(id)}`,

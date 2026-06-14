@@ -124,6 +124,18 @@ class ConfiguredModelControllerV2(private val service: ConfiguredModelService) {
         @PathVariable id: UUID,
     ): Mono<Void> = service.delete(userId(principal), id).then()
 
+    /**
+     * Auto-detect media capability (image/video/audio) for the user's own models from the catalogue
+     * (feature 007). Fill-only — manually set modalities are preserved. Returns the updated models.
+     */
+    @PostMapping("/refresh-capabilities")
+    fun refreshCapabilities(
+        @AuthenticationPrincipal principal: String,
+    ): Mono<Map<String, Any>> =
+        service.refreshCapabilities(userId(principal)).map { updated ->
+            mapOf("updatedCount" to updated.size, "items" to updated.map(::response))
+        }
+
     private fun response(model: ConfiguredModel): ConfiguredModelResponseV2 {
         val protocol = ProtocolDefinitions.require(model.connection.protocol)
         return ConfiguredModelResponseV2(

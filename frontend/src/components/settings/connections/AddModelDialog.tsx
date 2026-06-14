@@ -7,7 +7,17 @@ import Input from "@/components/ui/Input";
 import { getToken } from "@/lib/api/auth";
 import { addConfiguredModel, listCatalogue } from "@/lib/api/connections";
 import type { CatalogueEntryV2, ConfiguredModelV2, ConnectionV2 } from "@/lib/types/api";
-import { normalizeCurrency, parseJsonObject, parseOptionalPrice, prettyJson } from "./formUtils";
+import CapabilityToggles from "./CapabilityToggles";
+import {
+  advancedOverridesJson,
+  buildCapabilityOverrides,
+  normalizeCurrency,
+  parseJsonObject,
+  parseOptionalPrice,
+  prettyJson,
+  togglesFromOverrides,
+  type ModalityToggles,
+} from "./formUtils";
 
 interface Props {
   connection: ConnectionV2 | null;
@@ -20,6 +30,7 @@ export default function AddModelDialog({ connection, onClose, onSaved }: Props) 
   const [modelId, setModelId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [capabilities, setCapabilities] = useState("");
+  const [toggles, setToggles] = useState<ModalityToggles>({ image: false, video: false, audio: false });
   const [customParams, setCustomParams] = useState("");
   const [inputPrice, setInputPrice] = useState("");
   const [outputPrice, setOutputPrice] = useState("");
@@ -39,7 +50,8 @@ export default function AddModelDialog({ connection, onClose, onSaved }: Props) 
     if (!suggestion) return;
     setModelId(suggestion.modelId);
     setDisplayName(suggestion.displayName);
-    setCapabilities(prettyJson(suggestion.capabilityOverrides));
+    setToggles(togglesFromOverrides(suggestion.capabilityOverrides));
+    setCapabilities(advancedOverridesJson(suggestion.capabilityOverrides));
     setCustomParams(prettyJson(suggestion.customParams));
   };
 
@@ -56,7 +68,7 @@ export default function AddModelDialog({ connection, onClose, onSaved }: Props) 
         connectionId: connection.id,
         modelId,
         displayName,
-        capabilityOverrides: parseJsonObject(capabilities, "Capability overrides"),
+        capabilityOverrides: buildCapabilityOverrides(capabilities, toggles, false),
         customParams: parseJsonObject(customParams, "Custom parameters"),
         inputPricePerMtok: parsedInputPrice,
         outputPricePerMtok: parsedOutputPrice,
@@ -94,7 +106,8 @@ export default function AddModelDialog({ connection, onClose, onSaved }: Props) 
           <Input label="Output price / 1M tokens" type="number" min="0" step="0.0001" value={outputPrice} onChange={(event) => setOutputPrice(event.target.value)} />
           <Input label="Currency" maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="USD" />
         </div>
-        <JsonField label="Capability overrides" value={capabilities} onChange={setCapabilities} placeholder={'{\n  "context_length_tokens": 128000\n}'} />
+        <CapabilityToggles value={toggles} onChange={setToggles} />
+        <JsonField label="Advanced capability overrides (JSON)" value={capabilities} onChange={setCapabilities} placeholder={'{\n  "context_length_tokens": 128000\n}'} />
         <JsonField label="Custom request parameters" value={customParams} onChange={setCustomParams} placeholder={'{\n  "temperature": 0.2\n}'} />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2">

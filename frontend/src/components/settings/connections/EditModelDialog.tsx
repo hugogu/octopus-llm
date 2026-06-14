@@ -8,7 +8,17 @@ import { getToken } from "@/lib/api/auth";
 import { patchConfiguredModel } from "@/lib/api/connections";
 import type { ConfiguredModelV2 } from "@/lib/types/api";
 import { JsonField } from "./AddModelDialog";
-import { normalizeCurrency, parseJsonObject, parseOptionalPrice, prettyJson } from "./formUtils";
+import CapabilityToggles from "./CapabilityToggles";
+import {
+  advancedOverridesJson,
+  buildCapabilityOverrides,
+  normalizeCurrency,
+  parseJsonObject,
+  parseOptionalPrice,
+  prettyJson,
+  togglesFromOverrides,
+  type ModalityToggles,
+} from "./formUtils";
 
 interface Props {
   model: ConfiguredModelV2;
@@ -18,7 +28,8 @@ interface Props {
 
 export default function EditModelDialog({ model, onClose, onSaved }: Props) {
   const [displayName, setDisplayName] = useState(model.displayName);
-  const [capabilities, setCapabilities] = useState(prettyJson(model.capabilityOverrides));
+  const [toggles, setToggles] = useState<ModalityToggles>(togglesFromOverrides(model.capabilityOverrides));
+  const [capabilities, setCapabilities] = useState(advancedOverridesJson(model.capabilityOverrides));
   const [customParams, setCustomParams] = useState(prettyJson(model.customParams));
   const [inputPrice, setInputPrice] = useState(model.inputPricePerMtok?.toString() ?? "");
   const [outputPrice, setOutputPrice] = useState(model.outputPricePerMtok?.toString() ?? "");
@@ -36,7 +47,7 @@ export default function EditModelDialog({ model, onClose, onSaved }: Props) {
       const parsedOutputPrice = parseOptionalPrice(outputPrice, "Output price");
       const saved = await patchConfiguredModel(token, model.id, {
         displayName,
-        capabilityOverrides: parseJsonObject(capabilities, "Capability overrides"),
+        capabilityOverrides: buildCapabilityOverrides(capabilities, toggles, true),
         customParams: parseJsonObject(customParams, "Custom parameters"),
         inputPricePerMtok: parsedInputPrice,
         outputPricePerMtok: parsedOutputPrice,
@@ -63,7 +74,8 @@ export default function EditModelDialog({ model, onClose, onSaved }: Props) {
           <Input label="Output price / 1M tokens" type="number" min="0" step="0.0001" value={outputPrice} onChange={(event) => setOutputPrice(event.target.value)} />
           <Input label="Currency" maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value.toUpperCase())} placeholder="USD" />
         </div>
-        <JsonField label="Capability overrides" value={capabilities} onChange={setCapabilities} />
+        <CapabilityToggles value={toggles} onChange={setToggles} />
+        <JsonField label="Advanced capability overrides (JSON)" value={capabilities} onChange={setCapabilities} />
         <JsonField label="Custom request parameters" value={customParams} onChange={setCustomParams} />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2">

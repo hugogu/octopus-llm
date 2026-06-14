@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Sparkles } from "lucide-react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import AddConnectionDialog from "@/components/settings/connections/AddConnectionDialog";
@@ -14,6 +14,7 @@ import {
   listConfiguredModels,
   listConnections,
   listProtocols,
+  refreshModelCapabilities,
 } from "@/lib/api/connections";
 import type {
   ConfiguredModelV2,
@@ -31,6 +32,8 @@ export default function ModelsSettingsPage() {
   const [editingConnection, setEditingConnection] = useState<ConnectionV2 | null>(null);
   const [addingModelTo, setAddingModelTo] = useState<ConnectionV2 | null>(null);
   const [editingModel, setEditingModel] = useState<ConfiguredModelV2 | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [detectNotice, setDetectNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const token = getToken();
@@ -61,6 +64,26 @@ export default function ModelsSettingsPage() {
     queueMicrotask(() => void load());
   }, [load]);
 
+  const detectCapabilities = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setDetecting(true);
+    setDetectNotice(null);
+    try {
+      const result = await refreshModelCapabilities(token);
+      setDetectNotice(
+        result.updatedCount === 0
+          ? "No new capabilities detected — known models are already set up."
+          : `Detected media capabilities for ${result.updatedCount} model(s).`,
+      );
+      await load();
+    } catch (cause) {
+      setDetectNotice(cause instanceof Error ? cause.message : "Capability detection failed");
+    } finally {
+      setDetecting(false);
+    }
+  }, [load]);
+
   const modelsByConnection = useMemo(() => {
     const grouped = new Map<string, ConfiguredModelV2[]>();
     for (const model of models) {
@@ -87,11 +110,25 @@ export default function ModelsSettingsPage() {
             <Link href="/chat" className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium text-stone-600 hover:bg-white">
               <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to chat
             </Link>
+            <Button
+              variant="secondary"
+              onClick={() => void detectCapabilities()}
+              isLoading={detecting}
+              title="Auto-detect image/video/audio capability for known models from the catalogue"
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" /> Detect capabilities
+            </Button>
             <Button onClick={() => setAddingConnection(true)} className="!bg-[#c96442] hover:!bg-[#b55538]">
               <Plus className="mr-1.5 h-4 w-4" /> Add connection
             </Button>
           </div>
         </header>
+
+        {detectNotice && (
+          <div className="mb-4 rounded-xl border border-stone-200 bg-white px-3 py-2 text-sm text-stone-600 shadow-sm">
+            {detectNotice}
+          </div>
+        )}
 
         {error ? <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
         {loading ? (

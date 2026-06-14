@@ -155,6 +155,23 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ---
 
+## Phase 7b: User Story 6 - Easy, auto-detected media capability per model (Priority: P2)
+
+**Goal**: Make model media capability one-click and auto-detected so US1–US4 are discoverable, instead of hidden behind hand-written capability JSON.
+
+**Independent Test**: "Load models" brings a known vision model in image-capable without JSON; toggling Image in the model editor shows/hides the chat attach control; "detect capabilities" backfills known existing models without overwriting manual settings (spec US6).
+
+- [X] T051 [US6] Expand `ModelCatalogue` with per-model `input_modalities` for known multimodal models + add `find` / `modalitiesFor` lookups in `backend/src/main/kotlin/com/octopusllm/model/ModelCatalogue.kt`
+- [X] T052 [US6] Auto-fill modalities from the catalogue in `ConfiguredModelService.add` when the caller didn't set `input_modalities` (covers single add + bulk Load models); add `refreshCapabilities` (fill-only) + `findByUserId` repo query
+- [X] T053 [US6] Add `POST /api/v2/configured-models/refresh-capabilities` in `ConfiguredModelControllerV2.kt`
+- [X] T054 [US6] `CapabilityToggles` component + `formUtils` helpers (togglesFromOverrides / advancedOverridesJson / buildCapabilityOverrides); wire toggles into `AddModelDialog` and `EditModelDialog`, keeping advanced JSON for non-modality keys
+- [X] T055 [US6] "Detect capabilities" action in `ModelsSettingsPage` + `refreshModelCapabilities` API client
+- [X] T056 [US6] Unit tests: catalogue modalities lookup, add auto-fill (and no-overwrite), refresh fill-only in `backend/src/test/kotlin/com/octopusllm/connection/ConfiguredModelCapabilityTest.kt`
+
+**Checkpoint**: Media capability is one-click + auto-detected; the attach control becomes reachable for real models.
+
+---
+
 ## Phase 8: Polish & Cross-Cutting Concerns
 
 - [ ] T046 [P] Implement the idempotent orphaned-media cleanup sweep (delete `media` rows + stored objects with `turn_id IS NULL` older than the TTL) as a scheduled job in `backend/src/main/kotlin/com/octopusllm/media/MediaService.kt` (FR-023)
