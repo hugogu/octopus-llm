@@ -34,6 +34,13 @@ data class SharedResponseDto(
     val responseText: String?,
     val reasoningText: String?,
     val errorMessage: String?,
+    // Usage figures for the details popover — no identity/IP/connection (FR-018, within the share
+    // view's privacy boundary).
+    val inputTokens: Int?,
+    val outputTokens: Int?,
+    val cacheReadTokens: Int?,
+    val cacheWriteTokens: Int?,
+    val latencyMs: Int,
     // Named loves from registered users — an aggregate count only, never any liker identity (FR-015).
     val namedLikeCount: Long,
     // True when the (logged-in) viewer has loved this response. Always false for anonymous visitors.
@@ -120,6 +127,11 @@ class ShareService(
                             responseText = response.responseText,
                             reasoningText = response.reasoningText,
                             errorMessage = response.errorMessage,
+                            inputTokens = response.inputTokens,
+                            outputTokens = response.outputTokens,
+                            cacheReadTokens = response.cacheReadTokens,
+                            cacheWriteTokens = response.cacheWriteTokens,
+                            latencyMs = response.latencyMs,
                             namedLikeCount = responseLikeRepository.countByResponseId(response.id),
                             likedByMe = viewerId != null &&
                                 responseLikeRepository.existsByResponseIdAndUserId(response.id, viewerId),

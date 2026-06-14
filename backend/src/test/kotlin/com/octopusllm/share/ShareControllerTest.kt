@@ -133,6 +133,10 @@ class ShareControllerTest @Autowired constructor(
                 connectionId = connection.id,
                 status = "complete",
                 responseText = "world",
+                inputTokens = 120,
+                outputTokens = 45,
+                cacheReadTokens = 64,
+                cacheWriteTokens = 16,
                 latencyMs = 10,
             ),
         )
@@ -163,6 +167,13 @@ class ShareControllerTest @Autowired constructor(
         }
         // The aggregate named-love count IS exposed (no identity) so loves made in chat show on the share.
         assert(rawJson.contains("namedLikeCount")) { "shared DTO should expose the aggregate namedLikeCount: $rawJson" }
+
+        // Usage figures (incl. normalized cache tokens) ARE exposed for the details popover — they carry
+        // no identity, so they stay within the share privacy boundary (FR-016/FR-018).
+        listOf("cacheReadTokens", "cacheWriteTokens", "latencyMs", "inputTokens", "outputTokens").forEach { field ->
+            assert(rawJson.contains(field)) { "shared DTO should expose usage field '$field': $rawJson" }
+        }
+        assert(rawJson.contains("\"cacheReadTokens\":64")) { "expected cache-read value in shared DTO: $rawJson" }
 
         // A logged-in non-owner liking via the token-scoped endpoint is recorded as a NAMED like (FR-018).
         val visitor = users.save(User(email = "visitor-${UUID.randomUUID()}@example.com", passwordHash = "hash"))

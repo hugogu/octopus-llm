@@ -149,11 +149,11 @@ boundary intact.
 **Independent Test**: A logged-out visitor on a share link gets bounded/copyable blocks, preview/source
 toggles, sandboxed run, and usage/cache details; the payload exposes no owner identity/IP/connection.
 
-- [ ] T036 [US5] Add `cacheReadTokens`/`cacheWriteTokens` to the shared response DTO in `backend/src/main/kotlin/com/octopusllm/share/ShareService.kt` (usage only — no identity, FR-018)
-- [ ] T037 [P] [US5] Add cache fields to the `SharedResponse` type in `frontend/src/lib/types/api.ts`
-- [ ] T038 [US5] In `frontend/src/components/share/SharedConversation.tsx`, wrap each response body in `ExpandableContent` (bubble cap parity) and add `ResponseDetails`; rely on the shared `MarkdownRenderer` so `CodeBlock`/previews/runnable apply automatically (FR-016)
-- [ ] T039 [P] [US5] Backend test: `GET /api/v2/shared/{token}` payload includes cache fields and excludes owner id/IP/connection (FR-018)
-- [ ] T040 [P] [US5] Playwright: share page (logged out) reproduces bounded/copyable blocks, preview/source toggle, sandboxed run (no `allow-same-origin`), and details (SC-006)
+- [X] T036 [US5] Add `cacheReadTokens`/`cacheWriteTokens` to the shared response DTO in `backend/src/main/kotlin/com/octopusllm/share/ShareService.kt` (usage only — no identity, FR-018)
+- [X] T037 [P] [US5] Add cache fields to the `SharedResponse` type in `frontend/src/lib/types/api.ts`
+- [X] T038 [US5] In `frontend/src/components/share/SharedConversation.tsx`, wrap each response body in `ExpandableContent` (bubble cap parity) and add `ResponseDetails`; rely on the shared `MarkdownRenderer` so `CodeBlock`/previews/runnable apply automatically (FR-016)
+- [X] T039 [P] [US5] Backend test: `GET /api/v2/shared/{token}` payload includes cache fields and excludes owner id/IP/connection (FR-018)
+- [X] T040 [P] [US5] Playwright: share page (logged out) reproduces bounded/copyable blocks, preview/source toggle, sandboxed run (no `allow-same-origin`), and details (SC-006)
 
 **Checkpoint**: Parity verified; US1–US5 work on both surfaces.
 
@@ -167,10 +167,10 @@ in the platform visual style.
 **Independent Test**: Export yields one tall PNG with a top-right QR that scans to the share URL and the
 full (expanded) conversation below, in the design-system style.
 
-- [ ] T041 [P] [US6] Create `frontend/src/components/share/ShareExportButton.tsx`: build an off-screen poster node (QR top-right via `qrcode` of `window.location`; full conversation below, force-expanded; warm canvas/stone/rounded-card styling) (FR-020/021/022)
-- [ ] T042 [US6] Rasterize with `html-to-image` `toPng` and trigger download; handle empty conversation → valid image (header + QR + empty state) (FR-019/022)
-- [ ] T043 [US6] Add the export action to the `SharedConversation.tsx` header (connected, design-system button)
-- [ ] T044 [P] [US6] Playwright: export downloads a PNG; QR present top-right and encodes the share URL; content below, no clipped responses (SC-007)
+- [X] T041 [P] [US6] Create `frontend/src/components/share/ShareExportButton.tsx`: build an off-screen poster node (QR top-right via `qrcode` of `window.location`; full conversation below, force-expanded; warm canvas/stone/rounded-card styling) (FR-020/021/022)
+- [X] T042 [US6] Rasterize with `html-to-image` `toPng` and trigger download; handle empty conversation → valid image (header + QR + empty state) (FR-019/022)
+- [X] T043 [US6] Add the export action to the `SharedConversation.tsx` header (connected, design-system button)
+- [X] T044 [P] [US6] Playwright: export downloads a PNG; QR present top-right and encodes the share URL; content below, no clipped responses (SC-007)
 
 **Checkpoint**: All user stories functional.
 

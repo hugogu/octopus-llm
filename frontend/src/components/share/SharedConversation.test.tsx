@@ -39,7 +39,8 @@ describe("SharedConversation", () => {
     api.getSharedSession.mockResolvedValue(sessionWith({}));
     api.anonymousLike.mockResolvedValue({ responseId: "r1", anonymousLikeCount: 2, likedByThisVisitor: true });
     render(<SharedConversation shareToken="opaque" />);
-    expect(await screen.findByText("Shared")).toBeInTheDocument();
+    // Title appears in the visible header and again in the off-screen (aria-hidden) export poster.
+    expect((await screen.findAllByText("Shared")).length).toBeGreaterThan(0);
     expect(screen.queryByText(/userId|clientIp|connectionId/)).not.toBeInTheDocument();
 
     // The love count from chat is visible (3), and the love button is disabled for anonymous visitors.

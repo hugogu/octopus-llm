@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Heart, ThumbsUp } from "lucide-react";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
+import ExpandableContent from "@/components/chat/ExpandableContent";
+import ResponseDetails from "@/components/chat/ResponseDetails";
+import ShareExportButton from "@/components/share/ShareExportButton";
 import { getToken } from "@/lib/api/auth";
 import { anonymousLike, getSharedSession, sharedNamedLike } from "@/lib/api/shares";
 import type { SharedSession, SharedResponse } from "@/lib/types/api";
@@ -63,12 +66,17 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
   return (
     <main className="min-h-screen bg-[#faf9f5] px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-5xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#b75536]">Shared conversation</p>
-        <h1 className="mt-1 text-2xl font-semibold text-stone-900">{session.title || "Untitled conversation"}</h1>
-        <p className="mt-2 text-sm text-stone-500">
-          Read-only view. <span className="text-rose-600">♥ loves</span> come from signed-in users;{" "}
-          <span className="text-[#c96442]">👍 thumbs</span> are anonymous and deduplicated in this browser.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#b75536]">Shared conversation</p>
+            <h1 className="mt-1 text-2xl font-semibold text-stone-900">{session.title || "Untitled conversation"}</h1>
+            <p className="mt-2 text-sm text-stone-500">
+              Read-only view. <span className="text-rose-600">♥ loves</span> come from signed-in users;{" "}
+              <span className="text-[#c96442]">👍 thumbs</span> are anonymous and deduplicated in this browser.
+            </p>
+          </div>
+          <ShareExportButton session={session} />
+        </div>
         <div className="mt-7 space-y-6">
           {session.turns.map((turn) => (
             <section key={turn.sequenceNum} className="space-y-3">
@@ -79,6 +87,13 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
                     <header className="flex items-center justify-between gap-2 border-b border-stone-100 bg-stone-50 px-4 py-2">
                       <span className="truncate text-sm font-semibold text-stone-800">{response.modelDisplayName}</span>
                       <div className="flex items-center gap-1.5">
+                        <ResponseDetails
+                          latencyMs={response.latencyMs}
+                          inputTokens={response.inputTokens}
+                          outputTokens={response.outputTokens}
+                          cacheReadTokens={response.cacheReadTokens}
+                          cacheWriteTokens={response.cacheWriteTokens}
+                        />
                         <button
                           type="button"
                           title={signedIn ? "Love this answer" : "Sign in to love this answer"}
@@ -103,7 +118,7 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
                         </button>
                       </div>
                     </header>
-                    <div className="p-4 text-sm">{response.status === "error" ? <p className="text-red-600">{response.errorMessage}</p> : <MarkdownRenderer content={response.responseText ?? ""} />}</div>
+                    <div className="p-4 text-sm">{response.status === "error" ? <p className="text-red-600">{response.errorMessage}</p> : <ExpandableContent><MarkdownRenderer content={response.responseText ?? ""} /></ExpandableContent>}</div>
                   </article>
                 ))}
               </div>

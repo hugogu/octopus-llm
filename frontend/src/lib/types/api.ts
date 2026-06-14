@@ -159,6 +159,11 @@ export interface SharedResponse {
   responseText: string | null;
   reasoningText: string | null;
   errorMessage: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+  latencyMs: number;
   namedLikeCount: number;
   likedByMe: boolean;
   anonymousLikeCount: number;
