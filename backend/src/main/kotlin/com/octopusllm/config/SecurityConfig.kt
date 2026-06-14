@@ -45,6 +45,7 @@ class SecurityConfig(
                     .pathMatchers("/api/v2/protocols", "/api/v2/catalogue").permitAll()
                     .pathMatchers("/api/v2/shared/**").permitAll()
                     .pathMatchers("/api/v2/analytics/public/**").permitAll()
+                    .pathMatchers("/api/v2/render/**").permitAll()
                     .pathMatchers("/api/v2/admin/**").hasRole("ADMIN")
                     .anyExchange().authenticated()
             }

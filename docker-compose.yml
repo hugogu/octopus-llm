@@ -35,9 +35,13 @@ services:
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       ANONYMOUS_VISITOR_HMAC_SECRET: ${ANONYMOUS_VISITOR_HMAC_SECRET:-local-development-anonymous-visitor-secret}
+      PLANTUML_SERVER_URL: ${PLANTUML_SERVER_URL:-http://plantuml:8080}
+      PLANTUML_MAX_SOURCE_BYTES: ${PLANTUML_MAX_SOURCE_BYTES:-102400}
     depends_on:
       db:
         condition: service_healthy
+      plantuml:
+        condition: service_started
 
   frontend:
     build:
@@ -57,3 +61,14 @@ services:
     ports:
       - "${MAILHOG_SMTP_PORT:-1025}:1025"
       - "${MAILHOG_UI_PORT:-8025}:8025"
+
+  # Self-hosted PlantUML renderer (clarification Q1). Internal only — no published host port;
+  # the backend reaches it on the compose network and proxies browser requests so model content
+  # never leaves the platform trust boundary.
+  plantuml:
+    image: plantuml/plantuml-server:jdk17
+    expose:
+      - "8080"
+    environment:
+      # Allow inbound diagram size up to the backend's configured cap.
+      PLANTUML_LIMIT_SIZE: "8192"

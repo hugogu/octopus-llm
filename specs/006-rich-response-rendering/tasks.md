@@ -28,9 +28,9 @@ Web app: Kotlin backend under `backend/src/`, Next.js frontend under `frontend/s
 
 **Purpose**: Dependencies and the self-hosted PlantUML service the feature relies on.
 
-- [ ] T001 [P] Add frontend deps `mermaid`, `qrcode`, `html-to-image`, `dompurify` (+ `@types/qrcode`, `@types/dompurify` if needed) to `frontend/package.json`; install
-- [ ] T002 [P] Add an internal `plantuml` service (`plantuml/plantuml-server:<pinned-tag>`, **no published host port**, on the compose network) to `docker-compose.yml`, and add `PLANTUML_SERVER_URL=http://plantuml:8080` to the backend service env
-- [ ] T003 [P] Add backend config for `PLANTUML_SERVER_URL` and a render request size cap (e.g. 100 KB) in `backend/src/main/resources/application*.yml`
+- [X] T001 [P] Add frontend deps `mermaid`, `qrcode`, `html-to-image`, `dompurify` (+ `@types/qrcode`, `@types/dompurify` if needed) to `frontend/package.json`; install
+- [X] T002 [P] Add an internal `plantuml` service (`plantuml/plantuml-server:<pinned-tag>`, **no published host port**, on the compose network) to `docker-compose.yml`, and add `PLANTUML_SERVER_URL=http://plantuml:8080` to the backend service env
+- [X] T003 [P] Add backend config for `PLANTUML_SERVER_URL` and a render request size cap (e.g. 100 KB) in `backend/src/main/resources/application*.yml`
 
 ---
 
@@ -41,9 +41,9 @@ markdown pipeline means this work lands once and benefits both the in-app and sh
 
 **⚠️ CRITICAL**: Blocks US1, US2, US3.
 
-- [ ] T004 Create fence classifier in `frontend/src/lib/markdown/blocks.ts` mapping a fence language → strategy (`code` | `diagram-preview` | `html-runnable`) per data-model.md
-- [ ] T005 Refactor `frontend/src/components/chat/markdownComponents.tsx` `code()` to delegate fenced blocks to a strategy dispatcher with a **default passthrough that preserves current rendering** (keep `MarkdownRenderer.test.tsx` green)
-- [ ] T006 [P] Improve `frontend/src/components/ui/CopyButton.tsx` to surface a visible failure state when `navigator.clipboard` is unavailable/denied (FR-003), replacing the silent `console.error`
+- [X] T004 Create fence classifier in `frontend/src/lib/markdown/blocks.ts` mapping a fence language → strategy (`code` | `diagram-preview` | `html-runnable`) per data-model.md
+- [X] T005 Refactor `frontend/src/components/chat/markdownComponents.tsx` `code()` to delegate fenced blocks to a strategy dispatcher with a **default passthrough that preserves current rendering** (keep `MarkdownRenderer.test.tsx` green)
+- [X] T006 [P] Improve `frontend/src/components/ui/CopyButton.tsx` to surface a visible failure state when `navigator.clipboard` is unavailable/denied (FR-003), replacing the silent `console.error`
 
 **Checkpoint**: Block dispatcher in place; existing rendering unchanged.
 
@@ -56,9 +56,9 @@ markdown pipeline means this work lands once and benefits both the in-app and sh
 **Independent Test**: A 400-line code block caps with internal scroll, the bubble caps with "Show
 more", and each block's copy control copies exactly that block's text with confirmation.
 
-- [ ] T007 [P] [US1] Create `frontend/src/components/chat/CodeBlock.tsx`: max-height scroll region + language label + per-block `CopyButton` fed the block's exact raw source (FR-001/FR-003)
-- [ ] T008 [US1] Wire the `code` strategy in the `markdownComponents.tsx` dispatcher to `CodeBlock` (replaces the inline `SyntaxHighlighter` path)
-- [ ] T009 [P] [US1] Vitest in `frontend/src/components/chat/CodeBlock.test.tsx`: height cap applied; per-block copy copies only that block's raw text; copy-failure surfaces
+- [X] T007 [P] [US1] Create `frontend/src/components/chat/CodeBlock.tsx`: max-height scroll region + language label + per-block `CopyButton` fed the block's exact raw source (FR-001/FR-003)
+- [X] T008 [US1] Wire the `code` strategy in the `markdownComponents.tsx` dispatcher to `CodeBlock` (replaces the inline `SyntaxHighlighter` path)
+- [X] T009 [P] [US1] Vitest in `frontend/src/components/chat/CodeBlock.test.tsx`: height cap applied; per-block copy copies only that block's raw text; copy-failure surfaces
 
 **Note**: In-app bubble cap (FR-002) already exists via `ExpandableContent` in `ModelResponsePanel`; share-side reuse is covered in US5 (parity).
 
@@ -76,19 +76,19 @@ source) by default, each toggles to exact source, and a malformed block degrades
 
 ### Backend — self-hosted PlantUML proxy
 
-- [ ] T010 [P] [US2] Create `backend/src/main/kotlin/com/octopusllm/render/PlantUmlRenderService.kt`: `WebClient` → `PLANTUML_SERVER_URL`, enforce size cap, return SVG; calls only the configured URL (no SSRF)
-- [ ] T011 [US2] Create `backend/src/main/kotlin/com/octopusllm/render/PlantUmlRenderController.kt`: `POST /api/v2/render/plantuml` (accepts `text/plain` and `{source}`), unauthenticated/public-safe, errors per `contracts/plantuml-render.md` (400/413/502)
-- [ ] T012 [US2] Integration test (MockWebServer/Testcontainers) for `/api/v2/render/plantuml`: happy-path SVG + `413` over cap + `502` renderer-unavailable (constitution: new endpoint happy-path test)
-- [ ] T013 [P] [US2] Add `frontend/src/lib/api/render.ts` (`renderPlantUml(source)`), and verify the Next proxy route forwards `/api/v2/render/*` upstream intact
+- [X] T010 [P] [US2] Create `backend/src/main/kotlin/com/octopusllm/render/PlantUmlRenderService.kt`: `WebClient` → `PLANTUML_SERVER_URL`, enforce size cap, return SVG; calls only the configured URL (no SSRF)
+- [X] T011 [US2] Create `backend/src/main/kotlin/com/octopusllm/render/PlantUmlRenderController.kt`: `POST /api/v2/render/plantuml` (accepts `text/plain` and `{source}`), unauthenticated/public-safe, errors per `contracts/plantuml-render.md` (400/413/502)
+- [X] T012 [US2] Integration test (MockWebServer/Testcontainers) for `/api/v2/render/plantuml`: happy-path SVG + `413` over cap + `502` renderer-unavailable (constitution: new endpoint happy-path test)
+- [X] T013 [P] [US2] Add `frontend/src/lib/api/render.ts` (`renderPlantUml(source)`), and verify the Next proxy route forwards `/api/v2/render/*` upstream intact
 
 ### Frontend — previews + toggle
 
-- [ ] T014 [P] [US2] Create `frontend/src/components/chat/BlockViewToggle.tsx` (preview⇄source segmented control wrapper, design-system styled)
-- [ ] T015 [P] [US2] Create `frontend/src/components/chat/MermaidPreview.tsx`: dynamic `import('mermaid')`, render settled blocks only, try/catch → scoped error (FR-006/R10)
-- [ ] T016 [P] [US2] Create `frontend/src/components/chat/PlantUmlPreview.tsx`: call `render.ts`; on failure fall back to source view with a notice (FR-006a)
-- [ ] T017 [P] [US2] Create `frontend/src/components/chat/SvgPreview.tsx`: DOMPurify-sanitized inline SVG (svg profile, scripts stripped)
-- [ ] T018 [US2] Wire `diagram-preview` (preview default) and `html-runnable` (**source default**, Q2) strategies into the `markdownComponents.tsx` dispatcher via `BlockViewToggle`
-- [ ] T019 [P] [US2] Vitest in `frontend/src/components/chat/BlockPreview.test.tsx`: toggle preview↔source; HTML defaults to source; malformed Mermaid → scoped error, rest of message intact
+- [X] T014 [P] [US2] Create `frontend/src/components/chat/BlockViewToggle.tsx` (preview⇄source segmented control wrapper, design-system styled)
+- [X] T015 [P] [US2] Create `frontend/src/components/chat/MermaidPreview.tsx`: dynamic `import('mermaid')`, render settled blocks only, try/catch → scoped error (FR-006/R10)
+- [X] T016 [P] [US2] Create `frontend/src/components/chat/PlantUmlPreview.tsx`: call `render.ts`; on failure fall back to source view with a notice (FR-006a)
+- [X] T017 [P] [US2] Create `frontend/src/components/chat/SvgPreview.tsx`: DOMPurify-sanitized inline SVG (svg profile, scripts stripped)
+- [X] T018 [US2] Wire `diagram-preview` (preview default) and `html-runnable` (**source default**, Q2) strategies into the `markdownComponents.tsx` dispatcher via `BlockViewToggle`
+- [X] T019 [P] [US2] Vitest in `frontend/src/components/chat/BlockPreview.test.tsx`: toggle preview↔source; HTML defaults to source; malformed Mermaid → scoped error, rest of message intact
 
 **Checkpoint**: US1 + US2 work; PlantUML traffic is same-origin/self-hosted.
 

@@ -52,3 +52,7 @@ app:
     trusted-proxies: ${TRUSTED_PROXIES:}
   anonymous-visitor:
     hmac-secret: ${ANONYMOUS_VISITOR_HMAC_SECRET:local-development-anonymous-visitor-secret}
+  render:
+    plantuml:
+      server-url: ${PLANTUML_SERVER_URL:http://localhost:8080}
+      max-source-bytes: ${PLANTUML_MAX_SOURCE_BYTES:102400}

@@ -5,8 +5,7 @@ import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import FencedBlock from './FencedBlock';
 
 export const remarkPlugins = [remarkGfm, remarkMath];
 export const rehypePlugins = [rehypeKatex];
@@ -20,17 +19,10 @@ export const markdownComponents: Components = {
     const match = /language-(\w+)/.exec(codeClassName || '');
     const language = match ? match[1] : '';
 
+    // Fenced block (has a language tag): route to the shared dispatcher, which decides between bounded
+    // code, a diagram/markup preview, or HTML. Inline code stays a simple <code> span.
     if (language) {
-      return (
-        <div className="rounded-lg overflow-hidden my-3">
-          <div className="bg-gray-800 px-4 py-2 text-xs text-gray-400 flex items-center justify-between">
-            <span>{language}</span>
-          </div>
-          <SyntaxHighlighter language={language} style={oneDark} PreTag="div">
-            {String(children).replace(/\n$/, '')}
-          </SyntaxHighlighter>
-        </div>
-      );
+      return <FencedBlock language={language} source={String(children).replace(/\n$/, '')} />;
     }
 
     return (
