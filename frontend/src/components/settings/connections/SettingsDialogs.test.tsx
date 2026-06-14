@@ -42,6 +42,7 @@ const model: ConfiguredModelV2 = {
   baseUrl: connection.baseUrl,
   modelId: "provider-model-id",
   displayName: "Provider model",
+  builtin: false,
   capabilityOverrides: {},
   capabilityMatrix: {
     input_modalities: ["text"],

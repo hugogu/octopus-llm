@@ -100,6 +100,17 @@ export default function ModelSelectorPanel({
                         : "border-stone-300 bg-white text-stone-700 hover:border-stone-500"
                     }`}
                   >
+                    <span
+                      className={`mr-1.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                        selected
+                          ? "bg-white/20 text-white"
+                          : model.builtin
+                            ? "bg-sky-100 text-sky-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {model.builtin ? "Built-in" : "Custom"}
+                    </span>
                     <span className="font-medium">{model.displayName}</span>
                     <span className={`ml-1.5 text-xs ${selected ? "text-orange-100" : "text-stone-400"}`}>
                       {model.connectionLabel ?? model.protocol}

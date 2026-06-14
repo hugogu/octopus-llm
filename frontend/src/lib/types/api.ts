@@ -313,6 +313,7 @@ export interface ConfiguredModelV2 {
   baseUrl: string;
   modelId: string;
   displayName: string;
+  builtin: boolean;
   capabilityOverrides: Record<string, unknown>;
   capabilityMatrix: CapabilityMatrix;
   customParams: Record<string, unknown>;
