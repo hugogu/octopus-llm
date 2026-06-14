@@ -44,6 +44,7 @@ export function togglesFromOverrides(overrides: Record<string, unknown>): Modali
 export function advancedOverridesJson(overrides: Record<string, unknown>): string {
   const rest = { ...overrides };
   delete rest.input_modalities;
+  delete rest.capability_autodetected; // provenance marker, managed via the toggles
   return prettyJson(rest);
 }
 
@@ -62,6 +63,8 @@ export function buildCapabilityOverrides(
   const on = (["image", "video", "audio"] as const).filter((m) => toggles[m]);
   if (on.length > 0 || explicit) {
     base.input_modalities = ["text", ...on];
+    // Mark as manually set so a later auto-detect does not overwrite the user's choice (feature 007).
+    base.capability_autodetected = false;
   }
   return base;
 }

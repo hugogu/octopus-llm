@@ -52,7 +52,10 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   };
 
   if (!["GET", "HEAD"].includes(request.method)) {
-    init.body = await request.text();
+    // Forward the raw bytes — NOT request.text(), which UTF-8-decodes and corrupts binary bodies
+    // such as multipart media uploads (feature 007). arrayBuffer preserves binary and JSON alike;
+    // the Content-Type header (incl. the multipart boundary) is forwarded above.
+    init.body = await request.arrayBuffer();
   }
 
   const upstream = await fetch(upstreamUrl, init);

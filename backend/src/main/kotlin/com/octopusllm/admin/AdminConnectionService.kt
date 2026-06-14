@@ -119,7 +119,12 @@ class AdminConnectionService(
             capabilityOverrides
         } else {
             capabilityDetector.detectCached(connection.protocol, modelId.trim())
-                ?.let { capabilityOverrides.toMutableMap().apply { put("input_modalities", it) } }
+                ?.let {
+                    capabilityOverrides.toMutableMap().apply {
+                        put("input_modalities", it)
+                        put("capability_autodetected", true)
+                    }
+                }
                 ?: capabilityOverrides
         }
         validateCapabilities(connection, effectiveOverrides)

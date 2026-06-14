@@ -130,9 +130,12 @@ class ConfiguredModelService(
     ): Map<String, Any?> {
         if (overrides.containsKey("input_modalities")) return overrides
         // Cached detection only (no network) on the hot add path; the connection-level detect action
-        // does the thorough OpenRouter refresh.
+        // does the thorough OpenRouter refresh. Mark as auto-detected so re-detect can re-sync it.
         val modalities = capabilityDetector.detectCached(protocol, modelId.trim()) ?: return overrides
-        return overrides.toMutableMap().apply { put("input_modalities", modalities) }
+        return overrides.toMutableMap().apply {
+            put("input_modalities", modalities)
+            put("capability_autodetected", true)
+        }
     }
 
     fun requireOwned(userId: UUID, id: UUID): ConfiguredModel =

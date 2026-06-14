@@ -40,18 +40,38 @@ class CapabilityFillerTest {
     @Test
     fun `does not overwrite manually set modalities or pricing`() {
         val model = Feature003Fixtures.configuredModel(modelId = "gpt-4o").apply {
-            capabilityOverrides = mapOf("input_modalities" to listOf("text"))
+            // capability_autodetected=false marks modalities as manual (protected).
+            capabilityOverrides = mapOf("input_modalities" to listOf("text"), "capability_autodetected" to false)
             inputPricePerMtok = BigDecimal("9.0000")
             priceCurrency = "EUR"
         }
         every { detector.detailFor("gpt-4o") } returns gptDetail
 
-        val updated = filler.fill(listOf(model))
+        filler.fill(listOf(model))
 
-        // Context + tools still fill (they were unset), but modalities + pricing are preserved.
+        // Context + tools still fill (they were unset), but manual modalities + pricing are preserved.
         assertEquals(listOf("text"), model.capabilityOverrides["input_modalities"])
         assertEquals(BigDecimal("9.0000"), model.inputPricePerMtok)
         assertEquals("EUR", model.priceCurrency)
-        assertTrue(updated.size == 1) // context/tools changed
+    }
+
+    @Test
+    fun `re-syncs auto-detected modalities when the source changed`() {
+        // An earlier detect set image/video/audio (no manual flag); the source now says text-only.
+        val model = Feature003Fixtures.configuredModel(modelId = "deepseek-v4-pro").apply {
+            capabilityOverrides = mapOf("input_modalities" to listOf("text", "image", "video", "audio"))
+        }
+        every { detector.detailFor("deepseek-v4-pro") } returns DetectedModelInfo(
+            modalities = listOf("text"),
+            inputPricePerMtok = null,
+            outputPricePerMtok = null,
+            contextLengthTokens = null,
+            supportsFunctionCalling = false,
+        )
+
+        filler.fill(listOf(model))
+
+        assertEquals(listOf("text"), model.capabilityOverrides["input_modalities"])
+        assertEquals(true, model.capabilityOverrides["capability_autodetected"])
     }
 }

@@ -69,6 +69,9 @@ object ProtocolDefinitions {
             "supports_function_calling",
             "supports_system_prompt",
             "supports_video_input",
+            // Provenance marker (feature 007): true when modalities were auto-detected (safe to
+            // re-sync), false when a user manually set them (protected from overwrite). Not a matrix field.
+            "capability_autodetected",
         )
         val unknown = overrides.keys - known
         if (unknown.isNotEmpty()) {

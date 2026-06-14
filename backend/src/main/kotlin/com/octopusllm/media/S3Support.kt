@@ -17,7 +17,11 @@ data class S3RuntimeConfig(
     val publicBaseUrl: String,
 )
 
-/** Builds path-style S3 clients (OSS/MinIO-compatible) for both storage and connectivity checks. */
+/**
+ * Builds S3 clients for S3-compatible object stores (AWS S3, Aliyun OSS, MinIO) used for both storage
+ * and connectivity checks. Path-style + disabled aws-chunked encoding maximize compatibility — Aliyun
+ * OSS in particular rejects the streaming `aws-chunked` content-encoding that the SDK uses by default.
+ */
 object S3Support {
     fun client(config: S3RuntimeConfig): S3Client =
         S3Client.builder()
@@ -26,6 +30,11 @@ object S3Support {
             .credentialsProvider(
                 StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey, config.secretKey)),
             )
-            .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+            .serviceConfiguration(
+                S3Configuration.builder()
+                    .pathStyleAccessEnabled(true)
+                    .chunkedEncodingEnabled(false)
+                    .build(),
+            )
             .build()
 }

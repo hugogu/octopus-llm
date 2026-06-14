@@ -23,11 +23,15 @@ class CapabilityFiller(private val detector: CapabilityDetector) {
         val overrides = model.capabilityOverrides.toMutableMap()
         val detail = detector.detailFor(model.modelId)
 
-        // Modalities: prefer the rich OpenRouter detail, fall back to the local catalogue.
-        if (!overrides.containsKey("input_modalities")) {
+        // Modalities: re-sync from the source unless the user manually set them. Provenance:
+        // capability_autodetected == false means manual (protected); true/absent means auto (re-syncable).
+        // This lets an explicit "Detect" correct a model whose upstream capability has since changed.
+        val manualModalities = overrides["capability_autodetected"] == false
+        if (!manualModalities) {
             val modalities = detail?.modalities ?: detector.detectCached(model.connection.protocol, model.modelId)
-            if (modalities != null) {
+            if (modalities != null && modalities != overrides["input_modalities"]) {
                 overrides["input_modalities"] = modalities
+                overrides["capability_autodetected"] = true
                 changed = true
             }
         }
