@@ -63,18 +63,18 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Integration test: submit turn with media → capable model receives attachment, incapable model excluded via `notice`, all-incapable returns 409, in `backend/src/test/kotlin/com/octopusllm/chat/ChatMediaSubmitTest.kt`
+- [X] T017 [P] [US1] Integration test: submit turn with media → capable model receives attachment, incapable model excluded via `notice`, all-incapable returns 409, in `backend/src/test/kotlin/com/octopusllm/chat/ChatMediaSubmitTest.kt`
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] In `ChatService` (`backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`): build `LlmRequest.attachments` from submitted media refs, persist `chat_turns.attachments` in reference shape, and bind each `media.turn_id` to the saved turn (depends on T012, T014)
-- [ ] T019 [US1] In `ChatService`: per-selected-model capability gating from merged `CapabilityMatrix.input_modalities` — exclude incapable models from dispatch and emit a terminal per-model `notice`; ensure media is included only on the current turn (prior history stays text-only)
-- [ ] T020 [US1] In `ChatControllerV2` (`backend/src/main/kotlin/com/octopusllm/chat/ChatControllerV2.kt`): change `SubmitTurnRequestV2.attachments` to media references, validate ownership + orphaned state of each `media_id`, re-validate the per-prompt ceiling (≤5 files / ≤15 MB), and return `409 no_capable_model` when no selected model can accept an attached type (depends on T018)
-- [ ] T021 [P] [US1] Extend `AnthropicAdapter` (`backend/src/main/kotlin/com/octopusllm/llm/adapter/AnthropicAdapter.kt`): fetch media from `url` when present and emit image + video content blocks
-- [ ] T022 [P] [US1] Extend `OpenAiCompatAdapter` (`.../adapter/OpenAiCompatAdapter.kt`): fetch from `url`, add video content parts alongside existing `image_url`
-- [ ] T023 [P] [US1] Extend `MiniMaxAdapter` (`.../adapter/MiniMaxAdapter.kt`): add image + video content per MiniMax multimodal schema (currently none)
-- [ ] T024 [US1] In `frontend/src/app/(app)/chat/page.tsx`: upload attachments via `lib/api/media.ts` before submit, send media refs, compute per-type (image/video) exclusion from `input_modalities` and show a pre-send notice, and block send when no selected model is capable (depends on T015)
-- [ ] T025 [US1] In `frontend/src/components/chat/ChatInput.tsx`: replace inline base64 encoding with upload-and-attach-by-reference flow, passing media refs to submit (depends on T015)
+- [X] T018 [US1] In `ChatService` (`backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`): build `LlmRequest.attachments` from submitted media refs, persist `chat_turns.attachments` in reference shape, and bind each `media.turn_id` to the saved turn (depends on T012, T014)
+- [X] T019 [US1] In `ChatService`: per-selected-model capability gating from merged `CapabilityMatrix.input_modalities` — exclude incapable models from dispatch and emit a terminal per-model `notice`; ensure media is included only on the current turn (prior history stays text-only)
+- [X] T020 [US1] In `ChatControllerV2` (`backend/src/main/kotlin/com/octopusllm/chat/ChatControllerV2.kt`): change `SubmitTurnRequestV2.attachments` to media references, validate ownership + orphaned state of each `media_id`, re-validate the per-prompt ceiling (≤5 files / ≤15 MB), and return `409 no_capable_model` when no selected model can accept an attached type (depends on T018)
+- [X] T021 [P] [US1] Extend `AnthropicAdapter` (`backend/src/main/kotlin/com/octopusllm/llm/adapter/AnthropicAdapter.kt`): fetch media from `url` when present and emit image + video content blocks
+- [X] T022 [P] [US1] Extend `OpenAiCompatAdapter` (`.../adapter/OpenAiCompatAdapter.kt`): fetch from `url`, add video content parts alongside existing `image_url`
+- [X] T023 [P] [US1] Extend `MiniMaxAdapter` (`.../adapter/MiniMaxAdapter.kt`): add image + video content per MiniMax multimodal schema (currently none)
+- [X] T024 [US1] In `frontend/src/app/(app)/chat/page.tsx`: upload attachments via `lib/api/media.ts` before submit, send media refs, compute per-type (image/video) exclusion from `input_modalities` and show a pre-send notice, and block send when no selected model is capable (depends on T015)
+- [X] T025 [US1] In `frontend/src/components/chat/ChatInput.tsx`: replace inline base64 encoding with upload-and-attach-by-reference flow, passing media refs to submit (depends on T015)
 
 **Checkpoint**: Multimodal send with capability gating works end-to-end (MVP).
 

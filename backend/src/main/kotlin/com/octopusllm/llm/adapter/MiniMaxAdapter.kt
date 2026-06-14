@@ -81,7 +81,22 @@ class MiniMaxAdapter : LlmAdapter {
         request.history.forEach { turn ->
             messages.add(mapOf("role" to turn.role, "content" to turn.text))
         }
-        messages.add(mapOf("role" to "user", "content" to request.prompt))
+        if (request.attachments.isEmpty()) {
+            messages.add(mapOf("role" to "user", "content" to request.prompt))
+        } else {
+            // OpenAI-style multimodal content parts (feature 007). MiniMax models only receive media
+            // when capability-gated in; URL-referenced, with a base64 fallback for legacy turns.
+            val parts = mutableListOf<Map<String, Any>>()
+            parts.add(mapOf("type" to "text", "text" to request.prompt))
+            request.attachments.forEach { att ->
+                val url = att.url?.takeIf { it.isNotBlank() } ?: "data:${att.mimeType};base64,${att.data}"
+                when (att.type) {
+                    "image" -> parts.add(mapOf("type" to "image_url", "image_url" to mapOf("url" to url)))
+                    "video" -> parts.add(mapOf("type" to "video_url", "video_url" to mapOf("url" to url)))
+                }
+            }
+            messages.add(mapOf("role" to "user", "content" to parts))
+        }
         return mapOf(
             "model" to modelId,
             "messages" to messages,

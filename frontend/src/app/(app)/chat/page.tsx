@@ -17,11 +17,11 @@ import {
   streamTurnV2,
 } from "@/lib/api/chatV2";
 import { listConfiguredModels } from "@/lib/api/connections";
+import { uploadMedia } from "@/lib/api/media";
 import { useParallelStream } from "@/lib/hooks/useParallelStream";
 import { usePreferences } from "@/lib/hooks/usePreferences";
 import { useSessions } from "@/lib/hooks/useSessions";
 import type {
-  Attachment,
   ChatTurnV2,
   ConfiguredModelV2,
   GetSessionResponseV2,
@@ -61,6 +61,7 @@ export default function ChatPage() {
   const [modelsLoading, setModelsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [liveTurns, setLiveTurns] = useState<Record<string, DraftTurnState>>({});
+  const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const initializedSelectionRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const { streams, start, clear, handleEvent } = useParallelStream();
@@ -224,8 +225,45 @@ export default function ChatPage() {
     if (id === sessionId) handleNewSession();
   }, [handleNewSession, removeSession, sessionId]);
 
-  const handleSubmit = useCallback(async (promptText: string, attachments: Attachment[]) => {
+  const handleSubmit = useCallback(async (promptText: string, files: File[]) => {
     if (selectedIds.length === 0) return;
+    setAttachmentNotice(null);
+
+    // Capability gating (feature 007): only models that accept every attached media type are sent;
+    // incapable models are skipped with a notice, and the send is blocked if none are capable.
+    const attachedTypes = Array.from(new Set(files.map((f) =>
+      f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : "image",
+    )));
+    let sendIds = selectedIds;
+    let attachmentRefs: { media_id: string; order: string }[] = [];
+    if (files.length > 0) {
+      const capableIds = selectedIds.filter((id) => {
+        const modalities = modelsById[id]?.capabilityMatrix.input_modalities ?? [];
+        return attachedTypes.every((t) => modalities.includes(t));
+      });
+      const excluded = selectedIds.filter((id) => !capableIds.includes(id));
+      if (capableIds.length === 0) {
+        setAttachmentNotice(
+          `None of the selected models accept ${attachedTypes.join(", ")} input — remove the attachment or pick a capable model.`,
+        );
+        return;
+      }
+      if (excluded.length > 0) {
+        const names = excluded.map((id) => modelsById[id]?.displayName ?? id).join(", ");
+        setAttachmentNotice(`${names} can't accept ${attachedTypes.join(", ")} input and were skipped for this message.`);
+      }
+      const uploadToken = getToken();
+      if (!uploadToken) return;
+      try {
+        const uploaded = await Promise.all(files.map((file) => uploadMedia(file, uploadToken)));
+        attachmentRefs = uploaded.map((ref, i) => ({ media_id: ref.media_id, order: String(i) }));
+      } catch (err) {
+        setAttachmentNotice(err instanceof Error ? err.message : "Upload failed");
+        return;
+      }
+      sendIds = capableIds;
+    }
+
     try {
       let id = sessionId;
       if (!id) {
@@ -238,17 +276,17 @@ export default function ChatPage() {
         await loadSessions();
       }
 
-      start(id, selectedIds);
+      start(id, sendIds);
       setLiveTurns((current) => ({
         ...current,
-        [id]: { promptText, selectedConfiguredModelIds: [...selectedIds] },
+        [id]: { promptText, selectedConfiguredModelIds: [...sendIds] },
       }));
       await streamTurnV2(
         id,
         {
           promptText,
-          selectedConfiguredModelIds: selectedIds,
-          attachments,
+          selectedConfiguredModelIds: sendIds,
+          attachments: attachmentRefs,
           clientRequestId: crypto.randomUUID(),
         },
         (event: SseEventV2) => {
@@ -276,7 +314,7 @@ export default function ChatPage() {
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Chat request failed");
     }
-  }, [clear, handleEvent, loadSessions, router, selectedIds, sessionId, start]);
+  }, [clear, handleEvent, loadSessions, modelsById, router, selectedIds, sessionId, start]);
 
   const handleRetry = useCallback(async (turnId: string, configuredModelId: string) => {
     if (!sessionId) return;
@@ -476,6 +514,11 @@ export default function ChatPage() {
         </div>
 
         <div className="border-t border-stone-200 bg-[#faf9f5] px-6 py-3">
+          {attachmentNotice && (
+            <div className="mx-auto mb-2 w-full max-w-3xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {attachmentNotice}
+            </div>
+          )}
           <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} />
         </div>
       </div>

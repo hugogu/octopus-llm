@@ -402,11 +402,17 @@ export interface GetSessionResponseV2 {
   turns: ChatTurnV2[];
 }
 
+/** A media reference attached on submit (feature 007): opaque id + display order, both strings. */
+export interface SubmitAttachmentRef {
+  media_id: string;
+  order: string;
+}
+
 export interface SubmitTurnRequestV2 {
   promptText: string;
   selectedConfiguredModelIds: string[];
   clientRequestId?: string;
-  attachments?: Attachment[];
+  attachments?: SubmitAttachmentRef[];
 }
 
 type ModelSseIdentity = {

@@ -3,8 +3,14 @@ package com.octopusllm.chat
 import com.octopusllm.auth.UserRepository
 import com.octopusllm.connection.ConfiguredModelService
 import com.octopusllm.connection.ConnectionService
+import com.octopusllm.admin.StorageSettings
+import com.octopusllm.connection.ConfiguredModel
 import com.octopusllm.llm.ConcurrentLlmOrchestrator
 import com.octopusllm.llm.LlmStreamEvent
+import com.octopusllm.llm.ModelDispatchTarget
+import com.octopusllm.media.Media
+import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
 import com.octopusllm.testsupport.Feature003Fixtures
 import io.mockk.every
 import io.mockk.slot
@@ -25,6 +31,8 @@ class ChatServiceTest {
     private val configuredModelService = mockk<ConfiguredModelService>()
     private val connectionService = mockk<ConnectionService>()
     private val orchestrator = mockk<ConcurrentLlmOrchestrator>()
+    private val mediaRepository = mockk<com.octopusllm.media.MediaRepository>()
+    private val storageSettingsService = mockk<com.octopusllm.admin.StorageSettingsService>()
     private val service = ChatService(
         sessionRepository,
         turnRepository,
@@ -33,6 +41,8 @@ class ChatServiceTest {
         configuredModelService,
         connectionService,
         orchestrator,
+        mediaRepository,
+        storageSettingsService,
     )
 
     @Test
@@ -172,6 +182,97 @@ class ChatServiceTest {
 
         verify(exactly = 0) { orchestrator.stream(any(), any()) }
         verify(exactly = 0) { configuredModelService.requireSelectable(any(), any()) }
+    }
+
+    @Test
+    fun `media turn dispatches only capable models and excludes the rest with a notice`() {
+        val user = Feature003Fixtures.user()
+        val connection = Feature003Fixtures.connection(user)
+        val vision = ConfiguredModel(
+            user = user,
+            connection = connection,
+            modelId = "vision",
+            displayName = "Vision",
+            capabilityOverrides = mapOf("input_modalities" to listOf("text", "image")),
+        )
+        val textOnly = Feature003Fixtures.configuredModel(user, connection, modelId = "text", displayName = "Text only")
+        val session = ChatSession(user = user)
+        val media = Media(
+            ownerUserId = user.id,
+            mediaType = "image",
+            mimeType = "image/png",
+            sizeBytes = 128,
+            storageBackend = "local",
+            storageKey = "k1",
+            publicUrl = "http://localhost:8080/media/k1",
+        )
+        val targets = slot<List<ModelDispatchTarget>>()
+        every { sessionRepository.findById(session.id) } returns Optional.of(session)
+        every { configuredModelService.requireSelectable(user.id, listOf(vision.id, textOnly.id)) } returns listOf(vision, textOnly)
+        every { mediaRepository.findAllByIdInAndOwnerUserId(setOf(media.id), user.id) } returns listOf(media)
+        every { storageSettingsService.get() } returns StorageSettings()
+        every { turnRepository.countBySessionId(session.id) } returns 0
+        every { turnRepository.save(any()) } answers { firstArg() }
+        every { turnRepository.findBySessionIdOrderBySequenceNum(session.id) } returns emptyList()
+        every { mediaRepository.saveAll(any<Iterable<Media>>()) } returns emptyList()
+        every { sessionRepository.save(any()) } answers { firstArg() }
+        every { connectionService.decryptAndValidate(connection) } returns "secret"
+        every { responseRepository.save(any()) } answers { firstArg() }
+        every { orchestrator.stream(capture(targets), any()) } returns Flux.just(
+            LlmStreamEvent.ModelComplete(vision.modelId, 1, 1, 5, configuredModelId = vision.id),
+        )
+
+        StepVerifier.create(
+            service.submitTurn(
+                session.id,
+                user.id,
+                "what is this?",
+                listOf(vision.id, textOnly.id),
+                listOf(mapOf("media_id" to media.id.toString(), "order" to "0")),
+                null,
+                null,
+            ),
+        ).thenConsumeWhile { true }.verifyComplete()
+
+        assertEquals(1, targets.captured.size)
+        assertEquals(vision.id, targets.captured.single().configuredModelId)
+        assert(media.turnId != null) // media bound to the saved turn
+    }
+
+    @Test
+    fun `media turn with no capable model is rejected`() {
+        val user = Feature003Fixtures.user()
+        val connection = Feature003Fixtures.connection(user)
+        val textOnly = Feature003Fixtures.configuredModel(user, connection, modelId = "text", displayName = "Text only")
+        val session = ChatSession(user = user)
+        val media = Media(
+            ownerUserId = user.id,
+            mediaType = "image",
+            mimeType = "image/png",
+            sizeBytes = 128,
+            storageBackend = "local",
+            storageKey = "k2",
+            publicUrl = "http://localhost:8080/media/k2",
+        )
+        every { sessionRepository.findById(session.id) } returns Optional.of(session)
+        every { configuredModelService.requireSelectable(user.id, listOf(textOnly.id)) } returns listOf(textOnly)
+        every { mediaRepository.findAllByIdInAndOwnerUserId(setOf(media.id), user.id) } returns listOf(media)
+        every { storageSettingsService.get() } returns StorageSettings()
+
+        StepVerifier.create(
+            service.submitTurn(
+                session.id,
+                user.id,
+                "what is this?",
+                listOf(textOnly.id),
+                listOf(mapOf("media_id" to media.id.toString())),
+                null,
+                null,
+            ),
+        ).expectErrorMatches { it is ResponseStatusException && it.statusCode == HttpStatus.CONFLICT }
+            .verify()
+
+        verify(exactly = 0) { orchestrator.stream(any(), any()) }
     }
 
     private fun response(

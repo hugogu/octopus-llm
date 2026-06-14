@@ -1,7 +1,9 @@
 package com.octopusllm.chat
 
+import com.octopusllm.admin.StorageSettingsService
 import com.octopusllm.auth.UserRepository
 import com.octopusllm.config.DuplicateRequestException
+import com.octopusllm.connection.ConfiguredModel
 import com.octopusllm.connection.ConfiguredModelService
 import com.octopusllm.connection.ConnectionService
 import com.octopusllm.llm.Attachment
@@ -10,6 +12,7 @@ import com.octopusllm.llm.HistoryTurn
 import com.octopusllm.llm.LlmRequest
 import com.octopusllm.llm.LlmStreamEvent
 import com.octopusllm.llm.ModelDispatchTarget
+import com.octopusllm.media.MediaRepository
 import com.octopusllm.model.ProtocolDefinitions
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
@@ -32,6 +35,8 @@ class ChatService(
     private val configuredModelService: ConfiguredModelService,
     private val connectionService: ConnectionService,
     private val orchestrator: ConcurrentLlmOrchestrator,
+    private val mediaRepository: MediaRepository,
+    private val storageSettingsService: StorageSettingsService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -80,7 +85,7 @@ class ChatService(
         clientRequestId: String?,
         clientIp: String?,
     ): Flux<LlmStreamEvent> {
-        val setup: Mono<Triple<ChatTurn, List<ModelDispatchTarget>, LlmRequest>> =
+        val setup: Mono<TurnSetup> =
             blocking {
                 if (clientRequestId != null) {
                     turnRepository.findByClientRequestId(clientRequestId)?.let {
@@ -93,33 +98,127 @@ class ChatService(
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "One or more configured models are disabled")
                 }
 
+                // Resolve and validate media references (feature 007). The client sends opaque
+                // media ids (+ order); type/mime/size/url come authoritatively from the media rows.
+                val orderedRefs = attachments.mapNotNull { ref ->
+                    ref["media_id"]?.let { id -> runCatching { UUID.fromString(id) }.getOrNull()?.to(ref["order"]?.toIntOrNull() ?: 0) }
+                }
+                val mediaById = resolveMedia(orderedRefs.map { it.first }, userId)
+                val attachedTypes = mediaById.values.map { it.mediaType }.toSet()
+
+                // Capability gating: a model is capable only if it accepts every attached media type.
+                val capable = models.filter { model -> attachedTypes.all { it in modalitiesOf(model) } }
+                val excluded = models.filterNot { it in capable }
+                if (attachedTypes.isNotEmpty() && capable.isEmpty()) {
+                    throw ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "No selected model can accept the attached media (${attachedTypes.joinToString(", ")})",
+                    )
+                }
+
+                val turnRefs = orderedRefs.mapNotNull { (id, order) ->
+                    mediaById[id]?.let { m ->
+                        mapOf<String, Any?>(
+                            "media_id" to m.id.toString(),
+                            "media_type" to m.mediaType,
+                            "mime_type" to m.mimeType,
+                            "size_bytes" to m.sizeBytes,
+                            "url" to m.publicUrl,
+                            "order" to order,
+                        )
+                    }
+                }.sortedBy { it["order"] as Int }
+
                 val sequence = turnRepository.countBySessionId(sessionId).toInt() + 1
                 val turn = turnRepository.save(
                     ChatTurn(
                         session = session,
                         sequenceNum = sequence,
                         promptText = promptText,
-                        attachments = attachments.ifEmpty { null },
-                        selectedModelIds = models.map { it.modelId }.toTypedArray(),
-                        selectedConfiguredModelIds = models.map { it.id }.toTypedArray(),
+                        attachments = turnRefs.ifEmpty { null },
+                        // Record only the models actually dispatched; excluded models surface as notices.
+                        selectedModelIds = capable.map { it.modelId }.toTypedArray(),
+                        selectedConfiguredModelIds = capable.map { it.id }.toTypedArray(),
                         clientRequestId = clientRequestId,
                         clientIp = clientIp,
                     ),
                 )
 
+                // Bind the media to this turn (immutable from here; orphan sweep no longer touches it).
+                if (mediaById.isNotEmpty()) {
+                    mediaById.values.forEach { it.turnId = turn.id }
+                    mediaRepository.saveAll(mediaById.values)
+                }
+
                 if (session.title == null) session.title = promptText.trim().take(60)
                 session.updatedAt = Instant.now()
                 sessionRepository.save(session)
 
-                val targets = models.map(::dispatchTarget)
+                val targets = capable.map(::dispatchTarget)
                 val request = requestForTurn(sessionId, turn)
-                Triple(turn, targets, request)
+                val excludedNotices = excluded.map { model ->
+                    LlmStreamEvent.CapabilityNotice(
+                        modelId = model.modelId,
+                        notice = "${model.displayName} does not support ${attachedTypes.joinToString(", ")} input",
+                        configuredModelId = model.id,
+                    )
+                }
+                TurnSetup(turn, targets, request, excludedNotices)
             }
 
-        return setup.flatMapMany { (turn, targets, request) ->
-            val attempts = targets.associate { it.configuredModelId to ResponseAttempt(1, null) }
-            streamResponses(turn, userId, targets, request, attempts, includeTurnCreated = true)
+        return setup.flatMapMany { setupResult ->
+            val attempts = setupResult.targets.associate { it.configuredModelId to ResponseAttempt(1, null) }
+            streamResponses(
+                setupResult.turn,
+                userId,
+                setupResult.targets,
+                setupResult.request,
+                attempts,
+                includeTurnCreated = true,
+                leadingNotices = setupResult.excludedNotices,
+            )
         }
+    }
+
+    private data class TurnSetup(
+        val turn: ChatTurn,
+        val targets: List<ModelDispatchTarget>,
+        val request: LlmRequest,
+        val excludedNotices: List<LlmStreamEvent.CapabilityNotice>,
+    )
+
+    /** Loads owned, orphaned media by id; enforces per-prompt ceiling and that none is already bound. */
+    private fun resolveMedia(ids: List<UUID>, userId: UUID): Map<UUID, com.octopusllm.media.Media> {
+        if (ids.isEmpty()) return emptyMap()
+        val distinct = ids.toSet()
+        val found = mediaRepository.findAllByIdInAndOwnerUserId(distinct, userId)
+        if (found.size != distinct.size) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown or unauthorized media reference")
+        }
+        found.firstOrNull { it.turnId != null }?.let {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Media is already attached to a turn")
+        }
+        val settings = storageSettingsService.get()
+        if (found.size > settings.maxFilesPerPrompt) {
+            throw ResponseStatusException(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "At most ${settings.maxFilesPerPrompt} attachments per message",
+            )
+        }
+        val total = found.sumOf { it.sizeBytes }
+        if (total > settings.maxTotalBytesPerPrompt) {
+            throw ResponseStatusException(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "Attachments exceed the ${settings.maxTotalBytesPerPrompt}-byte per-message limit",
+            )
+        }
+        return found.associateBy { it.id }
+    }
+
+    private fun modalitiesOf(model: ConfiguredModel): Set<String> {
+        val protocol = ProtocolDefinitions.require(model.connection.protocol)
+        return ProtocolDefinitions.mergeCapabilities(protocol.baseline, model.capabilityOverrides)
+            .inputModalities.toSet()
     }
 
     fun retryModel(
@@ -206,6 +305,7 @@ class ChatService(
         request: LlmRequest,
         attempts: Map<UUID, ResponseAttempt>,
         includeTurnCreated: Boolean,
+        leadingNotices: List<LlmStreamEvent> = emptyList(),
     ): Flux<LlmStreamEvent> {
         val textBuffers = ConcurrentHashMap<UUID, StringBuilder>()
         val reasoningBuffers = ConcurrentHashMap<UUID, StringBuilder>()
@@ -289,7 +389,7 @@ class ChatService(
             modelId = "__system__",
             notice = """{"event":"turn_created","turnId":"${turn.id}","sequenceNum":${turn.sequenceNum}}""",
         )
-        return Flux.concat(Flux.just(turnCreated), modelEvents)
+        return Flux.concat(Flux.just(turnCreated), Flux.fromIterable(leadingNotices), modelEvents)
     }
 
     private fun replayResponse(response: ProviderResponse): Flux<LlmStreamEvent> {
@@ -359,11 +459,15 @@ class ChatService(
         return LlmRequest(
             prompt = turn.promptText,
             history = history,
-            attachments = turn.attachments.orEmpty().map {
+            // Supports both the feature-007 media-reference shape (media_type/mime_type/url) and the
+            // legacy inline-base64 shape (type/data/mimeType). Media is only on the current turn.
+            attachments = turn.attachments.orEmpty().mapNotNull { ref ->
+                val type = (ref["media_type"] ?: ref["type"]) as? String ?: return@mapNotNull null
                 Attachment(
-                    type = it["type"].orEmpty(),
-                    data = it["data"].orEmpty(),
-                    mimeType = it["mimeType"] ?: it["mime_type"].orEmpty(),
+                    type = type,
+                    data = (ref["data"] as? String).orEmpty(),
+                    mimeType = (ref["mime_type"] ?: ref["mimeType"]) as? String ?: "",
+                    url = ref["url"] as? String,
                 )
             },
         )

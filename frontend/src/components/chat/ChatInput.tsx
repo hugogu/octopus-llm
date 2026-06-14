@@ -2,51 +2,42 @@
 
 import { useState, useRef } from "react";
 import { Paperclip, ArrowUp, X } from "lucide-react";
-import type { Attachment } from "@/lib/types/api";
 
 interface ChatInputProps {
-  onSubmit: (promptText: string, attachments: Attachment[]) => void;
+  onSubmit: (promptText: string, files: File[]) => void;
   disabled?: boolean;
   supportsAttachments?: boolean;
 }
 
+function mediaKind(file: File): "image" | "video" | "audio" | "file" {
+  if (file.type.startsWith("image/")) return "image";
+  if (file.type.startsWith("video/")) return "video";
+  if (file.type.startsWith("audio/")) return "audio";
+  return "file";
+}
+
 export default function ChatInput({ onSubmit, disabled = false, supportsAttachments = false }: ChatInputProps) {
   const [text, setText] = useState("");
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    const encoded = await Promise.all(
-      files.map((file) =>
-        new Promise<Attachment>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const dataUrl = reader.result as string;
-            const base64 = dataUrl.split(",")[1] ?? "";
-            const type = file.type.startsWith("video/") ? "video" : "image";
-            resolve({ type, data: base64, mimeType: file.type });
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        }),
-      ),
-    );
-    setAttachments((prev) => [...prev, ...encoded]);
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    setFiles((prev) => [...prev, ...selected]);
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  function removeAttachment(index: number) {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = text.trim();
-    if (!trimmed && attachments.length === 0) return;
-    onSubmit(trimmed, attachments);
+    if (!trimmed && files.length === 0) return;
+    onSubmit(trimmed, files);
     setText("");
-    setAttachments([]);
+    setFiles([]);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -56,23 +47,23 @@ export default function ChatInput({ onSubmit, disabled = false, supportsAttachme
     }
   }
 
-  const canSend = !disabled && (text.trim().length > 0 || attachments.length > 0);
+  const canSend = !disabled && (text.trim().length > 0 || files.length > 0);
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto w-full max-w-3xl">
       <div className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-white p-2.5 shadow-sm transition focus-within:border-[#c96442] focus-within:ring-1 focus-within:ring-[#c96442]">
-        {attachments.length > 0 && (
+        {files.length > 0 && (
           <div className="flex flex-wrap gap-2 px-1 pt-1">
-            {attachments.map((att, i) => (
+            {files.map((file, i) => (
               <span
-                key={i}
+                key={`${file.name}-${i}`}
                 className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs text-stone-600"
               >
-                <span className="font-medium capitalize">{att.type}</span>
-                <span className="text-stone-400">{att.mimeType}</span>
+                <span className="font-medium capitalize">{mediaKind(file)}</span>
+                <span className="max-w-[10rem] truncate text-stone-400">{file.name}</span>
                 <button
                   type="button"
-                  onClick={() => removeAttachment(i)}
+                  onClick={() => removeFile(i)}
                   className="text-stone-400 transition hover:text-stone-700"
                   aria-label="Remove attachment"
                 >

@@ -25,9 +25,11 @@ class ChatTurn(
     @Column(name = "prompt_text", nullable = false, columnDefinition = "TEXT")
     val promptText: String,
 
+    // Feature 007: ordered media references {media_id, media_type, mime_type, size_bytes, url, order}.
+    // Legacy rows may hold the old inline-base64 shape {type, data, mimeType}; both read as Any?.
     @Type(JsonType::class)
     @Column(columnDefinition = "jsonb")
-    val attachments: List<Map<String, String>>? = null,
+    val attachments: List<Map<String, Any?>>? = null,
 
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "selected_model_ids", nullable = false, columnDefinition = "TEXT[]")

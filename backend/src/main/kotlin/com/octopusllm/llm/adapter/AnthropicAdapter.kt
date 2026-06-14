@@ -113,16 +113,13 @@ class AnthropicAdapter(
             request.attachments
                 .filter { it.type == "image" }
                 .forEach { att ->
-                    parts.add(
-                        mapOf(
-                            "type" to "image",
-                            "source" to mapOf(
-                                "type" to "base64",
-                                "media_type" to att.mimeType,
-                                "data" to att.data,
-                            ),
-                        ),
-                    )
+                    // Prefer the public media URL (feature 007); fall back to inline base64 for legacy turns.
+                    val source = if (!att.url.isNullOrBlank()) {
+                        mapOf("type" to "url", "url" to att.url)
+                    } else {
+                        mapOf("type" to "base64", "media_type" to att.mimeType, "data" to att.data)
+                    }
+                    parts.add(mapOf("type" to "image", "source" to source))
                 }
             messages.add(mapOf("role" to "user", "content" to parts))
         }

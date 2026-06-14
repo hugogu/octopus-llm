@@ -103,16 +103,15 @@ class OpenAiCompatAdapter(
         } else {
             val parts = mutableListOf<Map<String, Any>>()
             parts.add(mapOf("type" to "text", "text" to request.prompt))
-            request.attachments
-                .filter { it.type == "image" }
-                .forEach { att ->
-                    parts.add(
-                        mapOf(
-                            "type" to "image_url",
-                            "image_url" to mapOf("url" to "data:${att.mimeType};base64,${att.data}"),
-                        ),
-                    )
+            request.attachments.forEach { att ->
+                // Prefer the public media URL (feature 007); fall back to a base64 data URI for legacy turns.
+                val url = att.url?.takeIf { it.isNotBlank() } ?: "data:${att.mimeType};base64,${att.data}"
+                when (att.type) {
+                    "image" -> parts.add(mapOf("type" to "image_url", "image_url" to mapOf("url" to url)))
+                    // Video input part name varies by OpenAI-compatible provider (e.g. GLM-4V `video_url`).
+                    "video" -> parts.add(mapOf("type" to "video_url", "video_url" to mapOf("url" to url)))
                 }
+            }
             messages.add(mapOf("role" to "user", "content" to parts))
         }
 
