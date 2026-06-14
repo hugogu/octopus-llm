@@ -36,6 +36,8 @@ describe("useParallelStream", () => {
       modelId: "provider-id",
       inputTokens: 3,
       outputTokens: 7,
+      cacheReadTokens: 1024,
+      cacheWriteTokens: null,
       latencyMs: 42,
       responseId: "response-a",
     }));

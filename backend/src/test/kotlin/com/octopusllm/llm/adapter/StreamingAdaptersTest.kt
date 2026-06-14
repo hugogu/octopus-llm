@@ -121,6 +121,59 @@ class StreamingAdaptersTest {
     }
 
     @Test
+    fun `anthropic stream captures normalized cache read and write tokens`() {
+        startServer("/v1/messages") { exchange ->
+            capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"type":"message_start","message":{"usage":{"input_tokens":11,"cache_read_input_tokens":1024,"cache_creation_input_tokens":256}}}""" + "\n\n",
+                    """data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"answer"}}""" + "\n\n",
+                    """data: {"type":"message_delta","usage":{"output_tokens":5}}""" + "\n\n",
+                    """data: {"type":"message_stop"}""" + "\n\n",
+                ),
+            )
+        }
+
+        val events = AnthropicAdapter(mapper).stream(
+            modelId = "claude-test",
+            request = LlmRequest("hello"),
+            decryptedApiKey = "anthropic-secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        val complete = events.last() as LlmStreamEvent.ModelComplete
+        assertEquals(1024, complete.cacheReadTokens)
+        assertEquals(256, complete.cacheWriteTokens)
+    }
+
+    @Test
+    fun `openai stream maps cached prompt tokens to cache read with no write dimension`() {
+        startServer("/v1/chat/completions") { exchange ->
+            capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"hi"}}]}""" + "\n\n",
+                    """data: {"choices":[],"usage":{"prompt_tokens":7,"completion_tokens":3,"prompt_tokens_details":{"cached_tokens":4}}}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        val events = OpenAiCompatAdapter(mapper).stream(
+            modelId = "provider-model",
+            request = LlmRequest("describe"),
+            decryptedApiKey = "test-secret",
+            baseUrlOverride = baseUrl("/v1"),
+        ).collectList().block()!!
+
+        val complete = events.last() as LlmStreamEvent.ModelComplete
+        assertEquals(4, complete.cacheReadTokens)
+        assertEquals(null, complete.cacheWriteTokens)
+    }
+
+    @Test
     fun `three provider streams subscribe concurrently`() {
         val allArrived = CountDownLatch(3)
         val paths = Collections.synchronizedList(mutableListOf<String>())

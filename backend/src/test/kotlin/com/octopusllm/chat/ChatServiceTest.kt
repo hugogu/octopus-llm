@@ -126,7 +126,7 @@ class ChatServiceTest {
         every { connectionService.decryptAndValidate(connection) } returns "secret"
         every { orchestrator.stream(any(), any()) } returns Flux.just(
             LlmStreamEvent.Token(model.modelId, "answer", model.id),
-            LlmStreamEvent.ModelComplete(model.modelId, 3, 4, 20, model.id),
+            LlmStreamEvent.ModelComplete(model.modelId, 3, 4, 20, configuredModelId = model.id),
         )
         every { responseRepository.save(capture(saved)) } answers { saved.captured }
 

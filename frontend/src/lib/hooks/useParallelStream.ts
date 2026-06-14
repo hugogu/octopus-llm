@@ -10,6 +10,8 @@ export interface ModelStreamState {
   errorMessage?: string;
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number | null;
+  cacheWriteTokens?: number | null;
   latencyMs?: number;
   capabilityNotice?: string;
   responseId?: string;
@@ -125,6 +127,8 @@ export function useParallelStream() {
         status: 'complete',
         inputTokens: event.inputTokens,
         outputTokens: event.outputTokens,
+        cacheReadTokens: event.cacheReadTokens,
+        cacheWriteTokens: event.cacheWriteTokens,
         latencyMs: event.latencyMs,
         responseId: event.responseId,
       });

@@ -30,6 +30,7 @@ class OpenAiCompatAdapter(
             val startMs = System.currentTimeMillis()
             var inputTokens: Int? = null
             var outputTokens: Int? = null
+            var cacheReadTokens: Int? = null
             var chunks = 0
             val baseUrl = requireNotNull(baseUrlOverride) { "baseUrlOverride is required" }
             val client = StreamingWebClient.builder(baseUrl)
@@ -50,6 +51,10 @@ class OpenAiCompatAdapter(
                     json.path("usage").takeIf(JsonNode::isObject)?.let { usage ->
                         inputTokens = usage.intOrNull("prompt_tokens") ?: inputTokens
                         outputTokens = usage.intOrNull("completion_tokens") ?: outputTokens
+                        // OpenAI-compatible cache reporting: prompt_tokens_details.cached_tokens →
+                        // cache-read. There is no cache-write dimension in this shape.
+                        cacheReadTokens = usage.path("prompt_tokens_details").intOrNull("cached_tokens")
+                            ?: cacheReadTokens
                     }
                     parseChunk(modelId, json).doOnNext {
                         if (it is LlmStreamEvent.Token) chunks++
@@ -62,6 +67,7 @@ class OpenAiCompatAdapter(
                             inputTokens = inputTokens,
                             outputTokens = outputTokens ?: chunks,
                             latencyMs = System.currentTimeMillis() - startMs,
+                            cacheReadTokens = cacheReadTokens,
                         )
                     },
                 )

@@ -60,6 +60,12 @@ class ProviderResponse(
     @Column(name = "output_tokens")
     val outputTokens: Int? = null,
 
+    @Column(name = "cache_read_tokens")
+    val cacheReadTokens: Int? = null,
+
+    @Column(name = "cache_write_tokens")
+    val cacheWriteTokens: Int? = null,
+
     @Column(name = "latency_ms", nullable = false)
     val latencyMs: Int,
 

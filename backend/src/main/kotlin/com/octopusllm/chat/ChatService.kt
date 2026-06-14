@@ -248,6 +248,8 @@ class ChatService(
                             reasoningText = reasoningBuffers[configuredModelId]?.toString()?.ifBlank { null },
                             inputTokens = event.inputTokens,
                             outputTokens = event.outputTokens,
+                            cacheReadTokens = event.cacheReadTokens,
+                            cacheWriteTokens = event.cacheWriteTokens,
                             latencyMs = event.latencyMs.toInt(),
                             inputPricePerMtok = target.inputPricePerMtok,
                             outputPricePerMtok = target.outputPricePerMtok,
@@ -305,6 +307,8 @@ class ChatService(
                     inputTokens = response.inputTokens,
                     outputTokens = response.outputTokens,
                     latencyMs = response.latencyMs.toLong(),
+                    cacheReadTokens = response.cacheReadTokens,
+                    cacheWriteTokens = response.cacheWriteTokens,
                     configuredModelId = response.configuredModelId,
                     responseId = response.id,
                 )

@@ -8,6 +8,7 @@ import ThinkingBlock from "./ThinkingBlock";
 import ExpandableContent from "./ExpandableContent";
 import CopyButton from "@/components/ui/CopyButton";
 import ResponseLikeButton from "./ResponseLikeButton";
+import ResponseDetails from "./ResponseDetails";
 
 interface ModelResponsePanelProps {
   modelId: string;
@@ -19,6 +20,8 @@ interface ModelResponsePanelProps {
   errorMessage?: string;
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number | null;
+  cacheWriteTokens?: number | null;
   latencyMs?: number;
   capabilityNotice?: string;
   capabilityMatrix?: CapabilityMatrix;
@@ -40,6 +43,8 @@ export default function ModelResponsePanel({
   errorMessage,
   inputTokens,
   outputTokens,
+  cacheReadTokens,
+  cacheWriteTokens,
   latencyMs,
   capabilityNotice,
   capabilityMatrix,
@@ -83,12 +88,14 @@ export default function ModelResponsePanel({
               {anonymousLikeCount}
             </span>
           ) : null}
-          {status === "complete" && (
-            <span className="hidden text-xs text-stone-400 sm:block">
-              {latencyMs !== undefined && `${(latencyMs / 1000).toFixed(1)}s`}
-              {inputTokens !== undefined && ` · in ${inputTokens}`}
-              {outputTokens !== undefined && ` · out ${outputTokens}`}
-            </span>
+          {(status === "complete" || status === "error") && (
+            <ResponseDetails
+              latencyMs={latencyMs}
+              inputTokens={inputTokens}
+              outputTokens={outputTokens}
+              cacheReadTokens={cacheReadTokens}
+              cacheWriteTokens={cacheWriteTokens}
+            />
           )}
           {(status === "complete" || status === "error") && text && (
             <CopyButton text={text} />

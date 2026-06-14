@@ -31,6 +31,8 @@ class AnthropicAdapter(
             val startMs = System.currentTimeMillis()
             var inputTokens: Int? = null
             var outputTokens: Int? = null
+            var cacheReadTokens: Int? = null
+            var cacheWriteTokens: Int? = null
             val baseUrl = requireNotNull(baseUrlOverride) { "baseUrlOverride is required" }
             val client = StreamingWebClient.builder(baseUrl)
                 .defaultHeader("x-api-key", decryptedApiKey)
@@ -48,7 +50,10 @@ class AnthropicAdapter(
                     val json = parseProviderJson(payload)
                     when (json.path("type").asText()) {
                         "message_start" -> {
-                            inputTokens = json.path("message").path("usage").intOrNull("input_tokens") ?: inputTokens
+                            val usage = json.path("message").path("usage")
+                            inputTokens = usage.intOrNull("input_tokens") ?: inputTokens
+                            cacheReadTokens = usage.intOrNull("cache_read_input_tokens") ?: cacheReadTokens
+                            cacheWriteTokens = usage.intOrNull("cache_creation_input_tokens") ?: cacheWriteTokens
                             Flux.empty()
                         }
                         "content_block_delta" -> parseContentDelta(modelId, json.path("delta"))
@@ -66,6 +71,8 @@ class AnthropicAdapter(
                             inputTokens = inputTokens,
                             outputTokens = outputTokens,
                             latencyMs = System.currentTimeMillis() - startMs,
+                            cacheReadTokens = cacheReadTokens,
+                            cacheWriteTokens = cacheWriteTokens,
                         )
                     },
                 )

@@ -358,6 +358,8 @@ export interface ProviderResponseV2 {
   errorMessage: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
   latencyMs: number;
   likeCount: number;
   likedByMe: boolean;
@@ -401,6 +403,8 @@ export type SseEventV2 =
       event: "model_complete";
       inputTokens: number;
       outputTokens: number;
+      cacheReadTokens: number | null;
+      cacheWriteTokens: number | null;
       latencyMs: number;
       responseId: string;
     })

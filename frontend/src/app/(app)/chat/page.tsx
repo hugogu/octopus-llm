@@ -325,6 +325,8 @@ export default function ChatPage() {
               errorMessage={retryState?.errorMessage ?? response.errorMessage ?? undefined}
               inputTokens={retryState?.inputTokens ?? response.inputTokens ?? undefined}
               outputTokens={retryState?.outputTokens ?? response.outputTokens ?? undefined}
+              cacheReadTokens={retryState?.cacheReadTokens ?? response.cacheReadTokens}
+              cacheWriteTokens={retryState?.cacheWriteTokens ?? response.cacheWriteTokens}
               latencyMs={retryState?.latencyMs ?? response.latencyMs}
               capabilityMatrix={modelsById[response.configuredModelId]?.capabilityMatrix}
               responseId={retryState?.responseId ?? response.responseId}
@@ -442,6 +444,8 @@ export default function ChatPage() {
                             errorMessage={state?.errorMessage}
                             inputTokens={state?.inputTokens}
                             outputTokens={state?.outputTokens}
+                            cacheReadTokens={state?.cacheReadTokens}
+                            cacheWriteTokens={state?.cacheWriteTokens}
                             latencyMs={state?.latencyMs}
                             capabilityNotice={state?.capabilityNotice}
                             capabilityMatrix={model?.capabilityMatrix}

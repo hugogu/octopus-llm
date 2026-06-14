@@ -16,10 +16,19 @@ describe('classifyFence', () => {
 });
 
 describe('FencedBlock', () => {
-  it('renders HTML as source by default with no diagram preview (Q2)', () => {
+  it('renders HTML as source by default and runs in a sandbox only on explicit Run (Q2/FR-010)', async () => {
     const { container } = render(<FencedBlock language="html" source="<b>hi-there</b>" />);
     expect(screen.queryByRole('button', { name: /diagram/i })).not.toBeInTheDocument();
+    // Default = source view, no iframe mounted → no auto-execution.
+    expect(container.querySelector('iframe')).toBeNull();
     expect(container.textContent).toContain('hi-there');
+
+    await userEvent.click(screen.getByRole('button', { name: /run/i }));
+    const iframe = container.querySelector('iframe');
+    expect(iframe).not.toBeNull();
+    const sandbox = iframe?.getAttribute('sandbox') ?? '';
+    expect(sandbox).toContain('allow-scripts');
+    expect(sandbox).not.toContain('allow-same-origin');
   });
 
   it('renders an SVG block with a preview/source toggle, switchable to exact source (FR-004/005)', async () => {

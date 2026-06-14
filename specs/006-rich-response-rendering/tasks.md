@@ -102,9 +102,9 @@ but no host-credential access (Q4).
 **Independent Test**: Clicking Run executes the artifact in an `<iframe>` whose `sandbox` lacks
 `allow-same-origin`; it cannot read the token/storage or navigate the host; SVG script is neutralized.
 
-- [ ] T020 [P] [US3] Create `frontend/src/components/chat/RunnableArtifact.tsx`: `<iframe srcdoc>` with `sandbox="allow-scripts allow-popups allow-forms allow-modals"` (**no `allow-same-origin`**); mounts only after explicit Run (FR-008/009/010)
-- [ ] T021 [US3] Wire the `html-runnable` Run action in the dispatcher to `RunnableArtifact`; route SVG run/preview through `SvgPreview` (FR-011)
-- [ ] T022 [P] [US3] Playwright in `frontend/tests/` : iframe `sandbox` omits `allow-same-origin`; no auto-run before click; artifact cannot reach `localStorage`/token; SVG `<script>` does not execute (SC-004)
+- [X] T020 [P] [US3] Create `frontend/src/components/chat/RunnableArtifact.tsx`: `<iframe srcdoc>` with `sandbox="allow-scripts allow-popups allow-forms allow-modals"` (**no `allow-same-origin`**); mounts only after explicit Run (FR-008/009/010)
+- [X] T021 [US3] Wire the `html-runnable` Run action in the dispatcher to `RunnableArtifact`; route SVG run/preview through `SvgPreview` (FR-011)
+- [X] T022 [P] [US3] Playwright in `frontend/tests/` : iframe `sandbox` omits `allow-same-origin`; no auto-run before click; artifact cannot reach `localStorage`/token; SVG `<script>` does not execute (SC-004)
 
 **Checkpoint**: US1–US3 work in-app.
 
@@ -120,22 +120,22 @@ new cache-capable response shows real cache numbers; older responses show "—".
 
 ### Backend — cache capture (immutable write path)
 
-- [ ] T023 [US4] Create migration `backend/src/main/resources/db/migration/V029__provider_response_cache_tokens.sql`: add nullable `cache_read_tokens`, `cache_write_tokens` (+ `>= 0` CHECKs), no backfill
-- [ ] T024 [US4] Add `cacheReadTokens`/`cacheWriteTokens` columns to `backend/src/main/kotlin/com/octopusllm/chat/ProviderResponse.kt`
-- [ ] T025 [US4] Add `cacheReadTokens`/`cacheWriteTokens` to `LlmStreamEvent.ModelComplete` in `backend/src/main/kotlin/com/octopusllm/llm/LlmStreamEvent.kt`
-- [ ] T026 [P] [US4] Parse cache usage in `backend/src/main/kotlin/com/octopusllm/llm/adapter/AnthropicAdapter.kt` (`cache_read_input_tokens` → read, `cache_creation_input_tokens` → write)
-- [ ] T027 [P] [US4] Parse cache usage in `backend/src/main/kotlin/com/octopusllm/llm/adapter/OpenAiCompatAdapter.kt` (`usage.prompt_tokens_details.cached_tokens` → read; write = null)
-- [ ] T028 [P] [US4] Map cache usage in `backend/src/main/kotlin/com/octopusllm/llm/adapter/MiniMaxAdapter.kt` if reported, else nulls
-- [ ] T029 [US4] Persist cache tokens into the `provider_responses` INSERT in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt` (depends on T023–T028)
-- [ ] T030 [US4] Surface cache fields in `ProviderResponseV2` and the `model_complete` SSE event in `backend/src/main/kotlin/com/octopusllm/chat/ChatControllerV2.kt`
-- [ ] T031 [P] [US4] Backend test (MockK + slice): Anthropic cache usage parsed → persisted → surfaced in `ProviderResponseV2`/SSE; nulls handled gracefully
+- [X] T023 [US4] Create migration `backend/src/main/resources/db/migration/V029__provider_response_cache_tokens.sql`: add nullable `cache_read_tokens`, `cache_write_tokens` (+ `>= 0` CHECKs), no backfill
+- [X] T024 [US4] Add `cacheReadTokens`/`cacheWriteTokens` columns to `backend/src/main/kotlin/com/octopusllm/chat/ProviderResponse.kt`
+- [X] T025 [US4] Add `cacheReadTokens`/`cacheWriteTokens` to `LlmStreamEvent.ModelComplete` in `backend/src/main/kotlin/com/octopusllm/llm/LlmStreamEvent.kt`
+- [X] T026 [P] [US4] Parse cache usage in `backend/src/main/kotlin/com/octopusllm/llm/adapter/AnthropicAdapter.kt` (`cache_read_input_tokens` → read, `cache_creation_input_tokens` → write)
+- [X] T027 [P] [US4] Parse cache usage in `backend/src/main/kotlin/com/octopusllm/llm/adapter/OpenAiCompatAdapter.kt` (`usage.prompt_tokens_details.cached_tokens` → read; write = null)
+- [X] T028 [P] [US4] Map cache usage in `backend/src/main/kotlin/com/octopusllm/llm/adapter/MiniMaxAdapter.kt` if reported, else nulls
+- [X] T029 [US4] Persist cache tokens into the `provider_responses` INSERT in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt` (depends on T023–T028)
+- [X] T030 [US4] Surface cache fields in `ProviderResponseV2` and the `model_complete` SSE event in `backend/src/main/kotlin/com/octopusllm/chat/ChatControllerV2.kt`
+- [X] T031 [P] [US4] Backend test (MockK + slice): Anthropic cache usage parsed → persisted → surfaced in `ProviderResponseV2`/SSE; nulls handled gracefully
 
 ### Frontend — details affordance
 
-- [ ] T032 [P] [US4] Add `cacheReadTokens`/`cacheWriteTokens` (`number | null`) to `ProviderResponseV2` and the `model_complete` SSE type in `frontend/src/lib/types/api.ts`
-- [ ] T033 [P] [US4] Create `frontend/src/components/chat/ResponseDetails.tsx`: popover with latency, in/out, cache-read, cache-write; render "—" for null (FR-012/014)
-- [ ] T034 [US4] In `frontend/src/components/chat/ModelResponsePanel.tsx`, replace the inline usage span with the `ResponseDetails` Info affordance and thread cache fields from SSE/session (FR-013)
-- [ ] T035 [P] [US4] Vitest in `frontend/src/components/chat/ResponseDetails.test.tsx`: shows all figures; "—" placeholders for missing/cache-less responses
+- [X] T032 [P] [US4] Add `cacheReadTokens`/`cacheWriteTokens` (`number | null`) to `ProviderResponseV2` and the `model_complete` SSE type in `frontend/src/lib/types/api.ts`
+- [X] T033 [P] [US4] Create `frontend/src/components/chat/ResponseDetails.tsx`: popover with latency, in/out, cache-read, cache-write; render "—" for null (FR-012/014)
+- [X] T034 [US4] In `frontend/src/components/chat/ModelResponsePanel.tsx`, replace the inline usage span with the `ResponseDetails` Info affordance and thread cache fields from SSE/session (FR-013)
+- [X] T035 [P] [US4] Vitest in `frontend/src/components/chat/ResponseDetails.test.tsx`: shows all figures; "—" placeholders for missing/cache-less responses
 
 **Checkpoint**: US4 works in-app; cache figures end-to-end.
 
