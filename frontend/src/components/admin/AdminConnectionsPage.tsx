@@ -275,9 +275,16 @@ function ConnectionCard({
           <ul className="mb-3 divide-y divide-stone-100">
             {models.map((m) => (
               <li key={m.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
-                <span className="min-w-0 truncate">
-                  <span className="font-medium text-stone-800">{m.displayName}</span>{" "}
-                  <span className="font-mono text-xs text-stone-400">{m.modelId}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">
+                    <span className="font-medium text-stone-800">{m.displayName}</span>{" "}
+                    <span className="font-mono text-xs text-stone-400">{m.modelId}</span>
+                  </span>
+                  <span className="text-[11px] text-stone-400">
+                    {m.priceCurrency
+                      ? `${m.inputPricePerMtok ?? "—"} in / ${m.outputPricePerMtok ?? "—"} out per 1M ${m.priceCurrency}`
+                      : "no pricing"}
+                  </span>
                 </span>
                 <div className="flex shrink-0 items-center gap-1">
                   {MODALITY_KEYS.map((key) => {

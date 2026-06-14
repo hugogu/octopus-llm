@@ -103,7 +103,17 @@ class SecurityConfig(
             allowCredentials = true
             maxAge = 3600L
         }
+        // Public media (feature 007) is opaque and credential-free; allow any origin to GET it so the
+        // share long-image export (html-to-image) can rasterize cross-origin media without tainting.
+        val mediaConfig = CorsConfiguration().apply {
+            allowedOriginPatterns = listOf("*")
+            allowedMethods = listOf("GET", "HEAD")
+            allowedHeaders = listOf("*")
+            allowCredentials = false
+            maxAge = 3600L
+        }
         return UrlBasedCorsConfigurationSource().apply {
+            registerCorsConfiguration("/media/**", mediaConfig)
             registerCorsConfiguration("/**", config)
         }
     }

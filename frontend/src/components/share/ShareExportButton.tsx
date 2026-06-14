@@ -91,6 +91,22 @@ export default function ShareExportButton({ session }: { session: SharedSession 
             {session.turns.map((turn) => (
               <section key={turn.sequenceNum} className="space-y-3">
                 <div className="ml-auto w-fit max-w-2xl rounded-2xl bg-[#30302e] px-4 py-3 text-white">
+                  {(turn.attachments ?? []).filter((a) => a.media_type === "image").length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {(turn.attachments ?? [])
+                        .filter((a) => a.media_type === "image")
+                        .map((a) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={a.media_id}
+                            src={a.url}
+                            alt={a.original_filename ?? "attachment"}
+                            crossOrigin="anonymous"
+                            className="max-h-48 rounded-lg border border-white/25 object-contain"
+                          />
+                        ))}
+                    </div>
+                  )}
                   <MarkdownRenderer content={turn.promptText} className="text-sm [&_*]:text-white" />
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">

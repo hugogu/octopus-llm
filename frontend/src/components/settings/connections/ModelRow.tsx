@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { getToken } from "@/lib/api/auth";
 import { deleteConfiguredModel, patchConfiguredModel } from "@/lib/api/connections";
@@ -59,8 +59,18 @@ export default function ModelRow({ model, onEdit, onChanged }: Props) {
         ) : null}
       </div>
       <div className="flex items-center gap-1">
-        <Button size="sm" variant="ghost" onClick={() => void setEnabled(!model.isEnabled)}>
-          {model.isEnabled ? "Disable" : "Enable"}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => void setEnabled(!model.isEnabled)}
+          aria-label={model.isEnabled ? `Disable ${model.displayName}` : `Enable ${model.displayName}`}
+          title={model.isEnabled ? "Disable" : "Enable"}
+        >
+          {model.isEnabled ? (
+            <ToggleRight className="h-4 w-4 text-emerald-600" />
+          ) : (
+            <ToggleLeft className="h-4 w-4 text-stone-400" />
+          )}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => onEdit(model)} aria-label={`Edit ${model.displayName}`}>
           <Pencil className="h-4 w-4" />
