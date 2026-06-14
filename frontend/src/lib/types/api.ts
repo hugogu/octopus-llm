@@ -50,6 +50,21 @@ export interface Attachment {
   mimeType: string;
 }
 
+/**
+ * Storage-backed media reference (feature 007). Returned by the upload endpoint and embedded in a
+ * turn's attachments / history / share payloads. Replaces inline base64 going forward; `order`
+ * preserves user drag-reorder within a turn.
+ */
+export interface MediaReference {
+  media_id: string;
+  media_type: "image" | "video" | "audio";
+  mime_type: string;
+  size_bytes: number;
+  url: string;
+  original_filename?: string | null;
+  order?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Error response
 // ---------------------------------------------------------------------------

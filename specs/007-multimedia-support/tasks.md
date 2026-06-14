@@ -25,9 +25,9 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 **Purpose**: Dependencies and infra needed before any media code
 
-- [ ] T001 [P] Add AWS SDK for Java v2 `s3` dependency (path-style, OSS/MinIO-compatible) to `backend/build.gradle.kts`
-- [ ] T002 [P] Add MinIO Testcontainer test dependency to `backend/build.gradle.kts` for the S3 storage path
-- [ ] T003 [P] Extend `docker-compose.yml`: add a media bind-mount for the local backend (e.g. `./data/media:/app/media`) and an optional `minio` dev service (no public port beyond dev) for the S3/OSS path
+- [X] T001 [P] Add AWS SDK for Java v2 `s3` dependency (path-style, OSS/MinIO-compatible) to `backend/build.gradle.kts`
+- [X] T002 [P] Add MinIO Testcontainer test dependency to `backend/build.gradle.kts` for the S3 storage path
+- [X] T003 [P] Extend `docker-compose.yml`: add a media bind-mount for the local backend (e.g. `./data/media:/app/media`) and an optional `minio` dev service (no public port beyond dev) for the S3/OSS path
 
 ---
 
@@ -37,19 +37,19 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create Flyway migration `V030__storage_settings.sql` (single-row platform config + size limits per data-model.md) in `backend/src/main/resources/db/migration/`
-- [ ] T005 Create Flyway migration `V031__media.sql` (`media` table: opaque uuid id, owner, media_type, mime_type, size_bytes, storage_backend, storage_key, public_url, nullable turn_id, created_at; indexes per data-model.md) in `backend/src/main/resources/db/migration/`
-- [ ] T006 [P] Create `Media` entity + `MediaRepository` in `backend/src/main/kotlin/com/octopusllm/media/Media.kt` and `MediaRepository.kt`
-- [ ] T007 [P] Create `StorageSettings` entity + `StorageSettingsRepository` (single-row) in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettings.kt` and repository
-- [ ] T008 Implement `StorageSettingsService` read path with default-row seeding (backend=local, default 1MB/10MB/10MB limits, ceiling 5 files/15MB) in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettingsService.kt` (depends on T007)
-- [ ] T009 [P] Define `MediaStorage` strategy interface (store(bytes, mime) → StoredMedia(key, publicUrl); delete(key); exists) in `backend/src/main/kotlin/com/octopusllm/media/MediaStorage.kt`
-- [ ] T010 Implement `LocalMediaStorage` (writes opaque-named files under `MEDIA_LOCAL_DIR`, returns public base URL + key) in `backend/src/main/kotlin/com/octopusllm/media/LocalMediaStorage.kt` (depends on T009)
-- [ ] T011 Implement `MediaStorageFactory` resolving the active backend from `StorageSettings` (local wired now; S3 added in US5) in `backend/src/main/kotlin/com/octopusllm/media/MediaStorageFactory.kt` (depends on T008, T009, T010)
-- [ ] T012 Implement `MediaService`: magic-byte content-type detection, per-type size-limit validation, opaque-id generation, store via factory, persist `Media` row (turn_id NULL), and orphan delete-by-owner in `backend/src/main/kotlin/com/octopusllm/media/MediaService.kt` (depends on T006, T011)
-- [ ] T013 Implement `MediaController` `POST /api/v2/media` (multipart) and `DELETE /api/v2/media/{id}` per contracts/media-upload.md in `backend/src/main/kotlin/com/octopusllm/media/MediaController.kt` (depends on T012)
-- [ ] T014 [P] Extend `LlmRequest.Attachment` with `mediaType` (image|video|audio) and `url`, keeping inline `data` optional for backward-compat, in `backend/src/main/kotlin/com/octopusllm/llm/LlmRequest.kt`
-- [ ] T015 [P] Add frontend media API client (upload, delete) in `frontend/src/lib/api/media.ts` and update the `Attachment` type to the media-reference shape in `frontend/src/lib/types/api.ts`
-- [ ] T016 Integration test (Testcontainers): upload happy path + size-limit rejection + orphan delete, in `backend/src/test/kotlin/com/octopusllm/media/MediaControllerTest.kt` (depends on T013)
+- [X] T004 Create Flyway migration `V030__storage_settings.sql` (single-row platform config + size limits per data-model.md) in `backend/src/main/resources/db/migration/`
+- [X] T005 Create Flyway migration `V031__media.sql` (`media` table: opaque uuid id, owner, media_type, mime_type, size_bytes, storage_backend, storage_key, public_url, nullable turn_id, created_at; indexes per data-model.md) in `backend/src/main/resources/db/migration/`
+- [X] T006 [P] Create `Media` entity + `MediaRepository` in `backend/src/main/kotlin/com/octopusllm/media/Media.kt` and `MediaRepository.kt`
+- [X] T007 [P] Create `StorageSettings` entity + `StorageSettingsRepository` (single-row) in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettings.kt` and repository
+- [X] T008 Implement `StorageSettingsService` read path with default-row seeding (backend=local, default 1MB/10MB/10MB limits, ceiling 5 files/15MB) in `backend/src/main/kotlin/com/octopusllm/admin/StorageSettingsService.kt` (depends on T007)
+- [X] T009 [P] Define `MediaStorage` strategy interface (store(bytes, mime) → StoredMedia(key, publicUrl); delete(key); exists) in `backend/src/main/kotlin/com/octopusllm/media/MediaStorage.kt`
+- [X] T010 Implement `LocalMediaStorage` (writes opaque-named files under `MEDIA_LOCAL_DIR`, returns public base URL + key) in `backend/src/main/kotlin/com/octopusllm/media/LocalMediaStorage.kt` (depends on T009)
+- [X] T011 Implement `MediaStorageFactory` resolving the active backend from `StorageSettings` (local wired now; S3 added in US5) in `backend/src/main/kotlin/com/octopusllm/media/MediaStorageFactory.kt` (depends on T008, T009, T010)
+- [X] T012 Implement `MediaService`: magic-byte content-type detection, per-type size-limit validation, opaque-id generation, store via factory, persist `Media` row (turn_id NULL), and orphan delete-by-owner in `backend/src/main/kotlin/com/octopusllm/media/MediaService.kt` (depends on T006, T011)
+- [X] T013 Implement `MediaController` `POST /api/v2/media` (multipart) and `DELETE /api/v2/media/{id}` per contracts/media-upload.md in `backend/src/main/kotlin/com/octopusllm/media/MediaController.kt` (depends on T012)
+- [X] T014 [P] Extend `LlmRequest.Attachment` with `mediaType` (image|video|audio) and `url`, keeping inline `data` optional for backward-compat, in `backend/src/main/kotlin/com/octopusllm/llm/LlmRequest.kt`
+- [X] T015 [P] Add frontend media API client (upload, delete) in `frontend/src/lib/api/media.ts` and update the `Attachment` type to the media-reference shape in `frontend/src/lib/types/api.ts`
+- [X] T016 Integration test (Testcontainers): upload happy path + size-limit rejection + orphan delete, in `backend/src/test/kotlin/com/octopusllm/media/MediaControllerTest.kt` (depends on T013)
 
 **Checkpoint**: Media can be uploaded/stored/deleted and referenced — user stories can begin.
 

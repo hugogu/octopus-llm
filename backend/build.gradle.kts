@@ -54,6 +54,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // ZhiPu (GLM) uses OpenAI-compatible REST API — no separate SDK needed
 
+    // Object storage (S3/OSS-compatible, path-style) — AWS SDK for Java v2 (feature 007)
+    implementation(platform("software.amazon.awssdk:bom:2.29.20"))
+    implementation("software.amazon.awssdk:s3")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(module = "mockito-core")
@@ -62,6 +66,7 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
+    testImplementation("org.testcontainers:minio")
     testImplementation("io.mockk:mockk:1.13.12")
     testImplementation("com.ninja-squad:springmockk:4.0.2")
 }

@@ -1,6 +1,15 @@
 spring:
   main:
     web-application-type: reactive
+  codec:
+    # Allow aggregating an uploaded media part into memory up to the largest per-file limit + headroom
+    # (feature 007). Parts above this stream to a temp file.
+    max-in-memory-size: 16MB
+  webflux:
+    multipart:
+      max-in-memory-size: 16MB
+      max-disk-usage-per-part: 32MB
+      max-parts: 16
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/octopus_llm}
     username: ${DB_USER:octopus}
@@ -56,3 +65,10 @@ app:
     plantuml:
       server-url: ${PLANTUML_SERVER_URL:http://localhost:8080}
       max-source-bytes: ${PLANTUML_MAX_SOURCE_BYTES:102400}
+
+# Media storage (feature 007). Local backend serves files statically at media.local.public-base-url;
+# switch to S3/OSS at runtime via the admin storage settings.
+media:
+  local:
+    dir: ${MEDIA_LOCAL_DIR:./data/media}
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080/media}

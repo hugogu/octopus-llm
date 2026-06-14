@@ -1,0 +1,128 @@
+package com.octopusllm.media
+
+import com.octopusllm.admin.StorageSettingsService
+import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
+import java.util.UUID
+
+/**
+ * Validates and persists uploaded media (feature 007). Detects the actual content type from magic
+ * bytes (rejecting spoofed/unsupported types), enforces the per-type size limit, stores the bytes via
+ * the active backend under an opaque id, and records a [Media] row. Orphan deletion handles the
+ * "discarded from the tray before sending" case (FR-008).
+ */
+@Service
+class MediaService(
+    private val storageSettingsService: StorageSettingsService,
+    private val mediaRepository: MediaRepository,
+    private val storageFactory: MediaStorageFactory,
+) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    @Transactional
+    fun upload(ownerUserId: UUID, bytes: ByteArray, declaredContentType: String?, originalFilename: String?): Media {
+        if (bytes.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Empty upload")
+        }
+        val detected = DetectedType.detect(bytes, declaredContentType)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported or undetectable media type")
+
+        val settings = storageSettingsService.get()
+        val limit = settings.maxBytesFor(detected.mediaType)
+        if (bytes.size > limit) {
+            throw ResponseStatusException(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "File exceeds the ${detected.mediaType} limit of $limit bytes (was ${bytes.size})",
+            )
+        }
+
+        val id = UUID.randomUUID()
+        val storage = storageFactory.resolve(settings)
+        val stored = storage.store(id, bytes, detected.mimeType, detected.extension)
+        val media = mediaRepository.save(
+            Media(
+                id = id,
+                ownerUserId = ownerUserId,
+                mediaType = detected.mediaType,
+                mimeType = detected.mimeType,
+                sizeBytes = bytes.size.toLong(),
+                storageBackend = stored.backend,
+                storageKey = stored.storageKey,
+                publicUrl = stored.publicUrl,
+                originalFilename = originalFilename,
+            ),
+        )
+        log.info(
+            "media_upload user={} mediaType={} mime={} sizeBytes={} backend={}",
+            ownerUserId.toString().take(8), media.mediaType, media.mimeType, media.sizeBytes, media.storageBackend,
+        )
+        return media
+    }
+
+    @Transactional
+    fun deleteOrphan(id: UUID, ownerUserId: UUID) {
+        val media = mediaRepository.findByIdAndOwnerUserId(id, ownerUserId) ?: return
+        if (media.turnId != null) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Media is attached to a saved turn and cannot be deleted")
+        }
+        runCatching { storageFactory.resolveByBackend(media.storageBackend)?.delete(media.storageKey) }
+            .onFailure { log.warn("media_delete_storage_failed id={} error={}", id, it.message) }
+        mediaRepository.delete(media)
+    }
+
+    /**
+     * Detected media classification. The set of accepted types is bounded by what providers accept;
+     * unknown/ambiguous content falls back to the declared content type's family.
+     */
+    data class DetectedType(val mediaType: String, val mimeType: String, val extension: String) {
+        companion object {
+            fun detect(bytes: ByteArray, declaredContentType: String?): DetectedType? {
+                magicSniff(bytes, declaredContentType)?.let { return it }
+                // Fall back to the declared content type when bytes aren't a recognized signature.
+                val declared = declaredContentType?.substringBefore(';')?.trim()?.lowercase()
+                if (declared != null) {
+                    val family = declared.substringBefore('/')
+                    if (family in setOf("image", "video", "audio")) {
+                        return DetectedType(family, declared, declared.substringAfter('/').substringBefore('+'))
+                    }
+                }
+                return null
+            }
+
+            private fun magicSniff(b: ByteArray, declared: String?): DetectedType? {
+                fun startsWith(vararg sig: Int): Boolean =
+                    b.size >= sig.size && sig.withIndex().all { (i, v) -> (b[i].toInt() and 0xFF) == v }
+                return when {
+                    startsWith(0x89, 0x50, 0x4E, 0x47) -> DetectedType("image", "image/png", "png")
+                    startsWith(0xFF, 0xD8, 0xFF) -> DetectedType("image", "image/jpeg", "jpg")
+                    startsWith(0x47, 0x49, 0x46, 0x38) -> DetectedType("image", "image/gif", "gif")
+                    b.size >= 12 && startsWith(0x52, 0x49, 0x46, 0x46) &&
+                        (b[8].toInt() and 0xFF) == 0x57 && (b[9].toInt() and 0xFF) == 0x45 ->
+                        DetectedType("image", "image/webp", "webp")
+                    b.size >= 12 && b[4].toInt() == 0x66 && b[5].toInt() == 0x74 &&
+                        b[6].toInt() == 0x79 && b[7].toInt() == 0x70 -> // 'ftyp'
+                        DetectedType("video", "video/mp4", "mp4")
+                    startsWith(0x1A, 0x45, 0xDF, 0xA3) -> { // EBML — webm/mkv, audio or video
+                        val family = declared?.substringBefore('/')?.lowercase()
+                        if (family == "audio") DetectedType("audio", "audio/webm", "webm")
+                        else DetectedType("video", "video/webm", "webm")
+                    }
+                    startsWith(0x49, 0x44, 0x33) -> DetectedType("audio", "audio/mpeg", "mp3") // ID3
+                    startsWith(0xFF, 0xFB) || startsWith(0xFF, 0xF3) -> DetectedType("audio", "audio/mpeg", "mp3")
+                    b.size >= 12 && startsWith(0x52, 0x49, 0x46, 0x46) &&
+                        (b[8].toInt() and 0xFF) == 0x57 && (b[9].toInt() and 0xFF) == 0x41 ->
+                        DetectedType("audio", "audio/wav", "wav")
+                    startsWith(0x4F, 0x67, 0x67, 0x53) -> { // 'OggS'
+                        val family = declared?.substringBefore('/')?.lowercase()
+                        if (family == "video") DetectedType("video", "video/ogg", "ogv")
+                        else DetectedType("audio", "audio/ogg", "ogg")
+                    }
+                    else -> null
+                }
+            }
+        }
+    }
+}

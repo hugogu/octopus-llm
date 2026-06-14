@@ -46,6 +46,9 @@ class SecurityConfig(
                     .pathMatchers("/api/v2/shared/**").permitAll()
                     .pathMatchers("/api/v2/analytics/public/**").permitAll()
                     .pathMatchers("/api/v2/render/**").permitAll()
+                    // Locally-stored media is public + opaque (feature 007, FR-019/FR-022): served
+                    // without authentication so the frontend loads it directly, no backend round-trip.
+                    .pathMatchers("/media/**").permitAll()
                     .pathMatchers("/api/v2/admin/**").hasRole("ADMIN")
                     .anyExchange().authenticated()
             }
