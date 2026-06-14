@@ -110,6 +110,12 @@ class OpenAiCompatAdapter(
                     "image" -> parts.add(mapOf("type" to "image_url", "image_url" to mapOf("url" to url)))
                     // Video input part name varies by OpenAI-compatible provider (e.g. GLM-4V `video_url`).
                     "video" -> parts.add(mapOf("type" to "video_url", "video_url" to mapOf("url" to url)))
+                    // Audio (feature 007): OpenAI-style input_audio needs base64 bytes + a format hint.
+                    "audio" -> if (att.data.isNotBlank()) {
+                        val format = att.mimeType.substringAfter('/').substringBefore(';')
+                            .let { if (it == "mpeg") "mp3" else it }
+                        parts.add(mapOf("type" to "input_audio", "input_audio" to mapOf("data" to att.data, "format" to format)))
+                    }
                 }
             }
             messages.add(mapOf("role" to "user", "content" to parts))

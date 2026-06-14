@@ -13,7 +13,9 @@ import com.octopusllm.llm.LlmRequest
 import com.octopusllm.llm.LlmStreamEvent
 import com.octopusllm.llm.ModelDispatchTarget
 import com.octopusllm.media.MediaRepository
+import com.octopusllm.media.MediaStorageFactory
 import com.octopusllm.model.ProtocolDefinitions
+import java.util.Base64
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
@@ -37,6 +39,7 @@ class ChatService(
     private val orchestrator: ConcurrentLlmOrchestrator,
     private val mediaRepository: MediaRepository,
     private val storageSettingsService: StorageSettingsService,
+    private val mediaStorageFactory: MediaStorageFactory,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -465,12 +468,21 @@ class ChatService(
                 val type = (ref["media_type"] ?: ref["type"]) as? String ?: return@mapNotNull null
                 Attachment(
                     type = type,
-                    data = (ref["data"] as? String).orEmpty(),
+                    // Audio is inlined as base64 (providers' input_audio needs bytes, not a URL);
+                    // image/video are referenced by their public URL.
+                    data = if (type == "audio") inlineBase64(ref) else (ref["data"] as? String).orEmpty(),
                     mimeType = (ref["mime_type"] ?: ref["mimeType"]) as? String ?: "",
                     url = ref["url"] as? String,
                 )
             },
         )
+    }
+
+    private fun inlineBase64(ref: Map<String, Any?>): String {
+        val id = (ref["media_id"] as? String)?.let { runCatching { UUID.fromString(it) }.getOrNull() } ?: return ""
+        val media = mediaRepository.findById(id).orElse(null) ?: return ""
+        val bytes = mediaStorageFactory.resolveByBackend(media.storageBackend)?.read(media.storageKey) ?: return ""
+        return Base64.getEncoder().encodeToString(bytes)
     }
 
     private fun latestResponses(turn: ChatTurn): List<ProviderResponse> {

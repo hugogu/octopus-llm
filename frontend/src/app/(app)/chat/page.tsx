@@ -208,6 +208,9 @@ export default function ChatPage() {
     const modalities = modelsById[id]?.capabilityMatrix.input_modalities ?? [];
     return modalities.includes("image") || modalities.includes("video");
   });
+  const supportsAudio = selectedIds.some((id) =>
+    (modelsById[id]?.capabilityMatrix.input_modalities ?? []).includes("audio"),
+  );
   const currentSessionMeta = sessionId
     ? sessions.find((session) => session.id === sessionId)
     : null;
@@ -526,7 +529,7 @@ export default function ChatPage() {
               {attachmentNotice}
             </div>
           )}
-          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} />
+          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} supportsAudio={supportsAudio} />
         </div>
       </div>
     </div>

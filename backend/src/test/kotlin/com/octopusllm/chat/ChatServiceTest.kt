@@ -33,6 +33,7 @@ class ChatServiceTest {
     private val orchestrator = mockk<ConcurrentLlmOrchestrator>()
     private val mediaRepository = mockk<com.octopusllm.media.MediaRepository>()
     private val storageSettingsService = mockk<com.octopusllm.admin.StorageSettingsService>()
+    private val mediaStorageFactory = mockk<com.octopusllm.media.MediaStorageFactory>()
     private val service = ChatService(
         sessionRepository,
         turnRepository,
@@ -43,6 +44,7 @@ class ChatServiceTest {
         orchestrator,
         mediaRepository,
         storageSettingsService,
+        mediaStorageFactory,
     )
 
     @Test

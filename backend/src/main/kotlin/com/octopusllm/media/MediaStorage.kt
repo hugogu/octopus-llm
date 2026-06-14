@@ -21,6 +21,9 @@ interface MediaStorage {
     /** Persist [bytes] under an opaque key derived from [id]; returns the stored handle + public URL. */
     fun store(id: UUID, bytes: ByteArray, mimeType: String, extension: String): StoredMedia
 
+    /** Read a stored object's bytes (e.g. to inline audio as base64 for providers that require it). */
+    fun read(storageKey: String): ByteArray?
+
     /** Remove a previously stored object. Idempotent: absent objects are a no-op. */
     fun delete(storageKey: String)
 }

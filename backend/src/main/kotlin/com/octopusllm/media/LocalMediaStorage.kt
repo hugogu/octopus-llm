@@ -38,6 +38,12 @@ class LocalMediaStorage(
         )
     }
 
+    override fun read(storageKey: String): ByteArray? {
+        val target = root.resolve(storageKey).normalize()
+        if (!target.startsWith(root) || !Files.exists(target)) return null
+        return Files.readAllBytes(target)
+    }
+
     override fun delete(storageKey: String) {
         val target = root.resolve(storageKey).normalize()
         if (target.startsWith(root)) {

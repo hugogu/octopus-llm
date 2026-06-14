@@ -3,23 +3,28 @@
 import { useState, useRef } from "react";
 import { Paperclip, ArrowUp } from "lucide-react";
 import AttachmentTray, { type PendingAttachment } from "@/components/chat/AttachmentTray";
+import VoiceRecorder from "@/components/chat/VoiceRecorder";
 import { validateCandidate } from "@/lib/media/limits";
 
 interface ChatInputProps {
   onSubmit: (promptText: string, files: File[]) => void;
   disabled?: boolean;
   supportsAttachments?: boolean;
+  supportsAudio?: boolean;
 }
 
-export default function ChatInput({ onSubmit, disabled = false, supportsAttachments = false }: ChatInputProps) {
+export default function ChatInput({
+  onSubmit,
+  disabled = false,
+  supportsAttachments = false,
+  supportsAudio = false,
+}: ChatInputProps) {
   const [text, setText] = useState("");
   const [items, setItems] = useState<PendingAttachment[]>([]);
   const [limitError, setLimitError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(e.target.files ?? []);
-    if (fileRef.current) fileRef.current.value = "";
+  function addFiles(selected: File[]) {
     setLimitError(null);
     setItems((prev) => {
       const next = [...prev];
@@ -33,6 +38,12 @@ export default function ChatInput({ onSubmit, disabled = false, supportsAttachme
       }
       return next;
     });
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = Array.from(e.target.files ?? []);
+    if (fileRef.current) fileRef.current.value = "";
+    addFiles(selected);
   }
 
   function removeItem(id: string) {
@@ -106,6 +117,9 @@ export default function ChatInput({ onSubmit, disabled = false, supportsAttachme
                   <Paperclip className="h-4 w-4" />
                 </button>
               </>
+            )}
+            {supportsAudio && (
+              <VoiceRecorder onRecorded={(file) => addFiles([file])} disabled={disabled} />
             )}
           </div>
 

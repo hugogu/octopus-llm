@@ -123,10 +123,10 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ### Implementation for User Story 4
 
-- [ ] T035 [US4] Add `"audio"` as a recognized input modality in capability handling (known keys / `input_modalities`) in `backend/src/main/kotlin/com/octopusllm/model/ProtocolDefinition.kt` and `backend/src/main/kotlin/com/octopusllm/llm/CapabilityMatrix.kt`
-- [ ] T036 [P] [US4] Add audio content handling to `AnthropicAdapter`, `OpenAiCompatAdapter`, and `MiniMaxAdapter` (input-audio parts per each protocol) in `backend/src/main/kotlin/com/octopusllm/llm/adapter/` (depends on T021, T022, T023)
-- [ ] T037 [P] [US4] Create `VoiceRecorder` component using `MediaRecorder`/`getUserMedia` to capture an audio blob and add it as an audio attachment in `frontend/src/components/chat/VoiceRecorder.tsx`
-- [ ] T038 [US4] Integrate `VoiceRecorder` into `ChatInput` and include `audio` in the frontend per-type capability gating in `frontend/src/components/chat/ChatInput.tsx` and `frontend/src/app/(app)/chat/page.tsx` (depends on T037, T024)
+- [X] T035 [US4] Add `"audio"` as a recognized input modality in capability handling (known keys / `input_modalities`) in `backend/src/main/kotlin/com/octopusllm/model/ProtocolDefinition.kt` and `backend/src/main/kotlin/com/octopusllm/llm/CapabilityMatrix.kt`
+- [X] T036 [P] [US4] Add audio content handling to `AnthropicAdapter`, `OpenAiCompatAdapter`, and `MiniMaxAdapter` (input-audio parts per each protocol) in `backend/src/main/kotlin/com/octopusllm/llm/adapter/` (depends on T021, T022, T023)
+- [X] T037 [P] [US4] Create `VoiceRecorder` component using `MediaRecorder`/`getUserMedia` to capture an audio blob and add it as an audio attachment in `frontend/src/components/chat/VoiceRecorder.tsx`
+- [X] T038 [US4] Integrate `VoiceRecorder` into `ChatInput` and include `audio` in the frontend per-type capability gating in `frontend/src/components/chat/ChatInput.tsx` and `frontend/src/app/(app)/chat/page.tsx` (depends on T037, T024)
 
 **Checkpoint**: Voice input works end-to-end under capability gating.
 
