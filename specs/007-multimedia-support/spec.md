@@ -255,6 +255,7 @@ re-detect.
 - **FR-029**: Capability detection MUST derive modalities from a cross-provider source — OpenRouter's public model list (matched by normalized model id) as primary, with the platform's curated catalogue as fallback; models unknown to both remain text-only until a user toggles modalities on.
 - **FR-030**: Capability detection MUST be triggerable per connection (not only globally), and MUST be available for built-in connections through the admin control panel as well as for users' own connections.
 - **FR-031**: An administrator MUST be able to manually toggle a built-in connection model's media types (image/video/audio) when auto-detection is wrong or missing, from the existing admin connection-management surface.
+- **FR-032**: Capability detection MUST also fill, fill-only, other model metadata available from the source — token pricing (per 1M tokens), context length, and function-calling support — so a single "detect" populates pricing and capabilities together; values the user already set are never overwritten.
 
 ### Key Entities *(include if feature involves data)*
 

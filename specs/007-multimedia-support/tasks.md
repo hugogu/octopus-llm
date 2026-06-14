@@ -185,6 +185,7 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 - [X] T061 [US7] Frontend user: per-connection "Detect" button on `ConnectionCard` (auto-runs after Load models); `detectConnectionCapabilities` client; remove the global page button
 - [X] T062 [US7] Frontend admin: per-connection "Detect" button + inline per-model image/video/audio toggles on `AdminConnectionsPage`; `detectBuiltinCapabilities` + `patchBuiltinModel` clients
 - [X] T063 [US7] Config: `openrouter.base-url`/`api-key` (application.yml) + `OPENROUTER_API_KEY` in docker-compose; tests adapted (`ConfiguredModelCapabilityTest` → connection-scoped + detector mocks)
+- [X] T064 [US7] Enrich detection from OpenRouter's per-model schema: index `DetectedModelInfo` (modalities + pricing per 1M + context length + tools); `CapabilityFiller` fills pricing/context/function-calling fill-only; `CapabilityFillerTest` + richer `OpenRouterModelCatalogueTest`
 
 **Checkpoint**: Capability detection is per-connection and cross-provider; admins can correct built-in models.
 
