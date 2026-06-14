@@ -88,10 +88,10 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ### Implementation for User Story 2
 
-- [ ] T026 [P] [US2] Create `MediaItem` component (renders image thumb / video poster / audio playback for one item) in `frontend/src/components/chat/MediaItem.tsx`
-- [ ] T027 [US2] Create `AttachmentTray` component (previews via `MediaItem`, remove control calling `DELETE /api/v2/media/{id}`, drag-reorder updating `order`) in `frontend/src/components/chat/AttachmentTray.tsx` (depends on T026)
-- [ ] T028 [US2] Enforce per-type size limits and the per-prompt ceiling (≤5 files / ≤15 MB) at attach time with clear limit+size messaging, before upload, in `AttachmentTray`/`ChatInput` (depends on T027)
-- [ ] T029 [US2] Integrate `AttachmentTray` into `frontend/src/components/chat/ChatInput.tsx`, preserving drag order into the submitted refs (depends on T027, T025)
+- [X] T026 [P] [US2] Create `MediaItem` component (renders image thumb / video poster / audio playback for one item) in `frontend/src/components/chat/MediaItem.tsx`
+- [X] T027 [US2] Create `AttachmentTray` component (previews via `MediaItem`, remove control calling `DELETE /api/v2/media/{id}`, drag-reorder updating `order`) in `frontend/src/components/chat/AttachmentTray.tsx` (depends on T026)
+- [X] T028 [US2] Enforce per-type size limits and the per-prompt ceiling (≤5 files / ≤15 MB) at attach time with clear limit+size messaging, before upload, in `AttachmentTray`/`ChatInput` (depends on T027)
+- [X] T029 [US2] Integrate `AttachmentTray` into `frontend/src/components/chat/ChatInput.tsx`, preserving drag order into the submitted refs (depends on T027, T025)
 
 **Checkpoint**: Attachment authoring (preview/delete/reorder/limits) complete.
 

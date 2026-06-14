@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Paperclip, ArrowUp, X } from "lucide-react";
+import { Paperclip, ArrowUp } from "lucide-react";
+import AttachmentTray, { type PendingAttachment } from "@/components/chat/AttachmentTray";
+import { validateCandidate } from "@/lib/media/limits";
 
 interface ChatInputProps {
   onSubmit: (promptText: string, files: File[]) => void;
@@ -9,35 +11,47 @@ interface ChatInputProps {
   supportsAttachments?: boolean;
 }
 
-function mediaKind(file: File): "image" | "video" | "audio" | "file" {
-  if (file.type.startsWith("image/")) return "image";
-  if (file.type.startsWith("video/")) return "video";
-  if (file.type.startsWith("audio/")) return "audio";
-  return "file";
-}
-
 export default function ChatInput({ onSubmit, disabled = false, supportsAttachments = false }: ChatInputProps) {
   const [text, setText] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [items, setItems] = useState<PendingAttachment[]>([]);
+  const [limitError, setLimitError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? []);
-    setFiles((prev) => [...prev, ...selected]);
     if (fileRef.current) fileRef.current.value = "";
+    setLimitError(null);
+    setItems((prev) => {
+      const next = [...prev];
+      for (const file of selected) {
+        const error = validateCandidate(file, next.map((p) => p.file));
+        if (error) {
+          setLimitError(error);
+          continue;
+        }
+        next.push({ id: crypto.randomUUID(), file, url: URL.createObjectURL(file) });
+      }
+      return next;
+    });
   }
 
-  function removeFile(index: number) {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+  function removeItem(id: string) {
+    setItems((prev) => {
+      const target = prev.find((p) => p.id === id);
+      if (target) URL.revokeObjectURL(target.url);
+      return prev.filter((p) => p.id !== id);
+    });
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = text.trim();
-    if (!trimmed && files.length === 0) return;
-    onSubmit(trimmed, files);
+    if (!trimmed && items.length === 0) return;
+    onSubmit(trimmed, items.map((p) => p.file));
+    items.forEach((p) => URL.revokeObjectURL(p.url));
     setText("");
-    setFiles([]);
+    setItems([]);
+    setLimitError(null);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -47,31 +61,15 @@ export default function ChatInput({ onSubmit, disabled = false, supportsAttachme
     }
   }
 
-  const canSend = !disabled && (text.trim().length > 0 || files.length > 0);
+  const canSend = !disabled && (text.trim().length > 0 || items.length > 0);
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto w-full max-w-3xl">
       <div className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-white p-2.5 shadow-sm transition focus-within:border-[#c96442] focus-within:ring-1 focus-within:ring-[#c96442]">
-        {files.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-1 pt-1">
-            {files.map((file, i) => (
-              <span
-                key={`${file.name}-${i}`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs text-stone-600"
-              >
-                <span className="font-medium capitalize">{mediaKind(file)}</span>
-                <span className="max-w-[10rem] truncate text-stone-400">{file.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removeFile(i)}
-                  className="text-stone-400 transition hover:text-stone-700"
-                  aria-label="Remove attachment"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-          </div>
+        <AttachmentTray items={items} onRemove={removeItem} onReorder={setItems} />
+
+        {limitError && (
+          <p className="px-2 text-xs text-red-600">{limitError}</p>
         )}
 
         <textarea
