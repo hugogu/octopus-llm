@@ -149,7 +149,7 @@ export default function ModelResponsePanel({
               autoOpen={status === "streaming" && !text}
             />
             <ExpandableContent forceExpanded={status === "streaming"}>
-              <StreamingMarkdown content={text} debounceMs={100} />
+              <StreamingMarkdown content={text} debounceMs={100} complete={status === "complete"} />
             </ExpandableContent>
             {status === "streaming" && <span className="animate-pulse text-stone-400">▋</span>}
           </>
