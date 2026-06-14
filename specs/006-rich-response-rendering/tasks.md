@@ -178,10 +178,10 @@ full (expanded) conversation below, in the design-system style.
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T045 [P] Gates green: `cd backend && ./gradlew build`; `cd frontend && npx tsc --noEmit`; `npx vitest run`
+- [X] T045 [P] Gates green: `cd backend && ./gradlew build`; `cd frontend && npx tsc --noEmit`; `npx vitest run`
 - [ ] T046 Playwright responsive pass (mobile + desktop): no horizontal overflow from any block/preview/sandbox (SC-008); streaming open-fence renders as source without throwing (FR-024)
-- [ ] T047 [P] Run `quickstart.md` scenarios 1–21 on both the in-app conversation and the share view
-- [ ] T048 Security/self-host verification: confirm PlantUML traffic is same-origin (never plantuml.com) and the runnable iframe cannot reach host credentials/storage
+- [X] T047 [P] Run `quickstart.md` scenarios 1–21 on both the in-app conversation and the share view
+- [X] T048 Security/self-host verification: confirm PlantUML traffic is same-origin (never plantuml.com) and the runnable iframe cannot reach host credentials/storage
 
 ---
 
