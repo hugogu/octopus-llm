@@ -5,6 +5,7 @@ import { Download, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ChatInput from "@/components/chat/ChatInput";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
+import MediaAttachments from "@/components/chat/MediaAttachments";
 import ModelResponsePanel from "@/components/chat/ModelResponsePanel";
 import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import SessionSidebar from "@/components/chat/SessionSidebar";
@@ -25,6 +26,7 @@ import type {
   ChatTurnV2,
   ConfiguredModelV2,
   GetSessionResponseV2,
+  MediaReference,
   SseEventV2,
 } from "@/lib/types/api";
 import {
@@ -43,6 +45,7 @@ const responseGridStyle = {
 interface DraftTurnState {
   promptText: string;
   selectedConfiguredModelIds: string[];
+  attachments?: MediaReference[];
   turnId?: string;
 }
 
@@ -236,6 +239,7 @@ export default function ChatPage() {
     )));
     let sendIds = selectedIds;
     let attachmentRefs: { media_id: string; order: string }[] = [];
+    let uploadedRefs: MediaReference[] = [];
     if (files.length > 0) {
       const capableIds = selectedIds.filter((id) => {
         const modalities = modelsById[id]?.capabilityMatrix.input_modalities ?? [];
@@ -256,6 +260,7 @@ export default function ChatPage() {
       if (!uploadToken) return;
       try {
         const uploaded = await Promise.all(files.map((file) => uploadMedia(file, uploadToken)));
+        uploadedRefs = uploaded.map((ref, i) => ({ ...ref, order: i }));
         attachmentRefs = uploaded.map((ref, i) => ({ media_id: ref.media_id, order: String(i) }));
       } catch (err) {
         setAttachmentNotice(err instanceof Error ? err.message : "Upload failed");
@@ -279,7 +284,7 @@ export default function ChatPage() {
       start(id, sendIds);
       setLiveTurns((current) => ({
         ...current,
-        [id]: { promptText, selectedConfiguredModelIds: [...sendIds] },
+        [id]: { promptText, selectedConfiguredModelIds: [...sendIds], attachments: uploadedRefs },
       }));
       await streamTurnV2(
         id,
@@ -344,6 +349,7 @@ export default function ChatPage() {
   const renderTurn = useCallback((turn: ChatTurnV2) => (
     <section key={turn.id} className="space-y-3">
       <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
+        <MediaAttachments items={turn.attachments} dark />
         <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
       </div>
       <div style={responseGridStyle}>
@@ -464,6 +470,7 @@ export default function ChatPage() {
                 {liveTurn ? (
                   <section className="space-y-3">
                     <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
+                      <MediaAttachments items={liveTurn.attachments} dark />
                       <MarkdownRenderer content={liveTurn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
                     </div>
                     <div style={responseGridStyle}>

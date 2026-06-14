@@ -37,11 +37,23 @@ export default function ModelRow({ model, onEdit, onChanged }: Props) {
           </span>
         </div>
         <p className="mt-0.5 truncate font-mono text-xs text-stone-500">{model.modelId}</p>
-        <p className="mt-1 text-xs text-stone-400">
-          {model.priceCurrency
-            ? `${model.inputPricePerMtok ?? "—"} input / ${model.outputPricePerMtok ?? "—"} output per 1M ${model.priceCurrency}`
-            : "Pricing not configured"}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {(model.capabilityMatrix?.input_modalities ?? [])
+            .filter((modality) => modality !== "text")
+            .map((modality) => (
+              <span
+                key={modality}
+                className="rounded-full bg-[#c96442]/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#b75536]"
+              >
+                {modality}
+              </span>
+            ))}
+          <span className="text-xs text-stone-400">
+            {model.priceCurrency
+              ? `${model.inputPricePerMtok ?? "—"} in / ${model.outputPricePerMtok ?? "—"} out per 1M ${model.priceCurrency}`
+              : "Pricing not configured"}
+          </span>
+        </div>
         {Object.keys(model.customParams).length > 0 ? (
           <p className="mt-1 text-xs text-stone-400">{Object.keys(model.customParams).length} custom parameter(s)</p>
         ) : null}

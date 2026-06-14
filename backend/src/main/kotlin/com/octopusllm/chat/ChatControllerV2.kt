@@ -74,6 +74,8 @@ data class TurnDtoV2(
     val promptText: String,
     val selectedModelIds: List<String>,
     val selectedConfiguredModelIds: List<UUID>,
+    // Ordered media references (feature 007) so history renders the user's attachments.
+    val attachments: List<Map<String, Any?>>,
     val responses: List<ProviderResponseDtoV2>,
     val createdAt: Instant,
 )
@@ -133,6 +135,8 @@ class ChatControllerV2(
                         promptText = turn.promptText,
                         selectedModelIds = turn.selectedModelIds.toList(),
                         selectedConfiguredModelIds = turn.selectedConfiguredModelIds.toList(),
+                        attachments = turn.attachments.orEmpty()
+                            .sortedBy { (it["order"] as? Number)?.toInt() ?: 0 },
                         responses = responses.map { responseDto(it, states[it.id], anonymousCounts[it.id] ?: 0) },
                         createdAt = turn.createdAt,
                     )

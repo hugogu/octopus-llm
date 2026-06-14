@@ -393,6 +393,7 @@ export interface ChatTurnV2 {
   promptText: string;
   selectedModelIds: string[];
   selectedConfiguredModelIds: string[];
+  attachments?: MediaReference[];
   responses: ProviderResponseV2[];
   createdAt: string;
 }

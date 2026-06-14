@@ -105,9 +105,9 @@ Web app: `backend/src/main/kotlin/com/octopusllm/...`, `frontend/src/...`. Migra
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Expose `attachments` (media refs, ordered) on `TurnDtoV2` and map them in the session GET in `backend/src/main/kotlin/com/octopusllm/chat/ChatControllerV2.kt`
+- [X] T030 [US3] Expose `attachments` (media refs, ordered) on `TurnDtoV2` and map them in the session GET in `backend/src/main/kotlin/com/octopusllm/chat/ChatControllerV2.kt`
 - [ ] T031 [US3] Add `attachments` (no owner identity) to the shared-conversation DTO and ensure share revocation cascades media inaccessibility, in `backend/src/main/kotlin/com/octopusllm/share/ShareService.kt`
-- [ ] T032 [P] [US3] Render turn media via `MediaItem` in conversation history (user-prompt rendering) in `frontend/src/components/chat/markdownComponents.tsx` (or the turn/prompt render path) (depends on T026, T030)
+- [X] T032 [P] [US3] Render turn media via `MediaItem` in conversation history (user-prompt rendering) in `frontend/src/components/chat/markdownComponents.tsx` (or the turn/prompt render path) (depends on T026, T030)
 - [ ] T033 [P] [US3] Render + play turn media via `MediaItem` in `frontend/src/components/share/SharedConversation.tsx` (depends on T026, T031)
 - [ ] T034 [US3] Playwright visual verification: image renders + video/audio play in both in-app history and the public share view (Constitution VIII) in `frontend/src/components/share/SharedConversation.test.tsx` (or a Playwright spec) (depends on T032, T033)
 
