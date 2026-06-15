@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
-import QRCode from 'qrcode';
-import { toPng } from 'html-to-image';
 import MarkdownRenderer from '@/components/chat/MarkdownRenderer';
 import type { SharedSession } from '@/lib/types/api';
 
@@ -23,9 +21,12 @@ export default function ShareExportButton({ session }: { session: SharedSession 
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    QRCode.toDataURL(window.location.href, { width: 180, margin: 1 })
-      .then(setQr)
-      .catch(() => setQr(null));
+    let cancelled = false;
+    import('qrcode')
+      .then(({ default: QRCode }) => QRCode.toDataURL(window.location.href, { width: 180, margin: 1 }))
+      .then((url) => { if (!cancelled) setQr(url); })
+      .catch(() => { if (!cancelled) setQr(null); });
+    return () => { cancelled = true; };
   }, []);
 
   const handleExport = async () => {
@@ -36,6 +37,7 @@ export default function ShareExportButton({ session }: { session: SharedSession 
     try {
       // Let any diagram previews finish rendering before rasterizing.
       await new Promise((resolve) => setTimeout(resolve, 700));
+      const { toPng } = await import('html-to-image');
       const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true, backgroundColor: '#faf9f5' });
       const link = document.createElement('a');
       link.href = dataUrl;

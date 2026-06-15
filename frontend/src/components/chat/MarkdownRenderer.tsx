@@ -1,7 +1,12 @@
 'use client';
 
 import React from 'react';
-import MarkdownBlock from './MarkdownBlock';
+import dynamic from 'next/dynamic';
+
+const MarkdownBlock = dynamic(() => import('./MarkdownBlock'), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface MarkdownRendererProps {
   content: string;
