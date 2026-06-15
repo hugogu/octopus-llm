@@ -12,6 +12,9 @@ const api = vi.hoisted(() => ({
   rotateConnectionKey: vi.fn(),
 }));
 
+const confirmDialog = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/ui/confirm", () => ({ confirmDialog }));
+
 vi.mock("@/lib/api/auth", () => ({
   getToken: () => "test-token",
 }));
@@ -122,7 +125,7 @@ describe("connection settings", () => {
   });
 
   it("requires confirmation before deleting a connection and its models", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    confirmDialog.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
     api.deleteConnection.mockResolvedValue(undefined);
     const onChanged = vi.fn();
 
@@ -139,6 +142,7 @@ describe("connection settings", () => {
 
     const remove = screen.getByRole("button", { name: "Delete connection" });
     fireEvent.click(remove);
+    await waitFor(() => expect(confirmDialog).toHaveBeenCalledTimes(1));
     expect(api.deleteConnection).not.toHaveBeenCalled();
 
     fireEvent.click(remove);
@@ -146,7 +150,7 @@ describe("connection settings", () => {
       "test-token",
       connection.id,
     ));
-    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    expect(confirmDialog).toHaveBeenCalledTimes(2);
     expect(onChanged).toHaveBeenCalled();
   });
 });

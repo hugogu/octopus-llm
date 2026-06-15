@@ -4,6 +4,7 @@ import { Pencil, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { getToken } from "@/lib/api/auth";
 import { deleteConfiguredModel, patchConfiguredModel } from "@/lib/api/connections";
+import { confirmDialog } from "@/lib/ui/confirm";
 import type { ConfiguredModelV2 } from "@/lib/types/api";
 
 interface Props {
@@ -20,7 +21,13 @@ export default function ModelRow({ model, onEdit, onChanged }: Props) {
     onChanged();
   };
   const remove = async () => {
-    if (!confirm(`Remove ${model.displayName}? Historical responses will be preserved.`)) return;
+    const confirmed = await confirmDialog({
+      title: `Remove ${model.displayName}?`,
+      message: "Historical responses will be preserved.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!confirmed) return;
     const token = getToken();
     if (!token) return;
     await deleteConfiguredModel(token, model.id);

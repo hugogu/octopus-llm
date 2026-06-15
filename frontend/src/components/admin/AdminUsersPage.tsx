@@ -15,6 +15,7 @@ import {
   purgeTestAccounts,
   resetUserPassword,
 } from "@/lib/api/admin";
+import { confirmDialog } from "@/lib/ui/confirm";
 import type { AdminUser } from "@/lib/types/api";
 
 function Pill({ tone, children }: { tone: "green" | "red" | "amber" | "accent" | "stone"; children: React.ReactNode }) {
@@ -80,9 +81,13 @@ export default function AdminUsersPage() {
   }
 
   async function purge() {
-    if (!confirm("Permanently delete ALL suspected test accounts (reserved example/test email domains)? This cannot be undone.")) {
-      return;
-    }
+    const confirmed = await confirmDialog({
+      title: "Delete all test accounts?",
+      message: "Permanently delete ALL suspected test accounts (reserved example/test email domains). This cannot be undone.",
+      confirmLabel: "Delete all",
+      danger: true,
+    });
+    if (!confirmed) return;
     setError(null);
     setNotice(null);
     setPurging(true);
@@ -221,11 +226,17 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             className="text-red-600"
                             isLoading={busyId === u.id}
-                            onClick={() => {
-                              if (confirm(`Permanently delete ${u.email} and all of its data? This cannot be undone.`)) {
+                            onClick={() => void (async () => {
+                              const confirmed = await confirmDialog({
+                                title: `Delete ${u.email}?`,
+                                message: "This user and all of its data will be permanently deleted. This cannot be undone.",
+                                confirmLabel: "Delete",
+                                danger: true,
+                              });
+                              if (confirmed) {
                                 void run(u.id, () => deleteUser(token, u.id), "User deleted.");
                               }
-                            }}
+                            })()}
                           >
                             <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
                           </Button>

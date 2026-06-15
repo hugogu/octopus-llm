@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "katex/dist/katex.min.css";
+import ConfirmHost from "@/components/ui/ConfirmHost";
 
 export const metadata: Metadata = {
   title: "Octopus LLM",
@@ -14,7 +15,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <ConfirmHost />
+      </body>
     </html>
   );
 }

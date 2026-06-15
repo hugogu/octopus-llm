@@ -6,11 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ChatInput from "@/components/chat/ChatInput";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 import MediaAttachments from "@/components/chat/MediaAttachments";
-import ModelResponsePanel from "@/components/chat/ModelResponsePanel";
+import ResponseGroup, { type ResponsePanelData } from "@/components/chat/ResponseGroup";
 import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import SessionSidebar from "@/components/chat/SessionSidebar";
 import ShareConversationButton from "@/components/chat/ShareConversationButton";
 import { getToken } from "@/lib/api/auth";
+import { confirmDialog } from "@/lib/ui/confirm";
 import {
   createSessionV2,
   getSessionV2,
@@ -37,11 +38,6 @@ import {
 } from "@/lib/utils/exportConversation";
 
 const SELECTED_MODELS_STORAGE_KEY = "octopus:selected-configured-model-ids";
-const responseGridStyle = {
-  display: "grid",
-  gap: "0.75rem",
-  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))",
-} as const;
 
 interface DraftTurnState {
   promptText: string;
@@ -363,44 +359,48 @@ export default function ChatPage() {
         <MediaAttachments items={turn.attachments} dark />
         <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
       </div>
-      <div style={responseGridStyle}>
-        {turn.responses.map((response) => {
+      <ResponseGroup
+        panels={turn.responses.map((response): ResponsePanelData => {
           const key = retryStreamKey(turn.id, response.configuredModelId);
           const retry = streams[key];
           const retryState = retry?.models[response.configuredModelId];
-          return (
-            <ModelResponsePanel
-              key={`${turn.id}:${response.configuredModelId}`}
-              modelId={response.modelId}
-              displayName={response.modelDisplayName}
-              connectionLabel={response.connectionLabel}
-              text={retryState?.text ?? response.responseText ?? ""}
-              reasoning={retryState?.reasoning ?? response.reasoningText ?? ""}
-              status={retryState?.status ?? response.status}
-              errorMessage={retryState?.errorMessage ?? response.errorMessage ?? undefined}
-              inputTokens={retryState?.inputTokens ?? response.inputTokens ?? undefined}
-              outputTokens={retryState?.outputTokens ?? response.outputTokens ?? undefined}
-              cacheReadTokens={retryState?.cacheReadTokens ?? response.cacheReadTokens}
-              cacheWriteTokens={retryState?.cacheWriteTokens ?? response.cacheWriteTokens}
-              latencyMs={retryState?.latencyMs ?? response.latencyMs}
-              capabilityMatrix={modelsById[response.configuredModelId]?.capabilityMatrix}
-              responseId={retryState?.responseId ?? response.responseId}
-              likeCount={response.likeCount}
-              likedByMe={response.likedByMe}
-              anonymousLikeCount={response.anonymousLikeCount}
-              retrying={retry?.streaming ?? false}
-              onRetry={() => void handleRetry(turn.id, response.configuredModelId)}
-            />
-          );
+          return {
+            key: `${turn.id}:${response.configuredModelId}`,
+            modelId: response.modelId,
+            displayName: response.modelDisplayName,
+            connectionLabel: response.connectionLabel,
+            text: retryState?.text ?? response.responseText ?? "",
+            reasoning: retryState?.reasoning ?? response.reasoningText ?? "",
+            status: retryState?.status ?? response.status,
+            errorMessage: retryState?.errorMessage ?? response.errorMessage ?? undefined,
+            inputTokens: retryState?.inputTokens ?? response.inputTokens ?? undefined,
+            outputTokens: retryState?.outputTokens ?? response.outputTokens ?? undefined,
+            cacheReadTokens: retryState?.cacheReadTokens ?? response.cacheReadTokens,
+            cacheWriteTokens: retryState?.cacheWriteTokens ?? response.cacheWriteTokens,
+            latencyMs: retryState?.latencyMs ?? response.latencyMs,
+            capabilityMatrix: modelsById[response.configuredModelId]?.capabilityMatrix,
+            responseId: retryState?.responseId ?? response.responseId,
+            likeCount: response.likeCount,
+            likedByMe: response.likedByMe,
+            anonymousLikeCount: response.anonymousLikeCount,
+            retrying: retry?.streaming ?? false,
+            onRetry: () => void handleRetry(turn.id, response.configuredModelId),
+          };
         })}
-      </div>
+      />
     </section>
   ), [handleRetry, modelsById, streams]);
 
   const hasConversation = (activeSession?.turns.length ?? 0) > 0 || liveTurn !== null;
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!sessionId) return;
-    if (!window.confirm("Are you sure you want to delete this conversation?")) return;
+    const confirmed = await confirmDialog({
+      title: "Delete this conversation?",
+      message: "This conversation and all of its responses will be permanently removed.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!confirmed) return;
     void handleDeleteSession(sessionId);
   }, [handleDeleteSession, sessionId]);
   const handleExport = useCallback(() => {
@@ -452,7 +452,7 @@ export default function ChatPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={handleDelete}
+                    onClick={() => void handleDelete()}
                     className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -484,32 +484,30 @@ export default function ChatPage() {
                       <MediaAttachments items={liveTurn.attachments} dark />
                       <MarkdownRenderer content={liveTurn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
                     </div>
-                    <div style={responseGridStyle}>
-                      {liveTurn.selectedConfiguredModelIds.map((id) => {
+                    <ResponseGroup
+                      panels={liveTurn.selectedConfiguredModelIds.map((id): ResponsePanelData => {
                         const model = modelsById[id];
                         const state = panelStates[id];
-                        return (
-                          <ModelResponsePanel
-                            key={`draft:${id}`}
-                            modelId={model?.modelId ?? id}
-                            displayName={model?.displayName ?? id}
-                            connectionLabel={model?.connectionLabel}
-                            text={state?.text ?? ""}
-                            reasoning={state?.reasoning ?? ""}
-                            status={state?.status ?? "idle"}
-                            errorMessage={state?.errorMessage}
-                            inputTokens={state?.inputTokens}
-                            outputTokens={state?.outputTokens}
-                            cacheReadTokens={state?.cacheReadTokens}
-                            cacheWriteTokens={state?.cacheWriteTokens}
-                            latencyMs={state?.latencyMs}
-                            capabilityNotice={state?.capabilityNotice}
-                            capabilityMatrix={model?.capabilityMatrix}
-                            responseId={state?.responseId}
-                          />
-                        );
+                        return {
+                          key: `draft:${id}`,
+                          modelId: model?.modelId ?? id,
+                          displayName: model?.displayName ?? id,
+                          connectionLabel: model?.connectionLabel,
+                          text: state?.text ?? "",
+                          reasoning: state?.reasoning ?? "",
+                          status: state?.status ?? "idle",
+                          errorMessage: state?.errorMessage,
+                          inputTokens: state?.inputTokens,
+                          outputTokens: state?.outputTokens,
+                          cacheReadTokens: state?.cacheReadTokens,
+                          cacheWriteTokens: state?.cacheWriteTokens,
+                          latencyMs: state?.latencyMs,
+                          capabilityNotice: state?.capabilityNotice,
+                          capabilityMatrix: model?.capabilityMatrix,
+                          responseId: state?.responseId,
+                        };
                       })}
-                    </div>
+                    />
                   </section>
                 ) : null}
               </>

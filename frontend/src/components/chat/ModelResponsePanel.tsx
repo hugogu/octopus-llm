@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, ThumbsUp } from "lucide-react";
+import { Maximize2, Minimize2, RotateCcw, ThumbsUp } from "lucide-react";
 import type { CapabilityMatrix } from "@/lib/types/api";
 import StreamingMarkdown from "./StreamingMarkdown";
 import ThinkingBlock from "./ThinkingBlock";
@@ -30,6 +30,13 @@ interface ModelResponsePanelProps {
   anonymousLikeCount?: number;
   onRetry?: () => void;
   retrying?: boolean;
+  /** Controlled like state (mutually exclusive within a group); see {@link ResponseGroup}. */
+  likeControlled?: { count: number; liked: boolean; busy?: boolean; onToggle: () => void };
+  /** Show the maximize toggle (only when a group has more than one response). */
+  canMaximize?: boolean;
+  /** Whether this panel is currently maximized within its group. */
+  maximized?: boolean;
+  onToggleMaximize?: () => void;
 }
 
 export default function ModelResponsePanel({
@@ -53,6 +60,10 @@ export default function ModelResponsePanel({
   anonymousLikeCount = 0,
   onRetry,
   retrying = false,
+  likeControlled,
+  canMaximize = false,
+  maximized = false,
+  onToggleMaximize,
 }: ModelResponsePanelProps) {
   return (
     <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
@@ -75,7 +86,12 @@ export default function ModelResponsePanel({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <ResponseLikeButton responseId={responseId} initialCount={likeCount} initialLiked={likedByMe} />
+          <ResponseLikeButton
+            responseId={responseId}
+            initialCount={likeCount}
+            initialLiked={likedByMe}
+            controlled={likeControlled}
+          />
           {anonymousLikeCount > 0 ? (
             <span
               className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-stone-400"
@@ -109,6 +125,18 @@ export default function ModelResponsePanel({
             >
               <RotateCcw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} />
               Retry
+            </button>
+          )}
+          {canMaximize && onToggleMaximize && (
+            <button
+              type="button"
+              onClick={onToggleMaximize}
+              className="inline-flex items-center rounded-md p-1 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+              title={maximized ? "Restore side-by-side" : "Maximize this response"}
+              aria-label={maximized ? "Restore side-by-side" : "Maximize this response"}
+              aria-pressed={maximized}
+            >
+              {maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </button>
           )}
         </div>

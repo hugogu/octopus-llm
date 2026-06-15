@@ -9,9 +9,25 @@ interface Props {
   responseId?: string;
   initialCount?: number;
   initialLiked?: boolean;
+  /**
+   * Controlled mode used by {@link ResponseGroup} to make likes mutually exclusive within one
+   * response group. When provided, the button does not call the API itself — it reflects the given
+   * state and delegates toggling to the parent.
+   */
+  controlled?: {
+    count: number;
+    liked: boolean;
+    busy?: boolean;
+    onToggle: () => void;
+  };
 }
 
-export default function ResponseLikeButton({ responseId, initialCount = 0, initialLiked = false }: Props) {
+export default function ResponseLikeButton({
+  responseId,
+  initialCount = 0,
+  initialLiked = false,
+  controlled,
+}: Props) {
   const [count, setCount] = useState(initialCount);
   const [liked, setLiked] = useState(initialLiked);
   const [busy, setBusy] = useState(false);
@@ -36,18 +52,23 @@ export default function ResponseLikeButton({ responseId, initialCount = 0, initi
     }
   }
 
+  const isControlled = controlled !== undefined;
+  const shownCount = isControlled ? controlled!.count : count;
+  const shownLiked = isControlled ? controlled!.liked : liked;
+  const isBusy = isControlled ? controlled!.busy ?? false : busy;
+
   return (
     <button
       type="button"
-      disabled={!responseId || busy}
-      onClick={() => void toggle()}
-      aria-pressed={liked}
-      aria-label={liked ? "Unlike response" : "Like response"}
+      disabled={!responseId || isBusy}
+      onClick={() => (isControlled ? controlled!.onToggle() : void toggle())}
+      aria-pressed={shownLiked}
+      aria-label={shownLiked ? "Unlike response" : "Like response"}
       title={failed ? "Could not update like" : responseId ? "Like response" : "Available after response is saved"}
-      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 ${liked ? "bg-rose-50 text-rose-600" : "text-stone-400 hover:bg-stone-100 hover:text-rose-600"}`}
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 ${shownLiked ? "bg-rose-50 text-rose-600" : "text-stone-400 hover:bg-stone-100 hover:text-rose-600"}`}
     >
-      <Heart className={`h-3.5 w-3.5 ${liked ? "fill-current" : ""}`} />
-      <span>{count}</span>
+      <Heart className={`h-3.5 w-3.5 ${shownLiked ? "fill-current" : ""}`} />
+      <span>{shownCount}</span>
     </button>
   );
 }

@@ -10,6 +10,7 @@ import {
   detectConnectionCapabilities,
   listConnectionEndpointModels,
 } from "@/lib/api/connections";
+import { confirmDialog } from "@/lib/ui/confirm";
 import type { ConfiguredModelV2, ConnectionV2 } from "@/lib/types/api";
 import ModelRow from "./ModelRow";
 
@@ -71,7 +72,11 @@ export default function ConnectionCard({
         );
         return;
       }
-      if (!confirm(`Add ${missing.length} model(s) from this endpoint?`)) return;
+      if (!(await confirmDialog({
+        title: `Add ${missing.length} model(s)?`,
+        message: "These models discovered from the endpoint will be added to this connection.",
+        confirmLabel: "Add",
+      }))) return;
       const results = await Promise.allSettled(
         missing.map((id) =>
           addConfiguredModel(token, { connectionId: connection.id, modelId: id, displayName: id }),
@@ -101,7 +106,12 @@ export default function ConnectionCard({
   };
 
   const remove = async () => {
-    if (!confirm(`Delete ${connection.label ?? connection.baseUrl} and its configured models?`)) return;
+    if (!(await confirmDialog({
+      title: `Delete ${connection.label ?? connection.baseUrl}?`,
+      message: "This connection and its configured models will be deleted.",
+      confirmLabel: "Delete",
+      danger: true,
+    }))) return;
     const token = getToken();
     if (!token) return;
     await deleteConnection(token, connection.id);

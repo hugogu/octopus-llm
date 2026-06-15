@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Paperclip, ArrowUp } from "lucide-react";
+import { Paperclip, ArrowUp, ImagePlus } from "lucide-react";
 import AttachmentTray, { type PendingAttachment } from "@/components/chat/AttachmentTray";
 import VoiceRecorder from "@/components/chat/VoiceRecorder";
 import { DEFAULT_MEDIA_LIMITS, validateCandidate, type MediaLimits } from "@/lib/media/limits";
@@ -24,7 +24,9 @@ export default function ChatInput({
   const [text, setText] = useState("");
   const [items, setItems] = useState<PendingAttachment[]>([]);
   const [limitError, setLimitError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
 
   function addFiles(selected: File[]) {
     setLimitError(null);
@@ -46,6 +48,37 @@ export default function ChatInput({
     const selected = Array.from(e.target.files ?? []);
     if (fileRef.current) fileRef.current.value = "";
     addFiles(selected);
+  }
+
+  const canDrop = supportsAttachments && !disabled;
+
+  function handleDragEnter(e: React.DragEvent) {
+    if (!canDrop || !e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragActive(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    if (!canDrop) return;
+    e.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragActive(false);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    if (!canDrop) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragActive(false);
+    const dropped = Array.from(e.dataTransfer.files).filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+    );
+    if (dropped.length === 0) {
+      setLimitError("Only image and video files can be dropped here.");
+      return;
+    }
+    addFiles(dropped);
   }
 
   function removeItem(id: string) {
@@ -77,8 +110,23 @@ export default function ChatInput({
   const canSend = !disabled && (text.trim().length > 0 || items.length > 0);
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-3xl">
-      <div className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-white p-2.5 shadow-sm transition focus-within:border-[#c96442] focus-within:ring-1 focus-within:ring-[#c96442]">
+    <form
+      onSubmit={handleSubmit}
+      className="mx-auto w-full max-w-3xl"
+      onDragEnter={handleDragEnter}
+      onDragOver={(e) => {
+        if (canDrop && e.dataTransfer.types.includes("Files")) e.preventDefault();
+      }}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className={`relative flex flex-col gap-2 rounded-2xl border bg-white p-2.5 shadow-sm transition focus-within:border-[#c96442] focus-within:ring-1 focus-within:ring-[#c96442] ${dragActive ? "border-[#c96442] ring-1 ring-[#c96442]" : "border-stone-200"}`}>
+        {dragActive && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-[#c96442] bg-[#faf3ee]/95 text-[#b55538]">
+            <ImagePlus className="h-6 w-6" />
+            <span className="text-sm font-medium">Drop images or videos to attach</span>
+          </div>
+        )}
         <AttachmentTray items={items} onRemove={removeItem} onReorder={setItems} />
 
         {limitError && (

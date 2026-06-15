@@ -111,7 +111,8 @@ Every user-facing surface MUST follow these four principles; a feature is not co
   Do not ship raw, unstyled HTML controls when a styled equivalent already exists.
 - **Fluent**: Interactions MUST communicate state — loading skeletons or button spinners during async
   work, disabled controls while busy, and inline success/error banners. No dead clicks, no silent
-  failures, no unexplained blank states.
+  failures, no unexplained blank states. Native browser dialogs (`window.alert`/`confirm`/`prompt`)
+  are PROHIBITED; use the styled `confirmDialog` (`@/lib/ui/confirm`) and inline banners instead.
 - **Responsive**: Layouts MUST work from narrow mobile widths to desktop using the project's Tailwind
   breakpoints; tables and wide content MUST degrade gracefully (scroll or reflow), never overflow.
 - **Connected**: Every authorized destination MUST be reachable through in-app navigation — a feature

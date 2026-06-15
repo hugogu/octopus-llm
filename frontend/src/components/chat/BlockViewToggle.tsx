@@ -78,13 +78,14 @@ export default function BlockViewToggle({
 
       {zoomed && (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-black/70 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setZoomed(false)}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+            className="flex max-h-[92vh] min-h-[300px] w-full min-w-[360px] max-w-[95vw] resize flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+            style={{ width: 'min(1100px, 92vw)', height: '85vh' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-stone-200 bg-stone-100 px-3 py-2">
@@ -99,7 +100,12 @@ export default function BlockViewToggle({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex-1 overflow-auto p-3">{preview}</div>
+            {/* min-h-0 lets the body shrink inside the flex column; the [&>iframe] rules stretch a
+                runnable HTML artifact to fill the enlarged (and resized) area, while diagrams/SVG keep
+                their natural size and scroll. */}
+            <div className="min-h-0 flex-1 overflow-auto p-3 [&>iframe]:h-full [&>iframe]:w-full">
+              {preview}
+            </div>
           </div>
         </div>
       )}

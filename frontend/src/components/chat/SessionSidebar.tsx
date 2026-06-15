@@ -7,6 +7,7 @@ import type { ChatSessionV2 } from '@/lib/types/api';
 import Button from '@/components/ui/Button';
 import AdminNavLink from '@/components/admin/AdminNavLink';
 import AccountNavLink from '@/components/account/AccountNavLink';
+import { confirmDialog } from '@/lib/ui/confirm';
 
 interface SessionSidebarProps {
   sessions: ChatSessionV2[];
@@ -29,9 +30,13 @@ export default function SessionSidebar({
   const [collapsed, setCollapsed] = useState(false);
 
   const handleDelete = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to delete this conversation?')) {
-      return;
-    }
+    const confirmed = await confirmDialog({
+      title: 'Delete this conversation?',
+      message: 'This conversation and all of its responses will be permanently removed.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!confirmed) return;
     setDeletingId(sessionId);
     try {
       await onDeleteSession(sessionId);

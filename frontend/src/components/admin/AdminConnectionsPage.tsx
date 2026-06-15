@@ -21,6 +21,7 @@ import {
   patchBuiltinModel,
   revokeConnection,
 } from "@/lib/api/admin";
+import { confirmDialog } from "@/lib/ui/confirm";
 import type { AdminUser, BuiltinConnection, BuiltinModel, ConnectionAllocationView } from "@/lib/types/api";
 
 const MODALITY_KEYS = ["image", "video", "audio"] as const;
@@ -207,7 +208,11 @@ function ConnectionCard({
         onNotice(items.length === 0 ? "The endpoint returned no models." : "All endpoint models are already configured.");
         return;
       }
-      if (!confirm(`Add ${missing.length} model(s) discovered from the endpoint?`)) return;
+      if (!(await confirmDialog({
+        title: `Add ${missing.length} model(s)?`,
+        message: "These models discovered from the endpoint will be added.",
+        confirmLabel: "Add",
+      }))) return;
       await Promise.allSettled(missing.map((id) => addBuiltinModel(token, connection.id, { modelId: id, displayName: id })));
       onNotice(`Added ${missing.length} model(s) from the endpoint.`);
       await refresh();
