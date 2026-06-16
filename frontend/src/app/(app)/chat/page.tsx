@@ -150,9 +150,6 @@ export default function ChatPage() {
       const session = await getSessionV2(id, token);
       if (sessionIdRef.current !== id) return;
       setActiveSession(session);
-      const enabledIds = new Set(enabledModels.map((model) => model.id));
-      const priorSelection = session.turns.at(-1)?.selectedConfiguredModelIds.filter((modelId) => enabledIds.has(modelId)) ?? [];
-      if (priorSelection.length > 0) setSelectedIds(priorSelection);
       setLoadError(null);
     } catch (error) {
       if (sessionIdRef.current === id) {
@@ -161,7 +158,25 @@ export default function ChatPage() {
     } finally {
       if (sessionIdRef.current === id) setSessionLoading(false);
     }
-  }, [enabledModels]);
+  }, []);
+
+  // Apply the previous turn's model selection once per session, derived from the already-loaded
+  // session + enabled-model list. Kept out of loadSessionData on purpose: depending on enabledModels
+  // there would re-create loadSessionData and refetch the whole session when the model list arrives.
+  const priorSelectionSessionRef = useRef<string | null>(null);
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (!activeSession) {
+        priorSelectionSessionRef.current = null;
+        return;
+      }
+      if (enabledModels.length === 0 || priorSelectionSessionRef.current === activeSession.id) return;
+      priorSelectionSessionRef.current = activeSession.id;
+      const enabledIds = new Set(enabledModels.map((model) => model.id));
+      const priorSelection = activeSession.turns.at(-1)?.selectedConfiguredModelIds.filter((modelId) => enabledIds.has(modelId)) ?? [];
+      if (priorSelection.length > 0) setSelectedIds(priorSelection);
+    });
+  }, [activeSession, enabledModels]);
 
   useEffect(() => {
     queueMicrotask(() => {
