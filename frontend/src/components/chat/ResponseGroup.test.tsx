@@ -54,7 +54,7 @@ describe("ResponseGroup", () => {
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Maximize this response" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Maximize this response" })[0]!);
 
     // The other panel collapses to a chip (labelled by its model name) that can re-maximize it.
     expect(screen.getByRole("button", { name: "Bravo" })).toBeInTheDocument();
