@@ -1,15 +1,17 @@
-FROM node:22-alpine AS deps
+ARG DOCKER_IMAGE_PREFIX=""
+ARG FRONTEND_NODE_IMAGE=""
+FROM ${FRONTEND_NODE_IMAGE:-${DOCKER_IMAGE_PREFIX}node:20-alpine} AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-FROM node:22-alpine AS builder
+FROM ${FRONTEND_NODE_IMAGE:-${DOCKER_IMAGE_PREFIX}node:20-alpine} AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS runner
+FROM ${FRONTEND_NODE_IMAGE:-${DOCKER_IMAGE_PREFIX}node:20-alpine} AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN addgroup -S nextjs && adduser -S nextjs -G nextjs
