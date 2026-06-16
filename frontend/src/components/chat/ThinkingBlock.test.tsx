@@ -14,15 +14,16 @@ describe('ThinkingBlock', () => {
     expect(screen.queryByText(/step 1/)).not.toBeInTheDocument();
   });
 
-  it('expands content on click', () => {
+  it('expands content on click', async () => {
     render(<ThinkingBlock reasoning="step 1: think" />);
     fireEvent.click(screen.getByText('Thought process'));
-    expect(screen.getByText(/step 1/)).toBeInTheDocument();
+    // Reasoning renders through the lazily-loaded MarkdownRenderer.
+    expect(await screen.findByText(/step 1/)).toBeInTheDocument();
   });
 
-  it('auto-opens while streaming', () => {
+  it('auto-opens while streaming', async () => {
     render(<ThinkingBlock reasoning="step 1: think" autoOpen />);
-    expect(screen.getByText(/step 1/)).toBeInTheDocument();
+    expect(await screen.findByText(/step 1/)).toBeInTheDocument();
   });
 
   it('user collapse wins over autoOpen', () => {

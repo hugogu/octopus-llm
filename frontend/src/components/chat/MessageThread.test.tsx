@@ -10,13 +10,15 @@ describe('MessageThread', () => {
     { id: '4', role: 'assistant' as const, content: 'I am doing well!', modelId: 'claude-3' },
   ];
 
-  it('renders all messages', () => {
+  it('renders all messages', async () => {
     render(<MessageThread messages={mockMessages} />);
-    
-    expect(screen.getByText('Hello')).toBeInTheDocument();
-    expect(screen.getByText('Hi there!')).toBeInTheDocument();
-    expect(screen.getByText('How are you?')).toBeInTheDocument();
-    expect(screen.getByText('I am doing well!')).toBeInTheDocument();
+
+    // Message bodies render through the lazily-loaded markdown components
+    // (user and assistant turns use separate dynamic chunks).
+    expect(await screen.findByText('Hello')).toBeInTheDocument();
+    expect(await screen.findByText('Hi there!')).toBeInTheDocument();
+    expect(await screen.findByText('How are you?')).toBeInTheDocument();
+    expect(await screen.findByText('I am doing well!')).toBeInTheDocument();
   });
 
   it('shows user label for user messages', () => {
