@@ -15,8 +15,9 @@ export default function ModelSelectorPanel({
   selectedIds,
   onChange,
 }: ModelSelectorPanelProps) {
-  // Open by default only when nothing is selected, so the user is nudged to pick.
-  const [open, setOpen] = useState(selectedIds.length === 0);
+  // Closed by default. (selectedIds loads async from storage, so keying the initial state off it
+  // would open the panel on every refresh before the saved selection arrives.)
+  const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const enabledModels = useMemo(() => {
