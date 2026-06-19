@@ -1,8 +1,24 @@
 import { apiUrl } from "@/lib/api/base";
 
 // Same-origin client for the admin migration endpoints (feature 008). All calls go through the Next
-// proxy at /api/... so large artifact bodies stream (see app/api/[...path]/route.ts). Skeleton — the
-// admin Migration page (US1, task T028) fleshes out idempotency-key reuse and error handling.
+// proxy at /api/... so large artifact bodies stream (see app/api/[...path]/route.ts).
+
+/** A fresh, opaque idempotency key for an import attempt; reuse the same value across retries. */
+export function newIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** Triggers a browser download for a blob (the streamed encrypted artifact). */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
 
 export interface MigrationExportRequest {
   acknowledgeSensitiveExport: boolean;
