@@ -34,6 +34,7 @@ class ChatServiceTest {
     private val mediaRepository = mockk<com.octopusllm.media.MediaRepository>()
     private val storageSettingsService = mockk<com.octopusllm.admin.StorageSettingsService>()
     private val mediaStorageFactory = mockk<com.octopusllm.media.MediaStorageFactory>()
+    private val dialogRedactionService = mockk<DialogRedactionService>()
     private val service = ChatService(
         sessionRepository,
         turnRepository,
@@ -45,6 +46,7 @@ class ChatServiceTest {
         mediaRepository,
         storageSettingsService,
         mediaStorageFactory,
+        dialogRedactionService,
     )
 
     @Test
@@ -105,6 +107,8 @@ class ChatServiceTest {
         every { sessionRepository.findById(session.id) } returns Optional.of(session)
         every { turnRepository.findBySessionIdOrderBySequenceNum(session.id) } returns listOf(turn)
         every { responseRepository.findByTurnId(turn.id) } returns listOf(first, second)
+        every { dialogRedactionService.forTurns(any()) } returns
+            DialogRedactionService.Redactions(emptySet(), emptySet())
 
         StepVerifier.create(service.getSession(session.id, user.id))
             .assertNext { (_, turns) ->

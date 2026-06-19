@@ -78,6 +78,7 @@ class ShareService(
     private val responseLikeRepository: ResponseLikeRepository,
     private val reactionService: ReactionService,
     private val tokenService: ShareTokenService,
+    private val dialogRedactionService: com.octopusllm.chat.DialogRedactionService,
 ) {
     fun create(sessionId: UUID, userId: UUID): Mono<Pair<ShareLinkDto, Boolean>> = blocking {
         shareRepository.findActiveOwned(sessionId, userId)?.let { return@blocking dto(it) to false }
@@ -112,9 +113,11 @@ class ShareService(
     fun read(token: String, visitorDigest: String, viewerId: UUID?): Mono<SharedSessionDto> = blocking {
         val share = requireActive(token)
         val turns = turnRepository.findBySessionIdOrderBySequenceNum(share.session.id)
+        // Feature 008: redacted Dialogs are hidden from shared views too (same filter as owned reads).
+        val redactions = dialogRedactionService.forTurns(turns.map { it.id })
         SharedSessionDto(
             title = share.session.title,
-            turns = turns.map { turn ->
+            turns = turns.filterNot { redactions.isTurnRedacted(it.id) }.map { turn ->
                 SharedTurnDto(
                     sequenceNum = turn.sequenceNum,
                     promptText = turn.promptText,
@@ -123,7 +126,7 @@ class ShareService(
                     responses = latestProviderResponses(
                         turn,
                         responseRepository.findByTurnId(turn.id),
-                    ).map { response ->
+                    ).filterNot { redactions.isResponseRedacted(it.id) }.map { response ->
                         SharedResponseDto(
                             responseId = response.id,
                             modelDisplayName = response.modelDisplayName,

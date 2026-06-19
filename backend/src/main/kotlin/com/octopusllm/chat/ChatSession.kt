@@ -27,4 +27,11 @@ class ChatSession(
 
     @Column(name = "selected_model_id", length = 255)
     var selectedModelId: String? = null,
+
+    // Feature 008: display-only provenance for Quests created via import. Ownership stays `user`.
+    @Column(name = "imported_from_label", length = 255)
+    var importedFromLabel: String? = null,
+
+    @Column(name = "imported_at")
+    var importedAt: Instant? = null,
 )

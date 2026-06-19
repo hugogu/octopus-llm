@@ -13,25 +13,25 @@ dependency.
 
 ## Phase 1: Setup and prerequisite refactor
 
-- [ ] T001 [P] Create backend package `com.octopusllm.migration` with `MigrationController.kt`, `MigrationExportService.kt`, `MigrationImportService.kt`, `MigrationBundle.kt`, `MigrationArtifactCrypto.kt`, `MigrationOperation.kt`, and `MigrationOperationRepository.kt`
-- [ ] T002 [P] Create typed frontend client skeleton `frontend/src/lib/api/migration.ts` from [contracts/admin-migration.md](./contracts/admin-migration.md)
-- [ ] T003 Refactor `frontend/src/app/api/[...path]/route.ts` to stream non-GET request bodies upstream instead of calling `request.arrayBuffer()`; preserve the full `/api/...` path and manual redirect behavior, and commit this proxy refactor separately before feature UI work
-- [ ] T004 [P] Extend `frontend/src/app/api/[...path]/route.test.ts` with a real binary/multipart streaming request that asserts the exact upstream path, query, headers, and bytes
+- [X] T001 [P] Create backend package `com.octopusllm.migration` with `MigrationController.kt`, `MigrationExportService.kt`, `MigrationImportService.kt`, `MigrationBundle.kt`, `MigrationArtifactCrypto.kt`, `MigrationOperation.kt`, and `MigrationOperationRepository.kt`
+- [X] T002 [P] Create typed frontend client skeleton `frontend/src/lib/api/migration.ts` from [contracts/admin-migration.md](./contracts/admin-migration.md)
+- [X] T003 Refactor `frontend/src/app/api/[...path]/route.ts` to stream non-GET request bodies upstream instead of calling `request.arrayBuffer()`; preserve the full `/api/...` path and manual redirect behavior, and commit this proxy refactor separately before feature UI work
+- [X] T004 [P] Extend `frontend/src/app/api/[...path]/route.test.ts` with a real binary/multipart streaming request that asserts the exact upstream path, query, headers, and bytes
 
 ## Phase 2: Foundational schema and shared infrastructure
 
 **Checkpoint**: complete before user-story implementation.
 
-- [ ] T005 [P] Add `V032__session_share_scope.sql`: `scope VARCHAR(20) NOT NULL DEFAULT 'authenticated'`, backfill existing rows to `public`, and add the allowed-value check
-- [ ] T006 [P] Add `V033__dialog_redactions.sql`: append-only table, nullable `redacted_by ... ON DELETE SET NULL`, scope check, FK/indexes, and partial unique indexes
-- [ ] T007 [P] Add `V034__quest_import_origin.sql`: nullable `imported_from_label` and `imported_at` on `chat_sessions`
-- [ ] T008 [P] Add `V035__migration_operations.sql`: non-secret operation/result audit, partial idempotency uniqueness, and `migration_staged_media` crash-cleanup ledger from [data-model.md](./data-model.md)
-- [ ] T009 [P] Add share scope to `backend/src/main/kotlin/com/octopusllm/share/SessionShare.kt` using an enum mapped to varchar; add migration/entity tests
-- [ ] T010 [P] Add `DialogRedaction.kt` and `DialogRedactionRepository.kt`; validate response belongs to turn/session in service code, not only by caller-supplied ids
-- [ ] T011 [P] Add import-origin fields to `backend/src/main/kotlin/com/octopusllm/chat/ChatSession.kt`
-- [ ] T012 Add redaction exclusion to owned Quest reads in `ChatService.kt` and shared reads in `ShareService.kt`; centralize the filter so export/share/import cannot drift
-- [ ] T013 [P] Implement `MigrationOperation` claim/complete/fail operations with actor + operation + key-hash uniqueness, source-digest conflict detection, and no secret-bearing metadata
-- [ ] T014 [P] Add `MigrationStagedMedia` repository plus an idempotent cleanup service/job: record deterministic backend/key before each object write, delete tracked objects for failed/stale operations, and run safely on every instance without distributed locks
+- [X] T005 [P] Add `V032__session_share_scope.sql`: `scope VARCHAR(20) NOT NULL DEFAULT 'authenticated'`, backfill existing rows to `public`, and add the allowed-value check
+- [X] T006 [P] Add `V033__dialog_redactions.sql`: append-only table, nullable `redacted_by ... ON DELETE SET NULL`, scope check, FK/indexes, and partial unique indexes
+- [X] T007 [P] Add `V034__quest_import_origin.sql`: nullable `imported_from_label` and `imported_at` on `chat_sessions`
+- [X] T008 [P] Add `V035__migration_operations.sql`: non-secret operation/result audit, partial idempotency uniqueness, and `migration_staged_media` crash-cleanup ledger from [data-model.md](./data-model.md)
+- [X] T009 [P] Add share scope to `backend/src/main/kotlin/com/octopusllm/share/SessionShare.kt` using an enum mapped to varchar; add migration/entity tests
+- [X] T010 [P] Add `DialogRedaction.kt` and `DialogRedactionRepository.kt`; validate response belongs to turn/session in service code, not only by caller-supplied ids
+- [X] T011 [P] Add import-origin fields to `backend/src/main/kotlin/com/octopusllm/chat/ChatSession.kt`
+- [X] T012 Add redaction exclusion to owned Quest reads in `ChatService.kt` and shared reads in `ShareService.kt`; centralize the filter so export/share/import cannot drift
+- [X] T013 [P] Implement `MigrationOperation` claim/complete/fail operations with actor + operation + key-hash uniqueness, source-digest conflict detection, and no secret-bearing metadata
+- [X] T014 [P] Add `MigrationStagedMedia` repository plus an idempotent cleanup service/job: record deterministic backend/key before each object write, delete tracked objects for failed/stale operations, and run safely on every instance without distributed locks
 
 ## Phase 3: User Story 1 — Admin Quest/Connection migration (P1, MVP)
 

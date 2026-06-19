@@ -40,6 +40,7 @@ class ChatService(
     private val mediaRepository: MediaRepository,
     private val storageSettingsService: StorageSettingsService,
     private val mediaStorageFactory: MediaStorageFactory,
+    private val dialogRedactionService: DialogRedactionService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -70,7 +71,13 @@ class ChatService(
         blocking {
             val session = requireSession(sessionId, userId)
             val turns = turnRepository.findBySessionIdOrderBySequenceNum(sessionId)
-            session to turns.map { turn -> turn to latestResponses(turn) }
+            // Feature 008: hide redacted Dialogs (whole turns and individual responses) from the
+            // owner's view, without touching the immutable rows.
+            val redactions = dialogRedactionService.forTurns(turns.map { it.id })
+            val visible = turns
+                .filterNot { redactions.isTurnRedacted(it.id) }
+                .map { turn -> turn to latestResponses(turn).filterNot { redactions.isResponseRedacted(it.id) } }
+            session to visible
         }
 
     fun deleteSession(sessionId: UUID, userId: UUID): Mono<Unit> =

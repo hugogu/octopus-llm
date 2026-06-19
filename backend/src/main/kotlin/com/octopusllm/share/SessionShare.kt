@@ -2,6 +2,7 @@ package com.octopusllm.share
 
 import com.octopusllm.chat.ChatSession
 import jakarta.persistence.Column
+import jakarta.persistence.Convert
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType
 import jakarta.persistence.Id
@@ -30,4 +31,10 @@ class SessionShare(
 
     @Column(name = "revoked_at")
     var revokedAt: Instant? = null,
+
+    // Feature 008: audience scope. New shares default to AUTHENTICATED; existing rows backfilled to
+    // PUBLIC by V032 so already-issued links keep working.
+    @Convert(converter = ShareScopeConverter::class)
+    @Column(nullable = false, length = 20)
+    var scope: ShareScope = ShareScope.AUTHENTICATED,
 )
