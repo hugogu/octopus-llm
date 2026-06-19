@@ -73,6 +73,12 @@ media:
     dir: ${MEDIA_LOCAL_DIR:./data/media}
     public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:8080/media}
 
+# Optional artifact passphrase for admin data migration (feature 008). Memory-only, like the
+# encryption master key — never logged or persisted. When set, admins may export/import without
+# typing a passphrase; a request-supplied passphrase always overrides this value.
+migration:
+  artifact-passphrase: ${MIGRATION_ARTIFACT_PASSPHRASE:}
+
 # Cross-provider model capability detection (feature 007). OpenRouter's public models list exposes
 # per-model input modalities; the key is optional (the list endpoint is public) but sent when present.
 openrouter:

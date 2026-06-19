@@ -8,8 +8,12 @@ import com.octopusllm.chat.ProviderResponseRepository
 import com.octopusllm.chat.latestProviderResponses
 import com.octopusllm.connection.ConfiguredModelRepository
 import com.octopusllm.connection.ConnectionRepository
+import com.octopusllm.media.MediaRepository
+import com.octopusllm.media.MediaStorageFactory
 import com.octopusllm.userconfig.ApiKeyEncryptionService
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.util.UUID
 import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 import java.time.Instant
@@ -19,10 +23,11 @@ import java.util.zip.ZipOutputStream
 /**
  * Builds the passphrase-encrypted migration artifact (feature 008, T024).
  *
- * NOTE (incremental): this slice exports Connections (+ configured models) and Quests (turns +
- * non-redacted responses) into the encrypted ZIP. Media object bytes (T026 staging path) and
- * controller streaming (T027) are layered on next; attachment references are carried through as-is.
- * Artifact-local ids reuse the source UUIDs — import always allocates fresh ids and remaps.
+ * Exports Connections (+ configured models), Quests (turns + non-redacted responses), and the media
+ * objects those non-redacted turns reference into one passphrase-encrypted ZIP. Artifact-local ids
+ * reuse the source UUIDs — import always allocates fresh ids and remaps every reference. Media bytes
+ * are read one object at a time and never appear in plaintext at rest. (True HTTP streaming without
+ * buffering the whole artifact is a follow-up; the controller streams the buffered artifact out.)
  */
 @Service
 class MigrationExportService(
@@ -33,13 +38,18 @@ class MigrationExportService(
     private val responseRepository: ProviderResponseRepository,
     private val dialogRedactionService: DialogRedactionService,
     private val encryptionService: ApiKeyEncryptionService,
+    private val mediaRepository: MediaRepository,
+    private val mediaStorageFactory: MediaStorageFactory,
     private val crypto: MigrationArtifactCrypto,
     private val objectMapper: ObjectMapper,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     /** Produces the full encrypted artifact as bytes. Decrypted keys live only in local variables. */
     fun export(passphrase: CharSequence): ByteArray {
         val salt = crypto.newSaltHex()
         val modelsByConnection = configuredModelRepository.findAll().groupBy { it.connection.id }
+        val referencedMediaIds = LinkedHashSet<UUID>()
 
         val connections = connectionRepository.findAll().map { connection ->
             ConnectionExport(
@@ -75,6 +85,10 @@ class MigrationExportService(
                 turns = turns.filterNot { redactions.isTurnRedacted(it.id) }.map { turn ->
                     val responses = latestProviderResponses(turn, responseRepository.findByTurnId(turn.id))
                         .filterNot { redactions.isResponseRedacted(it.id) }
+                    turn.attachments.orEmpty().forEach { ref ->
+                        (ref["media_id"] as? String)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                            ?.let { referencedMediaIds += it }
+                    }
                     TurnExport(
                         artifactTurnId = turn.id,
                         sequenceNum = turn.sequenceNum,
@@ -89,7 +103,27 @@ class MigrationExportService(
             )
         }
 
-        return writeArtifact(passphrase, salt, connections, quests)
+        // Read referenced media one object at a time; skip rows whose bytes are no longer present.
+        val media = referencedMediaIds.mapNotNull { mediaId ->
+            val row = mediaRepository.findById(mediaId).orElse(null) ?: return@mapNotNull null
+            val bytes = runCatching {
+                mediaStorageFactory.resolveByBackend(row.storageBackend)?.read(row.storageKey)
+            }.getOrNull()
+            if (bytes == null) {
+                log.warn("migration_export_media_missing id={} backend={}", mediaId.toString().take(8), row.storageBackend)
+                return@mapNotNull null
+            }
+            MediaExport(
+                artifactMediaId = row.id,
+                mediaType = row.mediaType,
+                mimeType = row.mimeType,
+                sizeBytes = row.sizeBytes,
+                originalFilename = row.originalFilename,
+                content = bytes,
+            )
+        }
+
+        return writeArtifact(passphrase, salt, connections, quests, media)
     }
 
     private fun writeArtifact(
@@ -97,6 +131,7 @@ class MigrationExportService(
         salt: String,
         connections: List<ConnectionExport>,
         quests: List<QuestExport>,
+        media: List<MediaExport>,
     ): ByteArray {
         val entries = mutableListOf<ArtifactEntry>()
         val buffer = ByteArrayOutputStream()
@@ -108,6 +143,10 @@ class MigrationExportService(
             quests.forEach { quest ->
                 val path = "quests/${quest.artifactQuestId}.enc"
                 entries += encryptEntry(zip, path, "quest", passphrase, salt, quest)
+            }
+            media.forEach { item ->
+                val path = "media/${item.artifactMediaId}.enc"
+                entries += encryptEntry(zip, path, "media", passphrase, salt, item)
             }
             val envelope = MigrationEnvelope(createdAt = Instant.now(), saltHex = salt, entries = entries)
             writeRaw(zip, "envelope.json", objectMapper.writeValueAsBytes(envelope))

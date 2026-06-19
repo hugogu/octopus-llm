@@ -3,6 +3,7 @@ package com.octopusllm.migration
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -10,6 +11,8 @@ interface MigrationStagedMediaRepository : JpaRepository<MigrationStagedMedia, M
 
     fun findByIdOperationId(operationId: UUID): List<MigrationStagedMedia>
 
+    // Derived delete needs its own transaction when called from the non-transactional import flow.
+    @Transactional
     fun deleteByIdOperationId(operationId: UUID)
 
     /**

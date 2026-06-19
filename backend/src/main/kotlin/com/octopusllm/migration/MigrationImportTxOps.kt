@@ -10,7 +10,10 @@ import com.octopusllm.chat.ProviderResponseRepository
 import com.octopusllm.connection.ConfiguredModel
 import com.octopusllm.connection.ConfiguredModelRepository
 import com.octopusllm.connection.Connection
+import com.octopusllm.connection.ConnectionEndpointPolicy
 import com.octopusllm.connection.ConnectionRepository
+import com.octopusllm.media.Media
+import com.octopusllm.media.MediaRepository
 import com.octopusllm.userconfig.ApiKeyEncryptionService
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -34,15 +37,36 @@ class MigrationImportTxOps(
     private val sessionRepository: ChatSessionRepository,
     private val turnRepository: ChatTurnRepository,
     private val responseRepository: ProviderResponseRepository,
+    private val mediaRepository: MediaRepository,
     private val encryptionService: ApiKeyEncryptionService,
+    private val endpointPolicy: ConnectionEndpointPolicy,
 ) {
     @Transactional
-    fun commit(bundle: MigrationBundle, adminUserId: UUID): MigrationImportResult {
+    fun commit(bundle: MigrationBundle, stagedMedia: List<StagedMedia>, adminUserId: UUID): MigrationImportResult {
         val admin = userRepository.findById(adminUserId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Importing admin not found")
         }
         val existingLabels = connectionRepository.findByUserId(adminUserId, Pageable.unpaged())
             .content.mapNotNull { it.label }.toMutableSet()
+
+        // Persist a media row per staged object (owned by the admin, bound to its turn below); build the
+        // artifact-id → new-reference map used to rewrite turn attachments.
+        val mediaByArtifactId = stagedMedia.associateBy { it.artifactMediaId }
+        val mediaRows = stagedMedia.associate { sm ->
+            sm.newId to mediaRepository.save(
+                Media(
+                    id = sm.newId,
+                    ownerUserId = adminUserId,
+                    mediaType = sm.mediaType,
+                    mimeType = sm.mimeType,
+                    sizeBytes = sm.sizeBytes,
+                    storageBackend = sm.backend,
+                    storageKey = sm.storageKey,
+                    publicUrl = sm.publicUrl,
+                    originalFilename = sm.originalFilename,
+                ),
+            )
+        }
 
         val connectionIdMap = HashMap<UUID, UUID>()
         val modelIdMap = HashMap<UUID, UUID>()
@@ -51,13 +75,16 @@ class MigrationImportTxOps(
         bundle.connections.forEach { ce ->
             val label = uniqueLabel(ce.label, existingLabels)
             if (label != ce.label) connectionsRenamed++
+            // Re-validate the imported endpoint with the target deployment's policy (public HTTPS,
+            // no redirects/loopback unless allowed). A rejection aborts the whole import (zero rows).
+            val normalizedUrl = endpointPolicy.normalizeAndValidate(ce.baseUrl)
             val encrypted = encryptionService.encrypt(ce.apiKey)
             val connection = connectionRepository.save(
                 Connection(
                     user = admin,
                     protocol = ce.protocol,
                     label = label,
-                    baseUrl = ce.baseUrl,
+                    baseUrl = normalizedUrl,
                     encryptedKey = encrypted.ciphertext,
                     keyIv = encrypted.iv,
                     isBuiltin = false,
@@ -99,17 +126,34 @@ class MigrationImportTxOps(
                 // snapshot id so the turn/response stays internally consistent.
                 val selectedConfigured = te.selectedArtifactConfiguredModelIds
                     .map { modelIdMap[it] ?: UUID.randomUUID() }
+                // Rewrite each attachment's media_id/url to the freshly-staged media reference.
+                val rewrittenAttachments = te.attachments.map { ref ->
+                    val artifactMediaId = (ref["media_id"] as? String)
+                        ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    val staged = artifactMediaId?.let { mediaByArtifactId[it] }
+                    if (staged == null) ref else ref + mapOf(
+                        "media_id" to staged.newId.toString(),
+                        "url" to staged.publicUrl,
+                    )
+                }
                 val turn = turnRepository.save(
                     ChatTurn(
                         session = session,
                         sequenceNum = te.sequenceNum,
                         promptText = te.promptText,
-                        attachments = te.attachments.ifEmpty { null },
+                        attachments = rewrittenAttachments.ifEmpty { null },
                         selectedModelIds = te.selectedModelIds.toTypedArray(),
                         selectedConfiguredModelIds = selectedConfigured.toTypedArray(),
                         createdAt = te.createdAt,
                     ),
                 )
+                // Bind this turn's media so they are no longer orphan-sweepable (feature 007 invariant).
+                te.attachments.forEach { ref ->
+                    val artifactMediaId = (ref["media_id"] as? String)
+                        ?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                    val staged = artifactMediaId?.let { mediaByArtifactId[it] } ?: return@forEach
+                    mediaRows[staged.newId]?.let { it.turnId = turn.id; mediaRepository.save(it) }
+                }
                 te.responses.forEach { re ->
                     responseRepository.save(
                         ProviderResponse(
@@ -144,7 +188,7 @@ class MigrationImportTxOps(
             questsImported = questsImported,
             connectionsImported = bundle.connections.size,
             connectionsRenamed = connectionsRenamed,
-            mediaImported = 0,
+            mediaImported = stagedMedia.size,
             formatVersion = bundle.formatVersion,
         )
     }

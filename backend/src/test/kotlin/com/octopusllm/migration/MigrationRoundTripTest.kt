@@ -13,6 +13,8 @@ import com.octopusllm.connection.ConfiguredModel
 import com.octopusllm.connection.ConfiguredModelRepository
 import com.octopusllm.connection.Connection
 import com.octopusllm.connection.ConnectionRepository
+import com.octopusllm.media.MediaRepository
+import com.octopusllm.media.MediaService
 import com.octopusllm.testsupport.AbstractPostgresIntegrationTest
 import com.octopusllm.userconfig.ApiKeyEncryptionService
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -38,6 +40,8 @@ class MigrationRoundTripTest @Autowired constructor(
     private val turnRepository: ChatTurnRepository,
     private val responseRepository: ProviderResponseRepository,
     private val encryptionService: ApiKeyEncryptionService,
+    private val mediaService: MediaService,
+    private val mediaRepository: MediaRepository,
     private val objectMapper: ObjectMapper,
 ) : AbstractPostgresIntegrationTest() {
 
@@ -53,7 +57,7 @@ class MigrationRoundTripTest @Autowired constructor(
         val connection = connectionRepository.save(
             Connection(
                 user = owner, protocol = "openai-compatible", label = "Conn-$tag",
-                baseUrl = "https://api.example.com/v1", encryptedKey = enc.ciphertext, keyIv = enc.iv,
+                baseUrl = "https://8.8.8.8/v1", encryptedKey = enc.ciphertext, keyIv = enc.iv,
             ),
         )
         val model = configuredModelRepository.save(
@@ -106,6 +110,45 @@ class MigrationRoundTripTest @Autowired constructor(
         assertEquals(1, turns.size)
         assertEquals(source.prompt, turns.single().promptText)
         assertEquals(1, responseRepository.findByTurnId(turns.single().id).size)
+    }
+
+    // A minimal valid PNG (1x1) so DetectedType accepts the bytes during upload.
+    private val pngBytes = byteArrayOf(
+        0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+        0, 0, 0, 0x0D, 0x49, 0x48, 0x44, 0x52,
+        0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0,
+    )
+
+    @Test
+    fun `round-trips referenced media as fresh objects owned by the admin`() {
+        val tag = UUID.randomUUID().toString().take(8)
+        val owner = userRepository.save(User(email = "m-$tag@example.com", passwordHash = "h", emailVerified = true))
+        val media = mediaService.upload(owner.id, pngBytes, "image/png", "pic-$tag.png")
+        val session = sessionRepository.save(ChatSession(user = owner, title = "MediaQuest-$tag"))
+        val turn = turnRepository.save(
+            ChatTurn(
+                session = session, sequenceNum = 1, promptText = "look",
+                attachments = listOf(mapOf("media_id" to media.id.toString(), "url" to media.publicUrl, "order" to 0)),
+                selectedModelIds = arrayOf("gpt-4o"), selectedConfiguredModelIds = arrayOf(UUID.randomUUID()),
+            ),
+        )
+        media.turnId = turn.id
+        mediaRepository.save(media)
+
+        val admin = newAdmin()
+        val artifact = exportService.export(passphrase)
+        val result = importService.import(artifact, passphrase, admin.id, UUID.randomUUID().toString())
+
+        assertTrue(result.mediaImported >= 1, "expected at least one media imported")
+        val importedQuest = sessionRepository.findByUserIdOrderByCreatedAtDesc(admin.id, Pageable.unpaged())
+            .content.first { it.title == "MediaQuest-$tag" }
+        val importedTurn = turnRepository.findBySessionIdOrderBySequenceNum(importedQuest.id).single()
+        val newMediaId = UUID.fromString(importedTurn.attachments!!.single()["media_id"] as String)
+        // The attachment points at a fresh media row owned by the admin, not the source media id.
+        assertTrue(newMediaId != media.id, "media id should be remapped")
+        val importedMedia = mediaRepository.findById(newMediaId).orElseThrow()
+        assertEquals(admin.id, importedMedia.ownerUserId)
+        assertEquals(importedTurn.id, importedMedia.turnId)
     }
 
     @Test

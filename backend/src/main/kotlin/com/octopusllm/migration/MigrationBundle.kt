@@ -32,12 +32,19 @@ data class ArtifactEntry(
     val encryptedSha256: String,
 )
 
-/** Per-media metadata carried inside the (encrypted) payload so import can verify restored bytes. */
-data class MediaDescriptor(
+/**
+ * A single media object, carried inside its own authenticated-encrypted entry (`media/<id>.enc`).
+ * `content` Jackson-serializes as base64 inside the encrypted payload, so the bytes never appear in
+ * plaintext at rest. Import re-stores the bytes under a fresh opaque id and rewrites the referencing
+ * attachment(s).
+ */
+data class MediaExport(
     val artifactMediaId: UUID,
+    val mediaType: String,
     val mimeType: String,
-    val plaintextSizeBytes: Long,
-    val plaintextSha256: String,
+    val sizeBytes: Long,
+    val originalFilename: String?,
+    val content: ByteArray,
 )
 
 data class MigrationBundle(
@@ -46,7 +53,7 @@ data class MigrationBundle(
     val source: MigrationSource,
     val connections: List<ConnectionExport>,
     val quests: List<QuestExport>,
-    val media: List<MediaDescriptor> = emptyList(),
+    val media: List<MediaExport> = emptyList(),
 )
 
 data class MigrationSource(
