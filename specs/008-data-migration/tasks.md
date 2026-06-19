@@ -40,8 +40,8 @@ portable Connections, full history/media, endpoint validation, and idempotent re
 
 ### Tests
 
-- [ ] T015 [P] [US1] Unit tests for `MigrationArtifactCrypto`: round-trip, wrong passphrase/tamper rejection, random ciphertext, no plaintext provider key/Quest text in artifact entries, and passphrase/key exclusion from exception/log metadata
-- [ ] T016 [P] [US1] Unit tests for safe ZIP parsing: path traversal, absolute paths, duplicate entries, excessive count, per-entry/expanded-size limits, and checksum mismatch
+- [X] T015 [P] [US1] Unit tests for `MigrationArtifactCrypto`: round-trip, wrong passphrase/tamper rejection, random ciphertext, no plaintext provider key/Quest text in artifact entries, and passphrase/key exclusion from exception/log metadata
+- [X] T016 [P] [US1] Unit tests for safe ZIP parsing: path traversal, absolute paths, duplicate entries, excessive count, per-entry/expanded-size limits, and checksum mismatch
 - [ ] T017 [P] [US1] Integration test `POST /api/v2/admin/migration/export`: admin-only, acknowledgement/passphrase validation (request passphrase honored; configured `MIGRATION_ARTIFACT_PASSPHRASE` used when request omits it; `400` when neither present), encrypted streamed artifact, redacted Dialog exclusion, and non-secret operation record
 - [ ] T018 [P] [US1] Integration test `POST /api/v2/admin/migration/import`: full round-trip, all Quests/Connections owned by admin, configured-model UUID/reference remapping, keys usable after target-key re-encryption, and media restored
 - [ ] T019 [P] [US1] Import rejection integration tests: wrong passphrase/tamper, malformed/unsafe/wrong-version bundle, missing reference, checksum mismatch, and `ConnectionEndpointPolicy` rejection all create zero business rows
@@ -50,8 +50,8 @@ portable Connections, full history/media, endpoint validation, and idempotent re
 
 ### Implementation
 
-- [ ] T022 [P] [US1] Define bundle/envelope DTOs with artifact-local ids for every referenced Connection, configured model, Quest, turn, response, and media object; include size/checksum metadata and `formatVersion=1`
-- [ ] T023 [P] [US1] Implement `MigrationArtifactCrypto.kt` with existing Spring Security Crypto authenticated password-based encryption, one random salt per artifact, independently encrypted structured/media entries, and memory-only passphrase/key handling
+- [X] T022 [P] [US1] Define bundle/envelope DTOs with artifact-local ids for every referenced Connection, configured model, Quest, turn, response, and media object; include size/checksum metadata and `formatVersion=1`
+- [X] T023 [P] [US1] Implement `MigrationArtifactCrypto.kt` with existing Spring Security Crypto authenticated password-based encryption, one random salt per artifact, independently encrypted structured/media entries, and memory-only passphrase/key handling
 - [ ] T024 [US1] Implement `MigrationExportService.kt`: page through repositories, decrypt Connection keys only in memory, exclude redacted Dialogs and their media, read included media one object at a time, and stream `envelope.json` plus encrypted entries without buffering the complete artifact
 - [ ] T025 [US1] Implement `MigrationImportService.kt` preflight: stream `FilePart` to bounded temp storage; enforce ZIP limits; authenticate/decrypt; validate schema/version/checksums/references; validate imported endpoints through `ConnectionEndpointPolicy`; compute source digest
 - [ ] T026 [US1] Implement import staging and commit: allocate new ids/maps (including non-selectable snapshot UUIDs for unresolved historical model refs), stage media under new opaque ids, re-encrypt provider keys with `ApiKeyEncryptionService`, insert the complete artifact in one DB transaction, compensate staged blobs on failure, and complete the idempotency operation
