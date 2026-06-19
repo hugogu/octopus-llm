@@ -13,9 +13,13 @@
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Admin migrates an entire deployment to a new server (Priority: P1)
+### User Story 1 - Admin migrates Quest and Connection data to a new server (Priority: P1)
 
-An administrator wants to move (or back up and restore) a whole deployment. From the admin area they export **all** Quest data plus all Connection definitions into one portable Migration Artifact, then import that artifact into a different (possibly empty) deployment. Because users and providers may differ between servers, imported Quests are all assigned to the importing administrator, and Connections are recreated on the target.
+An administrator wants to move (or back up and restore) the deployment's Quest history and Connection
+configuration. From the admin area they export **all** in-scope Quest data plus all Connection
+definitions into one portable Migration Artifact, then import that artifact into a different
+(possibly empty) deployment. Because users and providers may differ between servers, imported
+Quests and Connections are assigned to the importing administrator.
 
 **Why this priority**: This is the headline capability of 008 ("数据迁移"). Without it, moving or backing up a deployment requires manual database surgery, which is error-prone and unavailable to operators.
 
@@ -25,8 +29,8 @@ An administrator wants to move (or back up and restore) a whole deployment. From
 
 1. **Given** an admin in the admin area, **When** they trigger "Export all data", **Then** a single downloadable Migration Artifact is produced containing every Quest (prompts, model responses, and referenced media) and every Connection definition.
 2. **Given** a target deployment, **When** the admin imports a Migration Artifact, **Then** every Quest in it is created and owned by the importing admin, preserving turn order and response content.
-3. **Given** the artifact contained Connections, **When** it is imported, **Then** each Connection is recreated and the admin is shown which Connections still need credentials before they can run.
-4. **Given** a malformed or incompatible-version artifact, **When** the admin imports it, **Then** the system rejects it with a clear message and creates **no** partial data.
+3. **Given** the artifact contained Connections, **When** it is imported with the correct artifact passphrase, **Then** each Connection is recreated under the importing admin and is immediately usable without re-entering provider keys.
+4. **Given** a wrong passphrase, malformed artifact, unsafe archive, or incompatible-version artifact, **When** the admin imports it, **Then** the system rejects it with a clear message and creates **no user-visible partial data**.
 
 ---
 
@@ -114,8 +118,10 @@ Every user-facing label and icon that called this a "Chat"/"Conversation" become
 ### Edge Cases
 
 - **Corrupt / oversized / wrong-version artifact** → rejected with a clear message; no partial import.
+- **Wrong artifact passphrase / tampered ciphertext** → rejected before any database row or durable media reference is committed.
+- **Unsafe archive entry** (path traversal, duplicate path, excessive entry count, decompression bomb) → rejected before extraction or import.
 - **Imported Quest references models or Connections absent on the target** → history is preserved as a read-only snapshot; continuation uses the importer's own selected models.
-- **Duplicate import** (same Quest/artifact imported twice) → creates an independent copy; no dedupe, no overwrite.
+- **Retried import request** with the same idempotency key → returns the original result and creates no duplicate; an intentional second import uses a new idempotency key and creates an independent copy.
 - **Connection name collision on import** → imported as a new, suffixed Connection; nothing existing is overwritten.
 - **Deleting the last remaining Dialog of a Quest** → the Quest becomes empty (allowed); the user may then delete the Quest itself.
 - **Scope change from public to logged-in-only while anonymous users are viewing** → subsequent loads require authentication.
@@ -128,14 +134,16 @@ Every user-facing label and icon that called this a "Chat"/"Conversation" become
 
 **Admin data export / import**
 
-- **FR-001**: Admins MUST be able to export all platform Quest data — every user's Quests including prompts, model responses, and referenced media — into a single portable Migration Artifact.
-- **FR-002**: The export MUST include Connection definitions (provider, endpoint, configured models) so the target deployment can recreate them.
+- **FR-001**: Admins MUST be able to export all current, non-redacted platform Quest data — every user's Quests including prompts, all response attempts, response snapshots, timestamps, and referenced media — into a single portable Migration Artifact.
+- **FR-002**: The export MUST include Connection definitions (protocol, endpoint, configured models, capability overrides, and custom parameters) so the target deployment can recreate them.
 - **FR-003**: Admins MUST be able to import a Migration Artifact; all Quests it contains MUST be created and owned by the importing admin, preserving turn order and response content.
-- **FR-004**: On import, Connections MUST be recreated with their provider secrets so imported Connections are immediately usable without re-entering keys. Secrets travel in the artifact in plaintext (decided: cross-server master keys differ, so ciphertext is not portable).
-- **FR-005**: Because the artifact contains live credentials, producing an export that includes Connection secrets MUST require an explicit administrator acknowledgement of a prominent warning before the artifact is generated, the artifact MUST be marked as sensitive (advise secure handling and deletion after migration), and only administrators may produce or download it.
-- **FR-006**: Import MUST be atomic per artifact: a malformed or incompatible artifact MUST be rejected with a clear error and MUST NOT create partial data.
+- **FR-004**: On import, Connections MUST be recreated with their provider secrets so imported Connections are immediately usable without re-entering keys. The Migration Artifact MUST protect all Quest and Connection payloads with passphrase-based authenticated encryption; provider secrets MUST never appear in plaintext in the artifact or API response.
+- **FR-005**: An export MUST be protected by an artifact passphrase of at least 16 characters. The passphrase MAY be supplied by a server-side configuration value (environment variable); when one is configured, export and import use it without prompting (export still shows the sensitive-data warning). When none is configured, the administrator MUST set and confirm one after acknowledging the warning. Manual entry MUST always remain available so an artifact produced by another deployment can be imported with its own passphrase. The passphrase and decrypted provider secrets MUST never be written to application data stores, logs, API responses, or audit metadata (a server-configured passphrase lives only in deployment configuration, like other server secrets); only administrators may produce or download an artifact.
+- **FR-006**: Import MUST be atomic from the user's perspective per artifact: a wrong passphrase, malformed, unsafe, incompatible, or failed artifact MUST create no Quest, Connection, configured-model, or media database rows. Staged external blobs MUST be cleaned up immediately on failure and by a retry-safe orphan sweep after process interruption.
 - **FR-007**: The Migration Artifact MUST carry a format/version identifier; incompatible versions MUST be rejected on import.
-- **FR-008**: Export and import MUST be restricted to administrators and MUST surface progress/result state (success, counts, items needing attention).
+- **FR-008**: Export and import MUST be restricted to administrators and MUST surface in-progress and final result state (success, counts, and items needing attention).
+- **FR-009**: Import MUST validate every imported Connection endpoint with the same save-time endpoint policy used by normal Connection creation before committing it; unsafe endpoints MUST reject the whole artifact. Provider clients MUST continue to revalidate immediately before dispatch and MUST NOT automatically follow redirects.
+- **FR-015**: Admin artifact import and shared-Quest import MUST accept an idempotency key. The same actor, operation, source, and key MUST never create duplicates: while the original is running the retry returns its in-progress operation state, and after completion it returns the original result.
 
 **Continue-from-share import (all users)**
 
@@ -156,7 +164,7 @@ Every user-facing label and icon that called this a "Chat"/"Conversation" become
 
 - **FR-030**: Users MUST be able to delete an individual model-response Dialog within their own Quest, leaving sibling responses in the same turn intact.
 - **FR-031**: Users MUST be able to delete a user-prompt Dialog, which removes that prompt turn together with its responses.
-- **FR-032**: Every destructive action (delete Dialog, delete Quest, revoke share, admin import-overwrite, etc.) MUST require confirmation via a styled in-app dialog; native browser dialogs MUST NOT be used.
+- **FR-032**: Every destructive action (delete Dialog, delete Quest, revoke share, delete Connection, delete user, etc.) MUST require confirmation via a styled in-app dialog; native browser dialogs MUST NOT be used.
 - **FR-033**: Deleted Dialogs MUST NOT appear in the Quest view or in any share of it.
 
 **Terminology & iconography**
@@ -169,7 +177,7 @@ Every user-facing label and icon that called this a "Chat"/"Conversation" become
 
 - **Quest**: a user-owned comparison thread (formerly "Chat Session") composed of ordered prompt turns; the unit of export, import, sharing, and deletion.
 - **Dialog**: an individual message within a Quest — a user prompt or one model's response; the unit of per-Dialog deletion.
-- **Migration Artifact**: a versioned, portable bundle containing Quests (with referenced media) and Connection definitions; the unit of admin export/import.
+- **Migration Artifact**: a versioned, passphrase-encrypted portable bundle containing Quests (with referenced media) and Connection definitions; the unit of admin export/import.
 - **Connection**: an existing provider endpoint definition (+ credentials + configured models); included in export and recreated on import.
 - **Share**: a revocable, opaque-token link to a Quest, carrying an audience **scope** (logged-in-only | public).
 
@@ -177,13 +185,14 @@ Every user-facing label and icon that called this a "Chat"/"Conversation" become
 
 ### Measurable Outcomes
 
-- **SC-001**: An admin can export a full deployment and re-import it into an empty deployment in a single export→import cycle, with 100% of Quests present and owned by the importing admin.
-- **SC-002**: 100% of imported Quests render their full history — including media — with no missing prompts or responses.
+- **SC-001**: An admin can export the defined migration scope and re-import it into an empty deployment in a single export→import cycle, with 100% of Quests present and owned by the importing admin.
+- **SC-002**: 100% of imported Quests render their full non-redacted history — including media — with no missing prompts or response attempts.
 - **SC-003**: A logged-in user can import a shared Quest and submit a continuing prompt in under 30 seconds, with no manual data entry beyond selecting models.
 - **SC-004**: 100% of destructive actions present a confirmation step, and 0 native browser dialogs appear anywhere in the app.
 - **SC-005**: Unauthenticated visitors can view 0% of the content of logged-in-only shares.
 - **SC-006**: 0 occurrences of user-facing "Chat"/"Conversation" wording remain; every such surface reads "Quest".
-- **SC-007**: 100% of imported Connections are immediately usable without re-entering keys; and producing a secret-bearing export is impossible without an explicit admin warning acknowledgement, with 0% of non-admin users able to produce or download the artifact.
+- **SC-007**: 100% of imported Connections are immediately usable without re-entering provider keys; 0 provider secrets appear in plaintext in the artifact, API responses, logs, errors, or audit metadata; and 0% of non-admin users can produce or download an artifact.
+- **SC-008**: Replaying any successful import request with the same idempotency key creates 0 additional Quests, Connections, configured models, or media rows.
 
 ## Assumptions
 
@@ -191,11 +200,13 @@ Every user-facing label and icon that called this a "Chat"/"Conversation" become
 - **Unresolved model/connection references on import** keep the history as a read-only snapshot; continuation uses the importer's own selected models.
 - **Default share scope** for a newly created share is "logged-in users only" (the more private option); the owner may switch it to public.
 - **Admin full export includes referenced media** so imported Quests render completely; a large export may be chunked internally but is imported as one logical artifact.
-- **Duplicate imports** create independent copies; there is no dedupe.
+- **Intentional duplicate imports** create independent copies when submitted with a new idempotency key; transport retries reuse the original key and are deduplicated.
 - **Connection name collisions** on import create suffixed new Connections; nothing existing is overwritten.
 - **"Logged-in users only"** means any authenticated platform user on the target deployment — not a named allow-list of specific users.
 - **Imported Quests default to the importing admin** (admin migration) or the importing user (share import); original authorship is not transferred as ownership, though it may be shown as informational metadata.
-- **Connection secrets travel in plaintext** inside the admin-only artifact (chosen for true one-step migration). ⚠️ **Constitution exception**: Principle VI (NON-NEGOTIABLE) states keys must not appear in exports. This deliberate exception MUST be recorded and justified in the plan's Complexity Tracking / Constitution Check, with the compensating controls in FR-005 (admin-only, explicit warning + acknowledgement, artifact marked sensitive).
+- **Connection allocations and source users are not migrated**. Every imported Connection and configured model is owned by the importing admin; target-server allocations are configured separately.
+- **Existing share tokens, likes/reactions, anonymous visitor state, and aggregate analytics are not migrated**. Imported Quests start without shares or reactions; response usage/pricing/latency snapshots remain part of the imported history.
+- **Artifact encryption** uses a passphrase read from a server-side environment variable when set (so routine same-org export/import need not prompt), or otherwise chosen by the exporting administrator and supplied again at import. For cross-deployment migration where the two servers configure different passphrases, the importing admin enters the source artifact's passphrase manually. This keeps provider secrets portable across deployments with different server master keys without returning plaintext keys in an API response.
 
 ## Dependencies
 

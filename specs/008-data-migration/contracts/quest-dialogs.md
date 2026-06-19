@@ -11,15 +11,15 @@ Existing base path: `/api/v2/chat/sessions/{sessionId}`.
 Delete a **user-prompt Dialog** → redacts the whole turn (prompt + its responses disappear from the
 Quest and its shares).
 
-- **200 OK** `{ "redacted": "turn", "turnId": "…" }`
-- Repeated call → still `200` (idempotent; unique index prevents duplicate markers).
+- **204 No Content**
+- Repeated call → still `204` (idempotent; unique index prevents duplicate markers).
 - **403** if caller is not the Quest owner/admin. **404** if turn not in session.
 
 ## `DELETE /api/v2/chat/sessions/{sessionId}/turns/{turnId}/responses/{responseId}`
 
 Delete a **model-response Dialog** → redacts one response; sibling responses in the same turn remain.
 
-- **200 OK** `{ "redacted": "response", "responseId": "…" }`
+- **204 No Content**
 - Idempotent; **403/404** as above; **404** if `responseId` not under `turnId`.
 
 ## Read impact
@@ -27,4 +27,5 @@ Delete a **model-response Dialog** → redacts one response; sibling responses i
 - `GET /api/v2/chat/sessions/{sessionId}` and `GET /api/v2/shared/{token}` exclude redacted turns and
   redacted responses.
 - A turn whose every response is redacted still shows the prompt unless the turn itself is redacted.
+- Shared reaction/like endpoints reject redacted turns/responses as not found.
 - Analytics endpoints are unaffected (read immutable snapshots, ignore redactions).

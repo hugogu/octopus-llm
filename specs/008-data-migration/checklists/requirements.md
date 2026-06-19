@@ -31,9 +31,12 @@
 
 ## Notes
 
-- FR-004 clarification resolved by user: provider **secrets travel in plaintext** inside the
-  admin-only Migration Artifact (chosen for true one-step migration). This is a deliberate
-  **exception to Constitution VI (NON-NEGOTIABLE)** and MUST be justified in the plan's Constitution
-  Check / Complexity Tracking; compensating controls are captured in FR-005.
+- FR-004/005 use a passphrase-encrypted artifact so provider secrets remain portable across
+  deployments without appearing in plaintext in an API response, artifact, log, error, or audit
+  record. This removes the earlier Constitution VI conflict.
 - Constitutional tension noted and resolved by Assumption: per-Dialog deletion (FR-030/031/033) is a
   soft "remove from view" so immutable analytics snapshots (Constitution IV/V) are preserved.
+- Import atomicity is defined as user-visible database/reference atomicity. External media writes are
+  staged before one DB commit, compensated on failure, and covered by an interrupted-import sweep.
+- Shared imports clone media; reusing source media ids would make the imported Quest break when the
+  source Quest is deleted.
