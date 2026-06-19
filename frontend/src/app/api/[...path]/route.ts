@@ -52,10 +52,13 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   };
 
   if (!["GET", "HEAD"].includes(request.method)) {
-    // Forward the raw bytes — NOT request.text(), which UTF-8-decodes and corrupts binary bodies
-    // such as multipart media uploads (feature 007). arrayBuffer preserves binary and JSON alike;
-    // the Content-Type header (incl. the multipart boundary) is forwarded above.
-    init.body = await request.arrayBuffer();
+    // Stream the raw body straight through instead of buffering it with arrayBuffer(): migration
+    // artifacts (feature 008) can be very large, and buffering the whole upload/download in proxy
+    // memory does not scale. Passing the ReadableStream preserves binary (multipart media, ZIP) and
+    // JSON alike; undici requires duplex: "half" when the body is a stream. The Content-Type header
+    // (incl. the multipart boundary) is forwarded above.
+    init.body = request.body;
+    (init as RequestInit & { duplex: "half" }).duplex = "half";
   }
 
   const upstream = await fetch(upstreamUrl, init);
