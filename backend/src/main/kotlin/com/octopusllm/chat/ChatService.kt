@@ -166,6 +166,38 @@ class ChatService(
             Unit
         }
 
+    fun redactTurn(sessionId: UUID, turnId: UUID, callerId: UUID): Mono<Unit> =
+        blocking {
+            requireSessionForDialogMutation(sessionId, callerId)
+            val turn = turnRepository.findById(turnId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Turn not found")
+            }
+            if (turn.session.id != sessionId) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Turn not found")
+            }
+            dialogRedactionService.redactTurn(turnId, callerId)
+            Unit
+        }
+
+    fun redactResponse(sessionId: UUID, turnId: UUID, responseId: UUID, callerId: UUID): Mono<Unit> =
+        blocking {
+            requireSessionForDialogMutation(sessionId, callerId)
+            val turn = turnRepository.findById(turnId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Turn not found")
+            }
+            if (turn.session.id != sessionId) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Turn not found")
+            }
+            val response = responseRepository.findById(responseId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Response not found")
+            }
+            if (response.turn.id != turnId) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "Response not found")
+            }
+            dialogRedactionService.redactResponse(turnId, responseId, callerId)
+            Unit
+        }
+
     fun submitTurn(
         sessionId: UUID,
         userId: UUID,
@@ -613,6 +645,20 @@ class ChatService(
         }
         if (session.user.id != userId) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+        }
+        return session
+    }
+
+    private fun requireSessionForDialogMutation(sessionId: UUID, callerId: UUID): ChatSession {
+        val session = sessionRepository.findById(sessionId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+        }
+        if (session.user.id == callerId) return session
+        val caller = userRepository.findById(callerId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found")
+        }
+        if (!caller.isAdmin) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Dialog deletion is owner or admin only")
         }
         return session
     }

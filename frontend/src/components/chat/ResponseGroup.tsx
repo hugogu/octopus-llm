@@ -28,6 +28,7 @@ export interface ResponsePanelData {
   anonymousLikeCount?: number;
   onRetry?: () => void;
   retrying?: boolean;
+  onDelete?: () => Promise<void>;
 }
 
 const responseGridStyle = {
@@ -58,6 +59,7 @@ export default function ResponseGroup({ panels }: { panels: ResponsePanelData[] 
   const [maximizedKey, setMaximizedKey] = useState<string | null>(null);
   const [likeOverrides, setLikeOverrides] = useState<Record<string, { count: number; liked: boolean }>>({});
   const [likeBusy, setLikeBusy] = useState(false);
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
 
   const likeOf = (panel: ResponsePanelData) =>
     likeOverrides[panel.key] ?? { count: panel.likeCount ?? 0, liked: panel.likedByMe ?? false };
@@ -93,7 +95,7 @@ export default function ResponseGroup({ panels }: { panels: ResponsePanelData[] 
     }
   }
 
-  const renderPanel = (panel: ResponsePanelData, maximized: boolean) => {
+  const renderPanel = (panel: ResponsePanelData, maximized: boolean, groupSize: number) => {
     const like = likeOf(panel);
     return (
       <ModelResponsePanel
@@ -123,17 +125,23 @@ export default function ResponseGroup({ panels }: { panels: ResponsePanelData[] 
             ? { count: like.count, liked: like.liked, busy: likeBusy, onToggle: () => void toggleLike(panel) }
             : undefined
         }
-        canMaximize={panels.length > 1}
+        canMaximize={groupSize > 1}
         maximized={maximized}
         onToggleMaximize={() => setMaximizedKey(maximized ? null : panel.key)}
+        onDelete={panel.onDelete ? async () => {
+          await panel.onDelete?.();
+          setHiddenKeys((current) => new Set(current).add(panel.key));
+          if (maximizedKey === panel.key) setMaximizedKey(null);
+        } : undefined}
       />
     );
   };
 
-  const maximizedPanel = maximizedKey ? panels.find((p) => p.key === maximizedKey) : undefined;
+  const visiblePanels = panels.filter((panel) => !hiddenKeys.has(panel.key));
+  const maximizedPanel = maximizedKey ? visiblePanels.find((p) => p.key === maximizedKey) : undefined;
 
-  if (maximizedPanel && panels.length > 1) {
-    const others = panels.filter((p) => p.key !== maximizedPanel.key);
+  if (maximizedPanel && visiblePanels.length > 1) {
+    const others = visiblePanels.filter((p) => p.key !== maximizedPanel.key);
     return (
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
@@ -150,10 +158,14 @@ export default function ResponseGroup({ panels }: { panels: ResponsePanelData[] 
             </button>
           ))}
         </div>
-        {renderPanel(maximizedPanel, true)}
+        {renderPanel(maximizedPanel, true, visiblePanels.length)}
       </div>
     );
   }
 
-  return <div style={responseGridStyle}>{panels.map((panel) => renderPanel(panel, false))}</div>;
+  return (
+    <div style={responseGridStyle}>
+      {visiblePanels.map((panel) => renderPanel(panel, false, visiblePanels.length))}
+    </div>
+  );
 }

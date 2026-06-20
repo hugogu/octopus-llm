@@ -1,7 +1,9 @@
 'use client';
 
-import { User, Bot } from 'lucide-react';
+import { useState } from 'react';
+import { User, Bot, Trash2 } from 'lucide-react';
 import StreamingMarkdown from './StreamingMarkdown';
+import { confirmDialog } from '@/lib/ui/confirm';
 
 interface Message {
   id: string;
@@ -14,12 +16,37 @@ interface Message {
 
 interface MessageThreadProps {
   messages: Message[];
+  onDeleteMessage?: (message: Message) => Promise<void>;
 }
 
-export default function MessageThread({ messages }: MessageThreadProps) {
+export default function MessageThread({ messages, onDeleteMessage }: MessageThreadProps) {
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove(message: Message) {
+    if (!onDeleteMessage) return;
+    const confirmed = await confirmDialog({
+      title: message.role === 'user' ? 'Delete this prompt?' : 'Delete this model response?',
+      message: message.role === 'user'
+        ? 'The prompt and every model response in this turn will be removed from Quest views.'
+        : 'Only this model response will be removed from Quest views.',
+      confirmLabel: 'Delete Dialog',
+      danger: true,
+    });
+    if (!confirmed) return;
+    setError(null);
+    try {
+      await onDeleteMessage(message);
+      setHiddenIds((current) => new Set(current).add(message.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Delete failed');
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      {messages.map((message) => (
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {messages.filter((message) => !hiddenIds.has(message.id)).map((message) => (
         <div
           key={message.id}
           className={`flex gap-3 ${
@@ -52,6 +79,16 @@ export default function MessageThread({ messages }: MessageThreadProps) {
               )}
               {message.status === 'error' && (
                 <span className="text-xs text-red-500">Error</span>
+              )}
+              {onDeleteMessage && message.status !== 'streaming' && (
+                <button
+                  type="button"
+                  onClick={() => void remove(message)}
+                  aria-label={`Delete ${message.role === 'user' ? 'prompt' : 'response'}`}
+                  className="ml-auto rounded p-1 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
 

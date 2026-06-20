@@ -14,6 +14,8 @@ import { getToken } from "@/lib/api/auth";
 import { confirmDialog } from "@/lib/ui/confirm";
 import {
   createSessionV2,
+  deleteResponseV2,
+  deleteTurnV2,
   getSessionV2,
   retryModelV2,
   streamTurnV2,
@@ -368,11 +370,52 @@ export default function ChatPage() {
     }
   }, [clear, handleEvent, sessionId, start]);
 
+  const handleDeleteTurn = useCallback(async (turnId: string) => {
+    if (!sessionId) return;
+    const confirmed = await confirmDialog({
+      title: "Delete this prompt?",
+      message: "The prompt and every model response in this turn will be removed from Quest views.",
+      confirmLabel: "Delete Dialog",
+      danger: true,
+    });
+    if (!confirmed) return;
+    try {
+      await deleteTurnV2(sessionId, turnId);
+      setActiveSession((current) => current
+        ? { ...current, turns: current.turns.filter((turn) => turn.id !== turnId) }
+        : current);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Prompt deletion failed");
+    }
+  }, [sessionId]);
+
+  const handleDeleteResponse = useCallback(async (turnId: string, responseId: string) => {
+    if (!sessionId) return;
+    await deleteResponseV2(sessionId, turnId, responseId);
+    setActiveSession((current) => current ? {
+      ...current,
+      turns: current.turns.map((turn) => turn.id === turnId
+        ? { ...turn, responses: turn.responses.filter((response) => response.responseId !== responseId) }
+        : turn),
+    } : current);
+  }, [sessionId]);
+
   const renderTurn = useCallback((turn: ChatTurnV2) => (
     <section key={turn.id} className="space-y-3">
-      <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
-        <MediaAttachments items={turn.attachments} dark />
-        <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
+      <div className="group ml-auto flex w-fit max-w-3xl items-start gap-2">
+        <div className="rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
+          <MediaAttachments items={turn.attachments} dark />
+          <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleDeleteTurn(turn.id)}
+          aria-label="Delete prompt"
+          title="Delete this prompt and its responses"
+          className="mt-1 rounded-lg p-1.5 text-stone-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus:opacity-100"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
       <ResponseGroup
         panels={turn.responses.map((response): ResponsePanelData => {
@@ -400,11 +443,12 @@ export default function ChatPage() {
             anonymousLikeCount: response.anonymousLikeCount,
             retrying: retry?.streaming ?? false,
             onRetry: () => void handleRetry(turn.id, response.configuredModelId),
+            onDelete: () => handleDeleteResponse(turn.id, response.responseId),
           };
         })}
       />
     </section>
-  ), [handleRetry, modelsById, streams]);
+  ), [handleDeleteResponse, handleDeleteTurn, handleRetry, modelsById, streams]);
 
   const hasConversation = (activeSession?.turns.length ?? 0) > 0 || liveTurn !== null;
   const handleDelete = useCallback(async () => {

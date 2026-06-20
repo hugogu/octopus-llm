@@ -15,7 +15,7 @@ export function parseShareToken(value: string): string | null {
     const url = new URL(trimmed, window.location.origin);
     if (url.origin !== window.location.origin) return null;
     const match = url.pathname.match(/^\/share\/([^/]+)\/?$/);
-    return match ? decodeURIComponent(match[1]) : null;
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
   } catch { return null; }
 }
 

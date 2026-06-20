@@ -1,5 +1,6 @@
 package com.octopusllm.chat
 
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -30,6 +31,37 @@ class DialogRedactionService(
             .mapNotNull { it.responseId }
             .toSet()
         return Redactions(redactedTurns, redactedResponses)
+    }
+
+    fun redactTurn(turnId: UUID, redactedBy: UUID) {
+        if (redactionRepository.existsByScopeAndTurnId(DialogRedaction.SCOPE_TURN, turnId)) return
+        try {
+            redactionRepository.saveAndFlush(
+                DialogRedaction(
+                    scope = DialogRedaction.SCOPE_TURN,
+                    turnId = turnId,
+                    redactedBy = redactedBy,
+                ),
+            )
+        } catch (_: DataIntegrityViolationException) {
+            // A concurrent identical request won the partial-unique-index race. Deletion is idempotent.
+        }
+    }
+
+    fun redactResponse(turnId: UUID, responseId: UUID, redactedBy: UUID) {
+        if (redactionRepository.existsByScopeAndResponseId(DialogRedaction.SCOPE_RESPONSE, responseId)) return
+        try {
+            redactionRepository.saveAndFlush(
+                DialogRedaction(
+                    scope = DialogRedaction.SCOPE_RESPONSE,
+                    turnId = turnId,
+                    responseId = responseId,
+                    redactedBy = redactedBy,
+                ),
+            )
+        } catch (_: DataIntegrityViolationException) {
+            // A concurrent identical request won the partial-unique-index race. Deletion is idempotent.
+        }
     }
 
     /** Filters a turn -> responses listing, dropping redacted turns and redacted responses. */

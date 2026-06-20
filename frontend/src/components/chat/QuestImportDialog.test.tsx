@@ -43,8 +43,8 @@ describe("QuestImportDialog", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Temporary failure");
     fireEvent.click(screen.getByRole("button", { name: "Import Quest" }));
     await waitFor(() => expect(api.importSharedSession).toHaveBeenCalledTimes(2));
-    expect(api.importSharedSession.mock.calls[0][1]).toBe("stable-key");
-    expect(api.importSharedSession.mock.calls[1][1]).toBe("stable-key");
+    expect(api.importSharedSession.mock.calls[0]?.[1]).toBe("stable-key");
+    expect(api.importSharedSession.mock.calls[1]?.[1]).toBe("stable-key");
     expect(api.newShareImportKey).toHaveBeenCalledTimes(1);
   });
 });

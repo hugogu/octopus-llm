@@ -14,6 +14,8 @@ import ShareExportButton from './ShareExportButton';
 
 const session: SharedSession = {
   title: 'Demo',
+  scope: 'public',
+  canImport: true,
   turns: [
     {
       sequenceNum: 1,
@@ -57,7 +59,7 @@ describe('ShareExportButton', () => {
   });
 
   it('still renders an export for an empty conversation (FR-022)', async () => {
-    render(<ShareExportButton session={{ title: null, turns: [] }} />);
+    render(<ShareExportButton session={{ title: null, turns: [], scope: 'public', canImport: true }} />);
     expect(screen.getByText(/no messages yet/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /long image/i })).toBeInTheDocument();
   });

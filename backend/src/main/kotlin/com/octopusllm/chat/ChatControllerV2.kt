@@ -152,6 +152,23 @@ class ChatControllerV2(
         @PathVariable sessionId: UUID,
     ): Mono<Void> = chatService.deleteSession(sessionId, userId(principal)).then()
 
+    @DeleteMapping("/{sessionId}/turns/{turnId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun redactTurn(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable sessionId: UUID,
+        @PathVariable turnId: UUID,
+    ): Mono<Void> = chatService.redactTurn(sessionId, turnId, userId(principal)).then()
+
+    @DeleteMapping("/{sessionId}/turns/{turnId}/responses/{responseId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun redactResponse(
+        @AuthenticationPrincipal principal: String,
+        @PathVariable sessionId: UUID,
+        @PathVariable turnId: UUID,
+        @PathVariable responseId: UUID,
+    ): Mono<Void> = chatService.redactResponse(sessionId, turnId, responseId, userId(principal)).then()
+
     @PostMapping("/{sessionId}/turns", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun submit(
         @AuthenticationPrincipal principal: String,

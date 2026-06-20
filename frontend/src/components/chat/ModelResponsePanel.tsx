@@ -1,6 +1,7 @@
 "use client";
 
-import { Maximize2, Minimize2, RotateCcw, ThumbsUp } from "lucide-react";
+import { useState } from "react";
+import { Maximize2, Minimize2, RotateCcw, ThumbsUp, Trash2 } from "lucide-react";
 import type { CapabilityMatrix } from "@/lib/types/api";
 import StreamingMarkdown from "./StreamingMarkdown";
 import ThinkingBlock from "./ThinkingBlock";
@@ -8,6 +9,7 @@ import ExpandableContent from "./ExpandableContent";
 import CopyButton from "@/components/ui/CopyButton";
 import ResponseLikeButton from "./ResponseLikeButton";
 import ResponseDetails from "./ResponseDetails";
+import { confirmDialog } from "@/lib/ui/confirm";
 
 interface ModelResponsePanelProps {
   modelId: string;
@@ -37,6 +39,7 @@ interface ModelResponsePanelProps {
   /** Whether this panel is currently maximized within its group. */
   maximized?: boolean;
   onToggleMaximize?: () => void;
+  onDelete?: () => Promise<void>;
 }
 
 export default function ModelResponsePanel({
@@ -64,7 +67,31 @@ export default function ModelResponsePanel({
   canMaximize = false,
   maximized = false,
   onToggleMaximize,
+  onDelete,
 }: ModelResponsePanelProps) {
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function remove() {
+    if (!onDelete || deleteBusy) return;
+    const confirmed = await confirmDialog({
+      title: "Delete this model response?",
+      message: "Only this response will be removed. Sibling model responses remain visible.",
+      confirmLabel: "Delete Dialog",
+      danger: true,
+    });
+    if (!confirmed) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await onDelete();
+    } catch (cause) {
+      setDeleteError(cause instanceof Error ? cause.message : "Delete failed");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   return (
     <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-2 border-b border-stone-100 bg-stone-50/60 px-4 py-2.5">
@@ -127,6 +154,18 @@ export default function ModelResponsePanel({
               Retry
             </button>
           )}
+          {responseId && onDelete && status !== "streaming" && (
+            <button
+              type="button"
+              onClick={() => void remove()}
+              disabled={deleteBusy}
+              className="inline-flex items-center rounded-md p-1 text-stone-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              title="Delete this response"
+              aria-label="Delete response"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
           {canMaximize && onToggleMaximize && (
             <button
               type="button"
@@ -147,6 +186,7 @@ export default function ModelResponsePanel({
           ⚠ {capabilityNotice}
         </div>
       )}
+      {deleteError && <div role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">{deleteError}</div>}
 
       <div className="min-h-[60px] flex-1 px-4 py-3 text-sm">
         {status === "error" ? (

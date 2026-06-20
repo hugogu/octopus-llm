@@ -67,6 +67,32 @@ export async function deleteSessionV2(id: string, token?: string): Promise<void>
   }));
 }
 
+export async function deleteTurnV2(sessionId: string, turnId: string, token?: string): Promise<void> {
+  await checked(await fetch(
+    apiUrl(
+      `/api/v2/chat/sessions/${encodeURIComponent(sessionId)}` +
+      `/turns/${encodeURIComponent(turnId)}`,
+    ),
+    { method: "DELETE", headers: headers(token) },
+  ));
+}
+
+export async function deleteResponseV2(
+  sessionId: string,
+  turnId: string,
+  responseId: string,
+  token?: string,
+): Promise<void> {
+  await checked(await fetch(
+    apiUrl(
+      `/api/v2/chat/sessions/${encodeURIComponent(sessionId)}` +
+      `/turns/${encodeURIComponent(turnId)}` +
+      `/responses/${encodeURIComponent(responseId)}`,
+    ),
+    { method: "DELETE", headers: headers(token) },
+  ));
+}
+
 export async function streamTurnV2(
   sessionId: string,
   body: SubmitTurnRequestV2,

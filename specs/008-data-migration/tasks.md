@@ -108,13 +108,13 @@ portable Connections, full history/media, endpoint validation, and idempotent re
 
 ### Tests and implementation
 
-- [ ] T054 [P] [US5] Integration test idempotent `DELETE /api/v2/chat/sessions/{id}/turns/{turnId}`: owner/admin only, whole turn excluded from owned/shared/export reads, analytics rows unchanged
-- [ ] T055 [P] [US5] Integration test idempotent `DELETE .../responses/{responseId}`: response belongs to supplied turn/session, sibling responses remain, analytics rows unchanged
-- [ ] T056 [US5] Add `redactTurn`/`redactResponse` to `ChatService.kt` and endpoints to `ChatControllerV2.kt`; insert append-only markers and return 204 for first/repeated delete
-- [ ] T057 [P] [US5] Add `deleteTurn`/`deleteResponse` to `frontend/src/lib/api/chatV2.ts`
-- [ ] T058 [US5] Add delete affordances to existing `MessageThread.tsx`, `ResponseGroup.tsx`, and `ModelResponsePanel.tsx`, always through `confirmDialog`
-- [ ] T059 [P] [US5] Update existing `MessageThread.test.tsx`, `ResponseGroup.test.tsx`, and `ModelResponsePanel.test.tsx` for confirm/cancel/error/sibling behavior
-- [ ] T060 [P] [US5] Guard all `frontend/src` destructive actions: no runtime `window.alert/confirm/prompt`; every delete/revoke action is covered by styled-confirmation tests (FR-032/SC-004)
+- [X] T054 [P] [US5] Integration test idempotent `DELETE /api/v2/chat/sessions/{id}/turns/{turnId}`: owner/admin only, whole turn excluded from owned/shared/export reads, analytics rows unchanged
+- [X] T055 [P] [US5] Integration test idempotent `DELETE .../responses/{responseId}`: response belongs to supplied turn/session, sibling responses remain, analytics rows unchanged
+- [X] T056 [US5] Add `redactTurn`/`redactResponse` to `ChatService.kt` and endpoints to `ChatControllerV2.kt`; insert append-only markers and return 204 for first/repeated delete
+- [X] T057 [P] [US5] Add `deleteTurn`/`deleteResponse` to `frontend/src/lib/api/chatV2.ts`
+- [X] T058 [US5] Add delete affordances to existing `MessageThread.tsx`, `ResponseGroup.tsx`, and `ModelResponsePanel.tsx`, always through `confirmDialog`
+- [X] T059 [P] [US5] Update existing `MessageThread.test.tsx`, `ResponseGroup.test.tsx`, and `ModelResponsePanel.test.tsx` for confirm/cancel/error/sibling behavior
+- [X] T060 [P] [US5] Guard all `frontend/src` destructive actions: no runtime `window.alert/confirm/prompt`; every delete/revoke action is covered by styled-confirmation tests (FR-032/SC-004)
 
 ## Phase 8: User Story 6 — Reframe Chat as Quest (P2)
 
