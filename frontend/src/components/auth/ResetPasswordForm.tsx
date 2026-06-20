@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
 import { confirmPasswordReset } from "@/lib/api/admin";
+
+const inputClass =
+  "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]";
 
 function tokenFromUrl(): string {
   if (typeof window === "undefined") return "";
@@ -42,20 +46,30 @@ export default function ResetPasswordForm() {
   }
 
   if (done) {
-    return <p className="text-green-600 text-sm">Password updated. Redirecting to sign in…</p>;
+    return (
+      <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        Password updated. Redirecting to sign in…
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full max-w-sm">
-      {error && <p className="text-red-600 text-sm">{error}</p>}
-      {!token && <p className="text-red-600 text-sm">Missing reset token.</p>}
+    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
+      {!token && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Missing reset token.
+        </div>
+      )}
       <input
         type="password"
         placeholder="New password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
-        className="border rounded px-3 py-2"
+        className={inputClass}
       />
       <input
         type="password"
@@ -63,15 +77,16 @@ export default function ResetPasswordForm() {
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
         required
-        className="border rounded px-3 py-2"
+        className={inputClass}
       />
-      <button
+      <Button
         type="submit"
         disabled={loading || !token}
-        className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-50"
+        fullWidth
+        className="!bg-[#c96442] hover:!bg-[#b55538]"
       >
         {loading ? "Updating…" : "Set new password"}
-      </button>
+      </Button>
     </form>
   );
 }

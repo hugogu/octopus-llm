@@ -1,15 +1,19 @@
 import { Suspense } from "react";
+import AuthShell from "@/components/auth/AuthShell";
 import LoginForm from "@/components/auth/LoginForm";
 
 export const metadata = { title: "Sign In — Octopus LLM" };
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4">
-      <h1 className="text-2xl font-bold mb-6">Sign in</h1>
+    <AuthShell
+      eyebrow="Welcome back"
+      title="Sign in"
+      description="Access your conversations and configured models."
+    >
       <Suspense>
         <LoginForm />
       </Suspense>
-    </main>
+    </AuthShell>
   );
 }

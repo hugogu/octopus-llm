@@ -1,15 +1,19 @@
 import { Suspense } from "react";
+import AuthShell from "@/components/auth/AuthShell";
 import RegisterForm from "@/components/auth/RegisterForm";
 
 export const metadata = { title: "Register — Octopus LLM" };
 
 export default function RegisterPage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4">
-      <h1 className="text-2xl font-bold mb-6">Create your account</h1>
+    <AuthShell
+      eyebrow="Get started"
+      title="Create your account"
+      description="Set up an account to compare configured models side by side."
+    >
       <Suspense>
         <RegisterForm />
       </Suspense>
-    </main>
+    </AuthShell>
   );
 }

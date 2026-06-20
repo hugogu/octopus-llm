@@ -2,7 +2,12 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import Button from "@/components/ui/Button";
 import { login } from "@/lib/api/auth";
+
+const inputClass =
+  "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -27,16 +32,22 @@ export default function LoginForm() {
     }
   }
 
+  const registerLink = searchParams.get("returnTo")
+    ? `/register?returnTo=${encodeURIComponent(searchParams.get("returnTo")!)}`
+    : "/register";
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full max-w-sm">
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
       <input
         type="email"
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
-        className="border rounded px-3 py-2"
+        className={inputClass}
       />
       <input
         type="password"
@@ -44,27 +55,22 @@ export default function LoginForm() {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         required
-        className="border rounded px-3 py-2"
+        className={inputClass}
       />
-      <button
-        type="submit"
-        disabled={loading}
-        className="bg-blue-600 text-white rounded px-4 py-2 disabled:opacity-50"
-      >
+      <Button type="submit" disabled={loading} fullWidth className="!bg-[#c96442] hover:!bg-[#b55538]">
         {loading ? "Signing in…" : "Sign in"}
-      </button>
-      <p className="text-sm text-center">
-        No account?{" "}
-        <a
-          href={searchParams.get("returnTo") ? `/register?returnTo=${encodeURIComponent(searchParams.get("returnTo")!)}` : "/register"}
-          className="text-blue-600 underline"
-        >
-          Register
-        </a>
-      </p>
-      <a href="/forgot-password" className="text-center text-sm text-blue-600 underline">
-        Forgot password?
-      </a>
+      </Button>
+      <div className="flex flex-col items-center gap-1 pt-1 text-sm text-stone-600">
+        <p>
+          No account?{" "}
+          <Link href={registerLink} className="font-medium text-[#b75536] hover:text-[#c96442]">
+            Register
+          </Link>
+        </p>
+        <Link href="/forgot-password" className="font-medium text-[#b75536] hover:text-[#c96442]">
+          Forgot password?
+        </Link>
+      </div>
     </form>
   );
 }
