@@ -1,25 +1,69 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Heart, ThumbsUp } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Heart, Import, ThumbsUp } from "lucide-react";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 import MediaAttachments from "@/components/chat/MediaAttachments";
 import ExpandableContent from "@/components/chat/ExpandableContent";
 import ResponseDetails from "@/components/chat/ResponseDetails";
 import ShareExportButton from "@/components/share/ShareExportButton";
 import { getToken } from "@/lib/api/auth";
-import { anonymousLike, getSharedSession, sharedNamedLike } from "@/lib/api/shares";
+import {
+  anonymousLike,
+  getSharedSession,
+  importSharedSession,
+  newShareImportKey,
+  sharedNamedLike,
+} from "@/lib/api/shares";
 import type { SharedSession, SharedResponse } from "@/lib/types/api";
 
 export default function SharedConversation({ shareToken }: { shareToken: string }) {
+  const router = useRouter();
   const [session, setSession] = useState<SharedSession | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authRequired, setAuthRequired] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const resumedKey = useRef<string | null>(null);
 
   useEffect(() => {
     getSharedSession(shareToken, getToken() ?? undefined)
       .then(setSession)
-      .catch((cause) => setError(cause instanceof Error ? cause.message : "Shared conversation unavailable"));
+      .catch((cause) => {
+        if ((cause as { status?: number })?.status === 401) setAuthRequired(true);
+        else setError(cause instanceof Error ? cause.message : "Shared Quest unavailable");
+      });
+  }, [shareToken]);
+
+  async function runImport(idempotencyKey: string) {
+    const authToken = getToken();
+    if (!authToken) {
+      const returnTo = `/share/${encodeURIComponent(shareToken)}?import=${encodeURIComponent(idempotencyKey)}`;
+      router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+      return;
+    }
+    setImportBusy(true);
+    setImportError(null);
+    try {
+      const result = await importSharedSession(shareToken, idempotencyKey, authToken);
+      router.push(`/chat?session=${encodeURIComponent(result.sessionId)}`);
+    } catch (cause) {
+      setImportError(cause instanceof Error ? cause.message : "Import failed");
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !getToken()) return;
+    const key = new URLSearchParams(window.location.search).get("import");
+    if (!key || resumedKey.current === key) return;
+    resumedKey.current = key;
+    void runImport(key);
+  // runImport intentionally uses the current token and stable shareToken from this render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareToken]);
 
   function patchResponse(responseId: string, patch: Partial<SharedResponse>) {
@@ -59,6 +103,20 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
     }
   }
 
+  if (authRequired) {
+    const returnTo = `/share/${encodeURIComponent(shareToken)}`;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#faf9f5] p-6">
+        <section className="max-w-md rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm">
+          <h1 className="text-xl font-semibold text-stone-900">Sign in to view this Quest</h1>
+          <p className="mt-2 text-sm text-stone-600">The owner limited this share to logged-in users.</p>
+          <a href={`/login?returnTo=${encodeURIComponent(returnTo)}`} className="mt-5 inline-flex rounded-lg bg-[#c96442] px-4 py-2 text-sm font-semibold text-white">
+            Sign in
+          </a>
+        </section>
+      </main>
+    );
+  }
   if (error) return <main className="flex min-h-screen items-center justify-center bg-[#faf9f5] p-6 text-sm text-red-700">{error}</main>;
   if (!session) return <main className="min-h-screen bg-[#faf9f5] p-8"><div className="mx-auto h-64 max-w-4xl animate-pulse rounded-2xl bg-white" /></main>;
 
@@ -78,6 +136,24 @@ export default function SharedConversation({ shareToken }: { shareToken: string 
           </div>
           <ShareExportButton session={session} />
         </div>
+        <section className="mt-6 flex flex-col gap-3 rounded-2xl border border-[#e8c9ba] bg-[#fff8f4] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-stone-900">Import to continue</h2>
+            <p className="mt-1 text-sm text-stone-600">
+              Create your own independent copy, then continue it with your configured models.
+            </p>
+            {importError && <p role="alert" className="mt-2 text-sm text-red-700">{importError}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => void runImport(newShareImportKey())}
+            disabled={importBusy}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#c96442] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b75536] disabled:opacity-60"
+          >
+            <Import className="h-4 w-4" />
+            {importBusy ? "Importing…" : signedIn ? "Import Quest" : "Sign in to import"}
+          </button>
+        </section>
         <div className="mt-7 space-y-6">
           {session.turns.map((turn) => (
             <section key={turn.sequenceNum} className="space-y-3">

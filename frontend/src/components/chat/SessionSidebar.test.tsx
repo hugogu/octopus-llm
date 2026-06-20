@@ -1,7 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import SessionSidebar from './SessionSidebar';
 import type { ChatSessionV2 } from '@/lib/types/api';
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('@/lib/api/auth', () => ({ getToken: () => 'token' }));
+vi.mock('@/lib/api/shares', () => ({
+  importSharedSession: vi.fn(),
+  newShareImportKey: vi.fn(() => 'key'),
+}));
 
 describe('SessionSidebar', () => {
   const mockSessions: ChatSessionV2[] = [
@@ -65,7 +73,7 @@ describe('SessionSidebar', () => {
     expect(onSelect).toHaveBeenCalledWith('1');
   });
 
-  it('calls onNewSession when new chat button is clicked', () => {
+  it('calls onNewSession when the primary New Quest action is clicked', () => {
     const onNew = vi.fn();
     render(
       <SessionSidebar
@@ -76,8 +84,27 @@ describe('SessionSidebar', () => {
       />
     );
     
-    fireEvent.click(screen.getByText('New Chat'));
+    fireEvent.click(screen.getByText('New Quest'));
     expect(onNew).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the import dialog from the attached secondary action by mouse and keyboard', async () => {
+    const user = userEvent.setup();
+    render(
+      <SessionSidebar
+        sessions={mockSessions}
+        onSelectSession={vi.fn()}
+        onDeleteSession={vi.fn()}
+        onNewSession={vi.fn()}
+      />
+    );
+    const secondary = screen.getByRole('button', { name: 'Import Quest' });
+    await user.click(secondary);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    secondary.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('highlights current session', () => {

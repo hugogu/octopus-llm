@@ -27,6 +27,11 @@ AGENTS.md
 .windsurf/settings.local.json
 .codex/config.toml
 .vscode/
+.idea/
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
 
 # Backend local/build artifacts
 backend/.gradle/

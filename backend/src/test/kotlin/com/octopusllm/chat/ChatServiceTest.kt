@@ -35,6 +35,10 @@ class ChatServiceTest {
     private val storageSettingsService = mockk<com.octopusllm.admin.StorageSettingsService>()
     private val mediaStorageFactory = mockk<com.octopusllm.media.MediaStorageFactory>()
     private val dialogRedactionService = mockk<DialogRedactionService>()
+    private val shareService = mockk<com.octopusllm.share.ShareService>()
+    private val migrationOperationService = mockk<com.octopusllm.migration.MigrationOperationService>()
+    private val migrationMediaStagingService = mockk<com.octopusllm.migration.MigrationMediaStagingService>()
+    private val sharedQuestImportTxOps = mockk<SharedQuestImportTxOps>()
     private val service = ChatService(
         sessionRepository,
         turnRepository,
@@ -47,6 +51,10 @@ class ChatServiceTest {
         storageSettingsService,
         mediaStorageFactory,
         dialogRedactionService,
+        shareService,
+        migrationOperationService,
+        migrationMediaStagingService,
+        sharedQuestImportTxOps,
     )
 
     @Test

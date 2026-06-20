@@ -30,6 +30,81 @@ class ShareControllerTest @Autowired constructor(
     private val jwt: JwtTokenService,
 ) : AbstractPostgresIntegrationTest() {
     @Test
+    fun `share scope defaults authenticated can change idempotently and is owner scoped`() {
+        val owner = users.save(User(email = "scope-owner-${UUID.randomUUID()}@example.com", passwordHash = "hash"))
+        val viewer = users.save(User(email = "scope-viewer-${UUID.randomUUID()}@example.com", passwordHash = "hash"))
+        val session = sessions.save(ChatSession(user = owner, title = "Private Quest"))
+        val turn = turns.save(
+            ChatTurn(
+                session = session,
+                sequenceNum = 1,
+                promptText = "private prompt",
+                selectedModelIds = arrayOf("snapshot"),
+                selectedConfiguredModelIds = arrayOf(UUID.randomUUID()),
+            ),
+        )
+        val response = responses.save(
+            ProviderResponse(
+                turn = turn,
+                modelId = "snapshot",
+                configuredModelId = turn.selectedConfiguredModelIds.single(),
+                modelDisplayName = "Snapshot",
+                protocol = "openai-compatible",
+                status = "complete",
+                responseText = "private answer",
+                latencyMs = 1,
+            ),
+        )
+        val ownerBearer = jwt.issue(owner.id, owner.sessionEpoch)
+        val viewerBearer = jwt.issue(viewer.id, viewer.sessionEpoch)
+
+        val share = web.post().uri("/api/v2/chat/sessions/${session.id}/shares")
+            .header("Authorization", "Bearer $ownerBearer")
+            .exchange().expectStatus().isCreated
+            .expectBody(ShareLinkDto::class.java)
+            .returnResult().responseBody ?: error("missing share")
+        assert(share.scope == "authenticated")
+
+        web.get().uri("/api/v2/shared/${share.token}")
+            .exchange().expectStatus().isUnauthorized
+            .expectBody(String::class.java).value { body ->
+                assert(!body.contains("private prompt"))
+                assert(!body.contains("Private Quest"))
+            }
+        web.post().uri("/api/v2/shared/${share.token}/responses/${response.id}/like")
+            .exchange().expectStatus().isUnauthorized
+        web.get().uri("/api/v2/shared/${share.token}")
+            .header("Authorization", "Bearer $viewerBearer")
+            .exchange().expectStatus().isOk
+            .expectBody().jsonPath("$.scope").isEqualTo("authenticated")
+            .jsonPath("$.canImport").isEqualTo(true)
+
+        web.patch().uri("/api/v2/chat/sessions/${session.id}/shares/${share.token}")
+            .header("Authorization", "Bearer $viewerBearer")
+            .bodyValue(mapOf("scope" to "public"))
+            .exchange().expectStatus().isNotFound
+
+        repeat(2) {
+            web.patch().uri("/api/v2/chat/sessions/${session.id}/shares/${share.token}")
+                .header("Authorization", "Bearer $ownerBearer")
+                .bodyValue(mapOf("scope" to "public"))
+                .exchange().expectStatus().isOk
+                .expectBody().jsonPath("$.token").isEqualTo(share.token)
+                .jsonPath("$.scope").isEqualTo("public")
+        }
+        web.get().uri("/api/v2/shared/${share.token}")
+            .exchange().expectStatus().isOk
+            .expectBody().jsonPath("$.title").isEqualTo("Private Quest")
+
+        web.post().uri("/api/v2/chat/sessions/${session.id}/shares")
+            .header("Authorization", "Bearer $ownerBearer")
+            .bodyValue(mapOf("scope" to "authenticated"))
+            .exchange().expectStatus().isOk
+            .expectBody().jsonPath("$.token").isEqualTo(share.token)
+            .jsonPath("$.scope").isEqualTo("authenticated")
+    }
+
+    @Test
     fun `owner creates one active share and anonymous likes are cookie deduplicated`() {
         val user = users.save(User(email = "share-${UUID.randomUUID()}@example.com", passwordHash = "hash"))
         val connection = connections.save(Feature003Fixtures.connection(user))
@@ -76,12 +151,14 @@ class ShareControllerTest @Autowired constructor(
         val bearer = jwt.issue(user.id, user.sessionEpoch)
         val share = web.post().uri("/api/v2/chat/sessions/${session.id}/shares")
             .header("Authorization", "Bearer $bearer")
+            .bodyValue(mapOf("scope" to "public"))
             .exchange().expectStatus().isCreated
             .expectBody(ShareLinkDto::class.java)
             .returnResult().responseBody ?: error("missing share")
 
         web.post().uri("/api/v2/chat/sessions/${session.id}/shares")
             .header("Authorization", "Bearer $bearer")
+            .bodyValue(mapOf("scope" to "public"))
             .exchange().expectStatus().isOk
             .expectBody().jsonPath("$.token").isEqualTo(share.token)
 
@@ -143,6 +220,7 @@ class ShareControllerTest @Autowired constructor(
         val ownerBearer = jwt.issue(owner.id, owner.sessionEpoch)
         val share = web.post().uri("/api/v2/chat/sessions/${session.id}/shares")
             .header("Authorization", "Bearer $ownerBearer")
+            .bodyValue(mapOf("scope" to "public"))
             .exchange().expectStatus().isCreated
             .expectBody(ShareLinkDto::class.java)
             .returnResult().responseBody ?: error("missing share")

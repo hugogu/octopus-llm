@@ -6,14 +6,20 @@ const api = vi.hoisted(() => ({
   getSharedSession: vi.fn(),
   anonymousLike: vi.fn(),
   sharedNamedLike: vi.fn(),
+  importSharedSession: vi.fn(),
+  newShareImportKey: vi.fn(() => "stable-import-key"),
 }));
 const auth = vi.hoisted(() => ({ token: null as string | null }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("@/lib/api/auth", () => ({ getToken: () => auth.token }));
 vi.mock("@/lib/api/shares", () => api);
+vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
 function sessionWith(overrides: Record<string, unknown>) {
   return {
     title: "Shared",
+    scope: "public",
+    canImport: true,
     turns: [{
       sequenceNum: 1,
       promptText: "hello",
@@ -31,6 +37,7 @@ function sessionWith(overrides: Record<string, unknown>) {
 afterEach(() => {
   auth.token = null;
   vi.clearAllMocks();
+  api.newShareImportKey.mockReturnValue("stable-import-key");
 });
 
 describe("SharedConversation", () => {
@@ -75,5 +82,52 @@ describe("SharedConversation", () => {
     fireEvent.click(thumb);
     await waitFor(() => expect(screen.getByRole("button", { name: "Anonymous thumbs up" })).toHaveTextContent("2"));
     expect(api.anonymousLike).toHaveBeenCalledWith("opaque", "r1");
+  });
+
+  it("preserves the share token and idempotency key while sending an anonymous viewer to sign in", async () => {
+    api.getSharedSession.mockResolvedValue(sessionWith({}));
+    render(<SharedConversation shareToken="opaque" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in to import" }));
+    expect(navigation.push).toHaveBeenCalledWith(
+      "/login?returnTo=%2Fshare%2Fopaque%3Fimport%3Dstable-import-key",
+    );
+    expect(api.importSharedSession).not.toHaveBeenCalled();
+  });
+
+  it("imports for a signed-in viewer and navigates to the new Quest", async () => {
+    auth.token = "viewer-token";
+    api.getSharedSession.mockResolvedValue(sessionWith({}));
+    api.importSharedSession.mockResolvedValue({
+      sessionId: "new-session",
+      title: "Shared",
+      importedFromLabel: "Imported from a shared Quest",
+    });
+    render(<SharedConversation shareToken="opaque" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Import Quest" }));
+    await waitFor(() => expect(api.importSharedSession).toHaveBeenCalledWith(
+      "opaque",
+      "stable-import-key",
+      "viewer-token",
+    ));
+    expect(navigation.push).toHaveBeenCalledWith("/chat?session=new-session");
+  });
+
+  it("reuses the same key when a resumed import is retried after an error", async () => {
+    auth.token = "viewer-token";
+    window.history.replaceState({}, "", "/share/opaque?import=resumed-key");
+    api.getSharedSession.mockResolvedValue(sessionWith({}));
+    api.importSharedSession.mockRejectedValueOnce(new Error("Temporary failure"));
+    render(<SharedConversation shareToken="opaque" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Temporary failure");
+    expect(api.importSharedSession).toHaveBeenCalledWith("opaque", "resumed-key", "viewer-token");
+  });
+
+  it("renders no Quest content when the share API requires authentication", async () => {
+    api.getSharedSession.mockRejectedValue(Object.assign(new Error("Authentication required"), { status: 401 }));
+    render(<SharedConversation shareToken="opaque" />);
+    expect(await screen.findByText("Sign in to view this Quest")).toBeInTheDocument();
+    expect(screen.queryByText("hello")).not.toBeInTheDocument();
+    expect(screen.queryByText("world")).not.toBeInTheDocument();
+    expect(screen.queryByText("Shared")).not.toBeInTheDocument();
   });
 });

@@ -12,10 +12,13 @@ async function checked<T>(responseValue: Response | Promise<Response>): Promise<
   return response.json() as Promise<T>;
 }
 
-export function createShare(sessionId: string, token: string): Promise<ShareLink> {
+export type ShareScope = "authenticated" | "public";
+
+export function createShare(sessionId: string, token: string, scope: ShareScope = "authenticated"): Promise<ShareLink> {
   return checked(fetch(apiUrl(`/api/v2/chat/sessions/${encodeURIComponent(sessionId)}/shares`), {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ scope }),
   }));
 }
 
@@ -33,11 +36,46 @@ export function revokeShare(sessionId: string, shareToken: string, token: string
   }));
 }
 
+export function changeShareScope(
+  sessionId: string,
+  shareToken: string,
+  scope: ShareScope,
+  token: string,
+): Promise<ShareLink> {
+  return checked(fetch(apiUrl(`/api/v2/chat/sessions/${encodeURIComponent(sessionId)}/shares/${encodeURIComponent(shareToken)}`), {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ scope }),
+  }));
+}
+
 export function getSharedSession(shareToken: string, token?: string): Promise<SharedSession> {
   return checked(fetch(apiUrl(`/api/v2/shared/${encodeURIComponent(shareToken)}`), {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     credentials: "include",
     cache: "no-store",
+  }));
+}
+
+export interface SharedSessionImportResult {
+  sessionId: string;
+  title: string | null;
+  importedFromLabel: string;
+}
+
+export function newShareImportKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function importSharedSession(
+  shareToken: string,
+  idempotencyKey: string,
+  token: string,
+): Promise<SharedSessionImportResult> {
+  return checked(fetch(apiUrl(`/api/v2/shared/${encodeURIComponent(shareToken)}/import`), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Idempotency-Key": idempotencyKey },
+    credentials: "include",
   }));
 }
 

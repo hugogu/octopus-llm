@@ -14,7 +14,12 @@ import com.octopusllm.llm.LlmStreamEvent
 import com.octopusllm.llm.ModelDispatchTarget
 import com.octopusllm.media.MediaRepository
 import com.octopusllm.media.MediaStorageFactory
+import com.octopusllm.migration.MediaToStage
+import com.octopusllm.migration.MigrationMediaStagingService
+import com.octopusllm.migration.MigrationOperation
+import com.octopusllm.migration.MigrationOperationService
 import com.octopusllm.model.ProtocolDefinitions
+import com.octopusllm.share.ShareService
 import java.util.Base64
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
@@ -25,6 +30,7 @@ import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.time.Instant
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -41,6 +47,10 @@ class ChatService(
     private val storageSettingsService: StorageSettingsService,
     private val mediaStorageFactory: MediaStorageFactory,
     private val dialogRedactionService: DialogRedactionService,
+    private val shareService: ShareService,
+    private val migrationOperationService: MigrationOperationService,
+    private val migrationMediaStagingService: MigrationMediaStagingService,
+    private val sharedQuestImportTxOps: SharedQuestImportTxOps,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -50,6 +60,69 @@ class ChatService(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
             }
             sessionRepository.save(ChatSession(user = user, title = title))
+        }
+
+    data class SharedImportOutcome(
+        val operationId: UUID,
+        val status: String,
+        val result: SharedQuestImportResult? = null,
+        val replay: Boolean = false,
+    )
+
+    fun importFromShare(token: String, callerId: UUID, idempotencyKey: String): Mono<SharedImportOutcome> =
+        blocking {
+            val sourceDigest = MessageDigest.getInstance("SHA-256").digest(token.toByteArray(Charsets.UTF_8))
+            val claim = migrationOperationService.claimImport(
+                callerId,
+                MigrationOperation.TYPE_SHARE_IMPORT,
+                idempotencyKey,
+                sourceDigest,
+            )
+            if (!claim.isNew && claim.operation.status == MigrationOperation.STATUS_SUCCEEDED) {
+                return@blocking SharedImportOutcome(
+                    operationId = claim.operation.id,
+                    status = MigrationOperation.STATUS_SUCCEEDED,
+                    result = SharedQuestImportResult.fromResultMap(claim.operation.result),
+                    replay = true,
+                )
+            }
+            if (!claim.isNew && claim.operation.status == MigrationOperation.STATUS_IN_PROGRESS) {
+                return@blocking SharedImportOutcome(
+                    operationId = claim.operation.id,
+                    status = MigrationOperation.STATUS_IN_PROGRESS,
+                )
+            }
+
+            val operationId = claim.operation.id
+            var staged = emptyList<com.octopusllm.migration.StagedMedia>()
+            try {
+                val source = shareService.importSource(token, callerId)
+                staged = migrationMediaStagingService.stage(
+                    operationId,
+                    source.media.map {
+                        MediaToStage(
+                            sourceMediaId = it.sourceMediaId,
+                            mediaType = it.mediaType,
+                            mimeType = it.mimeType,
+                            sizeBytes = it.sizeBytes,
+                            originalFilename = it.originalFilename,
+                            content = it.content,
+                        )
+                    },
+                )
+                val result = sharedQuestImportTxOps.commit(source, staged, callerId)
+                migrationMediaStagingService.complete(operationId)
+                migrationOperationService.succeed(claim.operation, result.toResultMap())
+                SharedImportOutcome(
+                    operationId = operationId,
+                    status = MigrationOperation.STATUS_SUCCEEDED,
+                    result = result,
+                )
+            } catch (error: Throwable) {
+                migrationMediaStagingService.compensate(operationId, staged)
+                migrationOperationService.fail(claim.operation)
+                throw error
+            }
         }
 
     fun listSessions(userId: UUID, limit: Int, offset: Int): Mono<Pair<List<ChatSession>, Long>> =

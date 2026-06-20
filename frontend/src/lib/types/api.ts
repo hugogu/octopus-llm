@@ -163,6 +163,7 @@ export interface PublicModelAnalytics {
 export interface ShareLink {
   token: string;
   shareUrl: string;
+  scope: "authenticated" | "public";
   createdAt: string;
   revokedAt: string | null;
 }
@@ -187,6 +188,8 @@ export interface SharedResponse {
 
 export interface SharedSession {
   title: string | null;
+  scope: "authenticated" | "public";
+  canImport: boolean;
   turns: Array<{
     sequenceNum: number;
     promptText: string;

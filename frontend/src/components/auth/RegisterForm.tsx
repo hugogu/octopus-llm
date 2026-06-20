@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { login, register } from "@/lib/api/auth";
 
 export default function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -23,7 +24,8 @@ export default function RegisterForm() {
     try {
       await register({ email, password });
       await login({ email, password });
-      router.replace("/chat");
+      const requested = searchParams.get("returnTo");
+      router.replace(requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/chat");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed.";
       setError(msg);
@@ -69,7 +71,10 @@ export default function RegisterForm() {
       </button>
       <p className="text-sm text-center">
         Already have an account?{" "}
-        <a href="/login" className="text-blue-600 underline">
+        <a
+          href={searchParams.get("returnTo") ? `/login?returnTo=${encodeURIComponent(searchParams.get("returnTo")!)}` : "/login"}
+          className="text-blue-600 underline"
+        >
           Sign in
         </a>
       </p>

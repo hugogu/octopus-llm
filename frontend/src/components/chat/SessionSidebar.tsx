@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { BarChart3, MessageSquare, Trash2, Plus, Clock, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { BarChart3, ChevronDown, Import, MessageSquare, Trash2, Plus, Clock, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Link from 'next/link';
 import type { ChatSessionV2 } from '@/lib/types/api';
 import Button from '@/components/ui/Button';
 import AdminNavLink from '@/components/admin/AdminNavLink';
 import AccountNavLink from '@/components/account/AccountNavLink';
 import { confirmDialog } from '@/lib/ui/confirm';
+import QuestImportDialog from '@/components/chat/QuestImportDialog';
 
 interface SessionSidebarProps {
   sessions: ChatSessionV2[];
@@ -28,6 +29,7 @@ export default function SessionSidebar({
 }: SessionSidebarProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const handleDelete = async (sessionId: string) => {
     const confirmed = await confirmDialog({
@@ -70,15 +72,27 @@ export default function SessionSidebar({
         >
           <PanelLeftOpen className="h-5 w-5" />
         </button>
-        <button
-          type="button"
-          onClick={onNewSession}
-          title="New chat"
-          aria-label="New chat"
-          className="rounded-lg bg-[#c96442] p-2 text-white transition hover:bg-[#b55538]"
-        >
-          <Plus className="h-5 w-5" />
-        </button>
+        <div role="group" aria-label="Create or import Quest" className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={onNewSession}
+            title="New Quest"
+            aria-label="New Quest"
+            className="rounded-lg bg-[#c96442] p-2 text-white transition hover:bg-[#b55538]"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            title="Import Quest"
+            aria-label="Import Quest"
+            className="rounded-lg border border-stone-300 bg-white p-2 text-stone-600 transition hover:text-[#b55538]"
+          >
+            <Import className="h-4 w-4" />
+          </button>
+        </div>
+        <QuestImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} />
       </div>
     );
   }
@@ -86,14 +100,25 @@ export default function SessionSidebar({
   return (
     <div className="w-64 h-full flex flex-col border-r border-stone-200 bg-[#f5f4ee]">
       <div className="flex items-center gap-2 p-3">
-        <Button
-          onClick={onNewSession}
-          fullWidth
-          className="justify-center !bg-[#c96442] hover:!bg-[#b55538]"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          New Chat
-        </Button>
+        <div role="group" aria-label="Create or import Quest" className="flex min-w-0 flex-1">
+          <Button
+            onClick={onNewSession}
+            className="min-w-0 flex-1 justify-center !rounded-r-none !bg-[#c96442] hover:!bg-[#b55538]"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Quest
+          </Button>
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            aria-label="Import Quest"
+            title="Import Quest"
+            className="inline-flex items-center gap-1 rounded-r-lg border-l border-white/30 bg-[#c96442] px-3 text-white transition hover:bg-[#b55538] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <Import className="h-4 w-4" />
+            <ChevronDown className="h-3 w-3" aria-hidden />
+          </button>
+        </div>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
@@ -104,6 +129,7 @@ export default function SessionSidebar({
           <PanelLeftClose className="h-5 w-5" />
         </button>
       </div>
+      <QuestImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} />
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (

@@ -18,6 +18,10 @@ interface MediaStorage {
     /** Backend identifier matching `storage_settings.backend`. */
     val backend: String
 
+    /** Deterministic object key used by [store], exposed so crash-cleanup ledgers can record it first. */
+    fun storageKey(id: UUID, extension: String): String =
+        if (extension.isBlank()) id.toString() else "$id.$extension"
+
     /** Persist [bytes] under an opaque key derived from [id]; returns the stored handle + public URL. */
     fun store(id: UUID, bytes: ByteArray, mimeType: String, extension: String): StoredMedia
 

@@ -25,7 +25,7 @@ class LocalMediaStorage(
     }
 
     override fun store(id: UUID, bytes: ByteArray, mimeType: String, extension: String): StoredMedia {
-        val filename = if (extension.isBlank()) id.toString() else "$id.$extension"
+        val filename = storageKey(id, extension)
         val target = root.resolve(filename).normalize()
         require(target.startsWith(root)) { "Resolved media path escapes storage root" }
         bytes.inputStream().use { input ->

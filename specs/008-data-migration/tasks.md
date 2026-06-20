@@ -45,7 +45,7 @@ portable Connections, full history/media, endpoint validation, and idempotent re
 - [X] T017 [P] [US1] Integration test `POST /api/v2/admin/migration/export`: admin-only, acknowledgement/passphrase validation (request passphrase honored; configured `MIGRATION_ARTIFACT_PASSPHRASE` used when request omits it; `400` when neither present), encrypted streamed artifact, redacted Dialog exclusion, and non-secret operation record
 - [X] T018 [P] [US1] Integration test `POST /api/v2/admin/migration/import`: full round-trip, all Quests/Connections owned by admin, configured-model UUID/reference remapping, keys usable after target-key re-encryption, and media restored
 - [X] T019 [P] [US1] Import rejection integration tests: wrong passphrase/tamper, malformed/unsafe/wrong-version bundle, missing reference, checksum mismatch, and `ConnectionEndpointPolicy` rejection all create zero business rows
-- [ ] T020 [P] [US1] Atomicity/compensation integration test: inject DB failure after media staging, verify no Quest/Connection/configured-model/media rows and staged blobs removed; simulate interrupted staging and verify sweep cleanup
+- [X] T020 [P] [US1] Atomicity/compensation integration test: inject DB failure after media staging, verify no Quest/Connection/configured-model/media rows and staged blobs removed; simulate interrupted staging and verify sweep cleanup
 - [X] T021 [P] [US1] Idempotency integration test: same actor/key/source returns original result with no duplicates; same key/different source returns `409 idempotency_conflict`; new key creates an intentional independent copy
 
 ### Implementation
@@ -67,42 +67,42 @@ portable Connections, full history/media, endpoint validation, and idempotent re
 
 ### Tests
 
-- [ ] T032 [P] [US2] Integration test `POST /api/v2/shared/{token}/import`: anonymous 401; authorized import creates fresh Quest/turn/response ids owned by caller; redactions skipped
-- [ ] T033 [P] [US2] Media independence/rollback integration test: imported attachments use new media rows/storage objects owned by importer and still render after source Quest deletion; injected clone failure leaves no Quest/media rows and tracked blobs are cleaned
-- [ ] T034 [P] [US2] Shared-import idempotency integration test: replay returns original Quest/media; key conflict returns 409; new key creates a deliberate independent copy
+- [X] T032 [P] [US2] Integration test `POST /api/v2/shared/{token}/import`: anonymous 401; authorized import creates fresh Quest/turn/response ids owned by caller; redactions skipped
+- [X] T033 [P] [US2] Media independence/rollback integration test: imported attachments use new media rows/storage objects owned by importer and still render after source Quest deletion; injected clone failure leaves no Quest/media rows and tracked blobs are cleaned
+- [X] T034 [P] [US2] Shared-import idempotency integration test: replay returns original Quest/media; key conflict returns 409; new key creates a deliberate independent copy
 
 ### Implementation
 
-- [ ] T035 [US2] Add `importFromShare(token, caller, idempotencyKey)` to `ChatService.kt`: authorize through active share scope, deep-copy visible immutable snapshots, clone media through the shared staging/compensation path, set generic import-origin metadata, and commit through `MigrationOperation`
-- [ ] T036 [US2] Add authenticated `POST /import` to `SharedSessionController.kt`; require `Idempotency-Key` and return 201 first-use / 202 in-progress / 200 completed replay
-- [ ] T037 [P] [US2] Add `importSharedSession(token, idempotencyKey)` to `frontend/src/lib/api/shares.ts`
-- [ ] T038 [US2] Update `frontend/src/components/share/SharedConversation.tsx`: visible “Import to continue” explanation; preserve token + idempotency key through sign-in/register return; navigate to the imported Quest
-- [ ] T039 [P] [US2] Vitest share import: anonymous resume, successful navigation, retry key reuse, and auth-gated content non-rendering
+- [X] T035 [US2] Add `importFromShare(token, caller, idempotencyKey)` to `ChatService.kt`: authorize through active share scope, deep-copy visible immutable snapshots, clone media through the shared staging/compensation path, set generic import-origin metadata, and commit through `MigrationOperation`
+- [X] T036 [US2] Add authenticated `POST /import` to `SharedSessionController.kt`; require `Idempotency-Key` and return 201 first-use / 202 in-progress / 200 completed replay
+- [X] T037 [P] [US2] Add `importSharedSession(token, idempotencyKey)` to `frontend/src/lib/api/shares.ts`
+- [X] T038 [US2] Update `frontend/src/components/share/SharedConversation.tsx`: visible “Import to continue” explanation; preserve token + idempotency key through sign-in/register return; navigate to the imported Quest
+- [X] T039 [P] [US2] Vitest share import: anonymous resume, successful navigation, retry key reuse, and auth-gated content non-rendering
 
 ## Phase 5: User Story 3 — Combined New/Import control (P2)
 
-- [ ] T040 [US3] Convert `frontend/src/components/chat/SessionSidebar.tsx` New action into an accessible split/combined button (primary New Quest, secondary Import)
-- [ ] T041 [P] [US3] Create `frontend/src/components/chat/QuestImportDialog.tsx`: styled dialog accepting a same-deployment share link/token, stable idempotency key per submission, inline errors, and success navigation
-- [ ] T042 [US3] Wire the dialog to the sidebar secondary action
-- [ ] T043 [P] [US3] Update `SessionSidebar.test.tsx` for keyboard/mouse primary and secondary actions; add `QuestImportDialog` tests
+- [X] T040 [US3] Convert `frontend/src/components/chat/SessionSidebar.tsx` New action into an accessible split/combined button (primary New Quest, secondary Import)
+- [X] T041 [P] [US3] Create `frontend/src/components/chat/QuestImportDialog.tsx`: styled dialog accepting a same-deployment share link/token, stable idempotency key per submission, inline errors, and success navigation
+- [X] T042 [US3] Wire the dialog to the sidebar secondary action
+- [X] T043 [P] [US3] Update `SessionSidebar.test.tsx` for keyboard/mouse primary and secondary actions; add `QuestImportDialog` tests
 
 ## Phase 6: User Story 4 — Share audience scope (P2)
 
 ### Tests
 
-- [ ] T044 [P] [US4] Integration test changed `POST /api/v2/chat/sessions/{id}/shares`: default authenticated, explicit public, idempotent active-share behavior, owner-only
-- [ ] T045 [P] [US4] Integration test `PATCH .../shares/{token}`: scope change is idempotent and owner-only
-- [ ] T046 [P] [US4] Integration test all `/api/v2/shared/{token}/...` audience checks: authenticated scope returns non-disclosing 401 to anonymous GET/anonymous-like calls; public remains anonymous-readable/reactable; revoked/unknown remains 404
+- [X] T044 [P] [US4] Integration test changed `POST /api/v2/chat/sessions/{id}/shares`: default authenticated, explicit public, idempotent active-share behavior, owner-only
+- [X] T045 [P] [US4] Integration test `PATCH .../shares/{token}`: scope change is idempotent and owner-only
+- [X] T046 [P] [US4] Integration test all `/api/v2/shared/{token}/...` audience checks: authenticated scope returns non-disclosing 401 to anonymous GET/anonymous-like calls; public remains anonymous-readable/reactable; revoked/unknown remains 404
 
 ### Implementation
 
-- [ ] T047 [US4] Extend `ShareService.kt` create/change/read DTOs and central scope enforcement for reads, reactions, and import; do not resolve/render/probe shared content before the auth check
-- [ ] T048 [US4] Extend `ShareControllerV2.kt` create body and add `PATCH /{token}`; keep collection/list response bounded by existing maximum page size 100
-- [ ] T049 [US4] Update `SharedSessionController.kt`/`SharedSessionDto` with scope/canImport only on successful authorized reads
-- [ ] T050 [P] [US4] Update `frontend/src/lib/api/shares.ts` create/patch types and methods
-- [ ] T051 [US4] Update the existing `frontend/src/components/chat/ShareConversationButton.tsx` with styled scope selection/change/revoke confirmation
-- [ ] T052 [US4] Update `frontend/src/components/share/SharedConversation.tsx` auth gate; render no title, turns, owner metadata, or media before authorization
-- [ ] T053 [P] [US4] Update existing share component tests for both scopes, revoke confirmation, and zero sensitive pre-auth rendering
+- [X] T047 [US4] Extend `ShareService.kt` create/change/read DTOs and central scope enforcement for reads, reactions, and import; do not resolve/render/probe shared content before the auth check
+- [X] T048 [US4] Extend `ShareControllerV2.kt` create body and add `PATCH /{token}`; keep collection/list response bounded by existing maximum page size 100
+- [X] T049 [US4] Update `SharedSessionController.kt`/`SharedSessionDto` with scope/canImport only on successful authorized reads
+- [X] T050 [P] [US4] Update `frontend/src/lib/api/shares.ts` create/patch types and methods
+- [X] T051 [US4] Update the existing `frontend/src/components/chat/ShareConversationButton.tsx` with styled scope selection/change/revoke confirmation
+- [X] T052 [US4] Update `frontend/src/components/share/SharedConversation.tsx` auth gate; render no title, turns, owner metadata, or media before authorization
+- [X] T053 [P] [US4] Update existing share component tests for both scopes, revoke confirmation, and zero sensitive pre-auth rendering
 
 ## Phase 7: User Story 5 — Delete an individual Dialog (P2)
 

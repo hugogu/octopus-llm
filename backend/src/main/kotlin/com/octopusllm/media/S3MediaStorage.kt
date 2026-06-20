@@ -39,7 +39,7 @@ class S3MediaStorage(
 
     override fun store(id: UUID, bytes: ByteArray, mimeType: String, extension: String): StoredMedia {
         val cfg = config()
-        val key = if (extension.isBlank()) id.toString() else "$id.$extension"
+        val key = storageKey(id, extension)
         client(cfg).putObject(
             PutObjectRequest.builder().bucket(cfg.bucket).key(key).contentType(mimeType).build(),
             RequestBody.fromBytes(bytes),
