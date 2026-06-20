@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { BarChart3, ChevronDown, Import, MessageSquare, Trash2, Plus, Clock, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import Link from 'next/link';
+import { ChevronDown, Import, MessageSquare, Trash2, Plus, Clock, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { ChatSessionV2 } from '@/lib/types/api';
 import Button from '@/components/ui/Button';
-import AdminNavLink from '@/components/admin/AdminNavLink';
-import AccountNavLink from '@/components/account/AccountNavLink';
-import LogoutNavLink from '@/components/account/LogoutNavLink';
 import { confirmDialog } from '@/lib/ui/confirm';
 import QuestImportDialog from '@/components/chat/QuestImportDialog';
+import UserMenu from '@/components/chat/UserMenu';
 
 interface SessionSidebarProps {
   sessions: ChatSessionV2[];
@@ -185,12 +182,7 @@ export default function SessionSidebar({
       </div>
 
       <div className="border-t border-stone-200 p-2">
-        <AccountNavLink />
-        <Link href="/analytics" className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-stone-600 hover:bg-white/70 hover:text-stone-900">
-          <BarChart3 className="h-4 w-4 text-[#c96442]" /> Public analytics
-        </Link>
-        <AdminNavLink />
-        <LogoutNavLink />
+        <UserMenu />
       </div>
     </div>
   );

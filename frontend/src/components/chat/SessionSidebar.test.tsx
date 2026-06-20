@@ -5,7 +5,8 @@ import SessionSidebar from './SessionSidebar';
 import type { ChatSessionV2 } from '@/lib/types/api';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock('@/lib/api/auth', () => ({ getToken: () => 'token' }));
+vi.mock('@/lib/api/auth', () => ({ getToken: () => 'token', logout: vi.fn() }));
+vi.mock('@/lib/api/admin', () => ({ getMe: vi.fn().mockResolvedValue({ id: 'u1', email: 'alice@example.com', displayName: 'Alice', isAdmin: false }) }));
 vi.mock('@/lib/api/shares', () => ({
   importSharedSession: vi.fn(),
   newShareImportKey: vi.fn(() => 'key'),
