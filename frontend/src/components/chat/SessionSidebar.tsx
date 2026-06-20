@@ -7,6 +7,7 @@ import type { ChatSessionV2 } from '@/lib/types/api';
 import Button from '@/components/ui/Button';
 import AdminNavLink from '@/components/admin/AdminNavLink';
 import AccountNavLink from '@/components/account/AccountNavLink';
+import LogoutNavLink from '@/components/account/LogoutNavLink';
 import { confirmDialog } from '@/lib/ui/confirm';
 import QuestImportDialog from '@/components/chat/QuestImportDialog';
 
@@ -189,6 +190,7 @@ export default function SessionSidebar({
           <BarChart3 className="h-4 w-4 text-[#c96442]" /> Public analytics
         </Link>
         <AdminNavLink />
+        <LogoutNavLink />
       </div>
     </div>
   );
