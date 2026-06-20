@@ -61,6 +61,8 @@ describe("ModelSelectorPanel", () => {
     const onChange = vi.fn();
     render(<ModelSelectorPanel models={models} selectedIds={[]} onChange={onChange} />);
 
+    // The picker is collapsed by default; open it to reveal the model options.
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
     const option = screen.getByRole("button", { name: /Same model A/ });
     expect(option).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(option);
