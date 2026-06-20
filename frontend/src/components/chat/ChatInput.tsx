@@ -139,7 +139,7 @@ export default function ChatInput({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder="Ask all selected models…  (Enter to send, Shift+Enter for newline)"
-          rows={3}
+          rows={2}
           className="w-full resize-none bg-transparent px-2 py-1 text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none disabled:text-stone-400"
         />
 

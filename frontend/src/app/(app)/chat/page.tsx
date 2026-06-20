@@ -588,7 +588,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div className="border-t border-stone-200 bg-[#faf9f5] px-6 py-3">
+        <div className="border-t border-stone-200 bg-[#faf9f5] px-6 py-2">
           {attachmentNotice && (
             <div className="mx-auto mb-2 w-full max-w-3xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               {attachmentNotice}
