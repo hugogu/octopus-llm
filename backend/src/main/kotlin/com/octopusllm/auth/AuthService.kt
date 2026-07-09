@@ -40,10 +40,16 @@ class AuthService(
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Email already registered")
         }
+        // The very first registered account becomes the initial administrator and is auto-activated
+        // so they can actually sign in (same shape as AdminBootstrap). Concurrent first-time
+        // registrations are an acceptable race: at worst two admins instead of one.
+        val isFirstUser = userRepository.count() == 0L
         val user = User(
             email = normalizedEmail,
             passwordHash = bcrypt.encode(password),
             emailVerified = false,
+            isAdmin = isFirstUser,
+            isActive = isFirstUser,
         )
         val saved = userRepository.save(user)
         issueVerification(saved)
