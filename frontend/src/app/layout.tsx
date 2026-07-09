@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 import ConfirmHost from "@/components/ui/ConfirmHost";
+import SiteFooter from "@/components/layout/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Octopus LLM",
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <ConfirmHost />
+        <SiteFooter />
       </body>
     </html>
   );

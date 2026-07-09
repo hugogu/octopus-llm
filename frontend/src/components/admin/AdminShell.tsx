@@ -3,13 +3,14 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Cable, DatabaseBackup, HardDrive, Users } from "lucide-react";
+import { ArrowLeft, Cable, DatabaseBackup, HardDrive, Info, Users } from "lucide-react";
 
 const TABS = [
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/connections", label: "Built-in connections", icon: Cable },
   { href: "/admin/storage", label: "Storage", icon: HardDrive },
   { href: "/admin/migration", label: "Data migration", icon: DatabaseBackup },
+  { href: "/admin/site", label: "Site info", icon: Info },
 ] as const;
 
 interface Props {
