@@ -227,6 +227,163 @@ class StreamingAdaptersTest {
         assertEquals("Provider returned HTTP 429", event.error)
     }
 
+    @Test
+    fun `minimax stream splits inline think tags from content`() {
+        startServer("/text/chatcompletion_v2") { exchange ->
+            exchange.requestBody.use { it.readAllBytes() }
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"<think>step 1</think>hello "}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"content":"world"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2}}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        val events = MiniMaxAdapter().stream(
+            modelId = "minimax-m",
+            request = LlmRequest("hi"),
+            decryptedApiKey = "secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        assertEquals(
+            listOf(
+                LlmStreamEvent.Reasoning("minimax-m", "step 1"),
+                LlmStreamEvent.Token("minimax-m", "hello "),
+                LlmStreamEvent.Token("minimax-m", "world"),
+            ),
+            events.dropLast(1),
+        )
+        val complete = events.last() as LlmStreamEvent.ModelComplete
+        assertEquals(3, complete.inputTokens)
+        assertEquals(2, complete.outputTokens)
+    }
+
+    @Test
+    fun `minimax stream handles think tag split across chunks`() {
+        startServer("/text/chatcompletion_v2") { exchange ->
+            exchange.requestBody.use { it.readAllBytes() }
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"<th"}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"content":"ink>plan A</thi"}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"content":"nk>answer"}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{},"finish_reason":"stop"}]}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        val events = MiniMaxAdapter().stream(
+            modelId = "minimax-m",
+            request = LlmRequest("hi"),
+            decryptedApiKey = "secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        assertEquals(
+            listOf(
+                LlmStreamEvent.Reasoning("minimax-m", "plan A"),
+                LlmStreamEvent.Token("minimax-m", "answer"),
+            ),
+            events.dropLast(1),
+        )
+    }
+
+    @Test
+    fun `minimax stream flushes an unclosed think block as reasoning on stop`() {
+        startServer("/text/chatcompletion_v2") { exchange ->
+            exchange.requestBody.use { it.readAllBytes() }
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"<think>never-finished"}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"content":" continuation"},"finish_reason":"stop"}]}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        val events = MiniMaxAdapter().stream(
+            modelId = "minimax-m",
+            request = LlmRequest("hi"),
+            decryptedApiKey = "secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        assertEquals(
+            listOf(
+                LlmStreamEvent.Reasoning("minimax-m", "never-finished"),
+                LlmStreamEvent.Reasoning("minimax-m", " continuation"),
+            ),
+            events.dropLast(1),
+        )
+    }
+
+    @Test
+    fun `minimax stream still emits separate reasoning_content field`() {
+        startServer("/text/chatcompletion_v2") { exchange ->
+            exchange.requestBody.use { it.readAllBytes() }
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"reasoning_content":"think step","content":"hi"}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"content":"!"},"finish_reason":"stop"}]}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        val events = MiniMaxAdapter().stream(
+            modelId = "minimax-m",
+            request = LlmRequest("hi"),
+            decryptedApiKey = "secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        assertEquals(
+            listOf(
+                LlmStreamEvent.Reasoning("minimax-m", "think step"),
+                LlmStreamEvent.Token("minimax-m", "hi"),
+                LlmStreamEvent.Token("minimax-m", "!"),
+            ),
+            events.dropLast(1),
+        )
+    }
+
+    @Test
+    fun `minimax stream emits plain tokens when no think tags are present`() {
+        startServer("/text/chatcompletion_v2") { exchange ->
+            exchange.requestBody.use { it.readAllBytes() }
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"hello "}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"content":"world"},"finish_reason":"stop"}]}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        val events = MiniMaxAdapter().stream(
+            modelId = "minimax-m",
+            request = LlmRequest("hi"),
+            decryptedApiKey = "secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        assertEquals(
+            listOf(
+                LlmStreamEvent.Token("minimax-m", "hello "),
+                LlmStreamEvent.Token("minimax-m", "world"),
+            ),
+            events.dropLast(1),
+        )
+    }
+
     private fun startServer(path: String, handler: (HttpExchange) -> Unit) {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             serverExecutor = Executors.newCachedThreadPool()
