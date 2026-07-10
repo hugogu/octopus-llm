@@ -87,7 +87,7 @@
 - [ ] T025 [P] [US2] Update `AnthropicAdapter.kt` to translate provider tool calls/results to/from unified events
 - [ ] T026 [US2] Update `MiniMaxAdapter.kt` to capability-gate tool availability without tool translation if unsupported
 - [X] T027 [US2] Implement the agentic tool loop in `ConcurrentLlmOrchestrator.kt` (per model, capability-gated): stream → collect `ToolCall`s → execute via `ToolExecutor` → emit status/result → feed the tool exchange back into history → recurse (bounded by `MAX_TOOL_ROUNDS`). Verified by a mock-provider two-round integration test. (Placed in the orchestrator, not `ChatService`, to keep it adapter-agnostic.)
-- [ ] T028 [US2] Add persistence of tool invocations and join records via `ToolInvocationService.kt` in `backend/src/main/kotlin/com/octopusllm/tool/`
+- [X] T028 [US2] Add persistence of tool invocations and join records via `ToolInvocationService.kt` (dedup upsert keyed by `(quest,turn,tool,args_hash)` with race-safe re-read; idempotent per-response `link`). Postgres integration test covers reuse, failure mapping, and shared lineage. Not yet called from the loop — wired at enablement.
 - [ ] T029 [P] [US2] Add frontend SSE parsing for `tool_call`, `tool_result`, and `tool_status` events in `frontend/src/lib/api/chatV2.ts`
 - [ ] T030 [P] [US2] Create `ToolStatusIndicator.tsx` in `frontend/src/components/chat/`
 - [ ] T031 [US2] Update `MessageThread.tsx` to render tool status chips
