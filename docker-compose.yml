@@ -33,8 +33,6 @@ services:
       ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRY_SECONDS: ${JWT_EXPIRY_SECONDS:-3600}
-      MAIL_HOST: mailhog
-      MAIL_PORT: 1025
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       ADMIN_BOOTSTRAP_EMAIL: ${ADMIN_BOOTSTRAP_EMAIL:-}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
@@ -53,8 +51,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      plantuml:
-        condition: service_started
 
   frontend:
     build:
@@ -72,22 +68,10 @@ services:
     depends_on:
       - backend
 
-  mailhog:
-    image: "${MAILHOG_IMAGE:-${DOCKER_IMAGE_PREFIX:-}mailhog/mailhog:v1.0.1}"
-    ports:
-      - "${MAILHOG_SMTP_PORT:-1025}:1025"
-      - "${MAILHOG_UI_PORT:-8025}:8025"
 
   # Self-hosted PlantUML renderer (clarification Q1). Internal only — no published host port;
   # the backend reaches it on the compose network and proxies browser requests so model content
   # never leaves the platform trust boundary.
-  plantuml:
-    image: "${PLANTUML_IMAGE:-${DOCKER_IMAGE_PREFIX:-}plantuml/plantuml-server:jetty-v1.2026.6}"
-    expose:
-      - "8080"
-    environment:
-      # Allow inbound diagram size up to the backend's configured cap.
-      PLANTUML_LIMIT_SIZE: "8192"
 
   # Optional S3/OSS-compatible object store for local development of the media storage backend
   # (feature 007). Start with: `docker compose --profile s3-dev up minio`.
