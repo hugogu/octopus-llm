@@ -48,6 +48,11 @@ services:
       # Cross-provider model capability detection (feature 007). Optional — the OpenRouter models list
       # is public; the key is sent when present.
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Built-in web_search tool (feature 009). Optional — the tool is registered only when a key is set;
+      # backed by a MiMo-style provider that performs the search server-side.
+      APP_TOOLS_WEB_SEARCH_API_KEY: ${WEB_SEARCH_API_KEY:-}
+      APP_TOOLS_WEB_SEARCH_BASE_URL: ${WEB_SEARCH_BASE_URL:-https://api.xiaomimimo.com/v1}
+      APP_TOOLS_WEB_SEARCH_MODEL: ${WEB_SEARCH_MODEL:-mimo-v2.5}
     volumes:
       - ./data/media:/app/media
     depends_on:

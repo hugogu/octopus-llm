@@ -78,11 +78,11 @@
 ### Implementation for User Story 2
 
 - [X] T018 [P] [US2] Implement `CurrentTimeTool` (self-contained, no external API) in `backend/src/main/kotlin/com/octopusllm/tool/CurrentTimeTool.kt`, auto-registered via `ToolRegistry`
-- [ ] T019 [P] [US2] Implement `WebSearchTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
-- [ ] T020 [P] [US2] Implement `StockQuoteTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
-- [ ] T021 [P] [US2] Implement `WeatherTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
-- [ ] T022 [P] [US2] Implement `NewsTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
-- [ ] T023 [US2] Wire built-in tools into `ToolRegistry` at application startup in `backend/src/main/kotlin/com/octopusllm/tool/ToolRegistry.kt`
+- [X] T019 [P] [US2] Implement `WebSearchTool` in `backend/src/main/kotlin/com/octopusllm/tool/WebSearchTool.kt` — app-side tool backed by a MiMo-style provider that searches server-side; returns answer + citations. Registered only when configured (`ToolConfig` + `app.tools.web-search.api-key`). Mock-server unit tests cover request shape, parsing, missing-query, and provider-error paths.
+- [~] T020 [P] [US2] `StockQuoteTool` — SUBSUMED by `web_search` (product decision): a single web_search covers stock/weather/news, so no dedicated tool is shipped.
+- [~] T021 [P] [US2] `WeatherTool` — SUBSUMED by `web_search` (see T020).
+- [~] T022 [P] [US2] `NewsTool` — SUBSUMED by `web_search` (see T020).
+- [X] T023 [US2] Built-in tools are wired via Spring: `CurrentTimeTool` (always) and `WebSearchTool` (conditional on config) are `Tool` beans collected by `ToolRegistry`.
 - [X] T024 [P] [US2] Update `OpenAiCompatAdapter.kt` to translate tool calls/results: serialize `tools` (function schema) + assistant `tool_calls`/`tool` history messages; accumulate streamed `tool_calls` deltas into `LlmStreamEvent.ToolCall`. Unit-tested via mock-server harness.
 - [X] T025 [P] [US2] Update `AnthropicAdapter.kt` to translate tool calls/results: serialize `tools` (`input_schema`) + assistant `tool_use` / user `tool_result` history blocks; accumulate streamed `tool_use` block starts + `input_json_delta` fragments into `LlmStreamEvent.ToolCall`. Unit-tested via mock-server harness.
 - [X] T026 [US2] MiniMax capability-gates tool availability without tool translation: all protocol baselines set `supports_function_calling = false`, so the orchestrator's loop never engages unless a model override opts in; `MiniMaxAdapter.buildBody` ignores `request.tools` by design (no MiniMax tool translation in this release).
