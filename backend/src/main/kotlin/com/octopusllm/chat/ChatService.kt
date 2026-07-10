@@ -510,6 +510,11 @@ class ChatService(
                         userId,
                     ).map { saved -> event.copy(responseId = saved.id) }
                     is LlmStreamEvent.CapabilityNotice -> Mono.just(event)
+                    // Tool events (feature 009) are surfaced to the client as-is; per-invocation
+                    // persistence is wired with the tool loop (US2).
+                    is LlmStreamEvent.ToolCall -> Mono.just(event)
+                    is LlmStreamEvent.ToolStatus -> Mono.just(event)
+                    is LlmStreamEvent.ToolResult -> Mono.just(event)
                 }
             }
 
@@ -641,6 +646,9 @@ class ChatService(
         is LlmStreamEvent.ModelComplete -> event.configuredModelId
         is LlmStreamEvent.ModelError -> event.configuredModelId
         is LlmStreamEvent.CapabilityNotice -> event.configuredModelId
+        is LlmStreamEvent.ToolCall -> event.configuredModelId
+        is LlmStreamEvent.ToolStatus -> event.configuredModelId
+        is LlmStreamEvent.ToolResult -> event.configuredModelId
     }
 
     private fun requireSession(sessionId: UUID, userId: UUID): ChatSession {

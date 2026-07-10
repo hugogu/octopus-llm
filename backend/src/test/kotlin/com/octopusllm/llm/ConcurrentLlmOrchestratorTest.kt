@@ -115,6 +115,9 @@ class ConcurrentLlmOrchestratorTest {
         is LlmStreamEvent.ModelComplete -> event.configuredModelId
         is LlmStreamEvent.ModelError -> event.configuredModelId
         is LlmStreamEvent.CapabilityNotice -> event.configuredModelId
+        is LlmStreamEvent.ToolCall -> event.configuredModelId
+        is LlmStreamEvent.ToolStatus -> event.configuredModelId
+        is LlmStreamEvent.ToolResult -> event.configuredModelId
     }
 
     private fun modelId(event: LlmStreamEvent): String = when (event) {
@@ -123,5 +126,8 @@ class ConcurrentLlmOrchestratorTest {
         is LlmStreamEvent.ModelComplete -> event.modelId
         is LlmStreamEvent.ModelError -> event.modelId
         is LlmStreamEvent.CapabilityNotice -> event.modelId
+        is LlmStreamEvent.ToolCall -> event.modelId
+        is LlmStreamEvent.ToolStatus -> event.modelId
+        is LlmStreamEvent.ToolResult -> event.modelId
     }
 }

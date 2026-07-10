@@ -270,6 +270,38 @@ class ChatControllerV2(
                     "responseId" to event.responseId,
                 ),
             )
+            is LlmStreamEvent.ToolCall -> mapper.writeValueAsString(
+                mapOf(
+                    "event" to "tool_call",
+                    "configuredModelId" to event.configuredModelId,
+                    "modelId" to event.modelId,
+                    "callId" to event.callId,
+                    "toolName" to event.toolName,
+                    "arguments" to event.arguments,
+                ),
+            )
+            is LlmStreamEvent.ToolStatus -> mapper.writeValueAsString(
+                mapOf(
+                    "event" to "tool_status",
+                    "configuredModelId" to event.configuredModelId,
+                    "modelId" to event.modelId,
+                    "callId" to event.callId,
+                    "toolName" to event.toolName,
+                    "status" to event.status,
+                ),
+            )
+            is LlmStreamEvent.ToolResult -> mapper.writeValueAsString(
+                mapOf(
+                    "event" to "tool_result",
+                    "configuredModelId" to event.configuredModelId,
+                    "modelId" to event.modelId,
+                    "callId" to event.callId,
+                    "toolName" to event.toolName,
+                    "status" to event.status,
+                    "result" to event.result,
+                    "error" to event.error,
+                ),
+            )
         }
         return ServerSentEvent.builder<String>().data(data).build()
     }

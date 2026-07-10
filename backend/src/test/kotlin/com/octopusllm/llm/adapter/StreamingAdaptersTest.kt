@@ -2,8 +2,11 @@ package com.octopusllm.llm.adapter
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.octopusllm.llm.Attachment
+import com.octopusllm.llm.HistoryTurn
 import com.octopusllm.llm.LlmRequest
 import com.octopusllm.llm.LlmStreamEvent
+import com.octopusllm.llm.ToolCallRef
+import com.octopusllm.tool.ToolDefinition
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import org.junit.jupiter.api.AfterEach
@@ -123,6 +126,85 @@ class StreamingAdaptersTest {
         val messages = mapper.readTree(captured!!.body).path("messages")
         assertEquals("system", messages.path(0).path("role").asText())
         assertEquals("当前日期与时间：2026-07-10", messages.path(0).path("content").asText())
+    }
+
+    @Test
+    fun `openai stream advertises tools and maps streamed tool_calls across chunks`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/chat/completions") { exchange ->
+            captured = capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"current_time","arguments":"{\"timezone"}}]}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\":\"UTC\"}"}}]}}]}""" + "\n\n",
+                    """data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":5,"completion_tokens":2}}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        val events = OpenAiCompatAdapter(mapper).stream(
+            modelId = "provider-model",
+            request = LlmRequest(
+                prompt = "what time is it?",
+                tools = listOf(
+                    ToolDefinition(
+                        "current_time",
+                        "Return the current time",
+                        mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
+                    ),
+                ),
+            ),
+            decryptedApiKey = "test-secret",
+            baseUrlOverride = baseUrl("/v1"),
+        ).collectList().block()!!
+
+        val body = mapper.readTree(captured!!.body)
+        assertEquals("function", body.path("tools").path(0).path("type").asText())
+        assertEquals("current_time", body.path("tools").path(0).path("function").path("name").asText())
+
+        val toolCall = events.filterIsInstance<LlmStreamEvent.ToolCall>().single()
+        assertEquals("call_1", toolCall.callId)
+        assertEquals("current_time", toolCall.toolName)
+        assertEquals(mapOf("timezone" to "UTC"), toolCall.arguments)
+        // The tool call is emitted before the terminal completion event.
+        assertTrue(events.indexOf(toolCall) < events.indexOfFirst { it is LlmStreamEvent.ModelComplete })
+    }
+
+    @Test
+    fun `openai serializes assistant tool_calls and tool-result history`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/chat/completions") { exchange ->
+            captured = capture(exchange)
+            sendSse(exchange, listOf("""data: {"choices":[{"delta":{"content":"10:30"}}]}""" + "\n\n", "data: [DONE]\n\n"))
+        }
+
+        OpenAiCompatAdapter(mapper).stream(
+            modelId = "provider-model",
+            request = LlmRequest(
+                prompt = "and in words?",
+                history = listOf(
+                    HistoryTurn(role = "user", text = "what time is it?"),
+                    HistoryTurn(
+                        role = "assistant",
+                        text = "",
+                        toolCalls = listOf(ToolCallRef("call_1", "current_time", mapOf("timezone" to "UTC"))),
+                    ),
+                    HistoryTurn(role = "tool", text = """{"time":"10:30"}""", toolCallId = "call_1"),
+                ),
+            ),
+            decryptedApiKey = "test-secret",
+            baseUrlOverride = baseUrl("/v1"),
+        ).collectList().block()!!
+
+        val messages = mapper.readTree(captured!!.body).path("messages")
+        val assistant = (0 until messages.size()).map { messages.path(it) }.single { it.path("role").asText() == "assistant" }
+        assertEquals("call_1", assistant.path("tool_calls").path(0).path("id").asText())
+        assertEquals("current_time", assistant.path("tool_calls").path(0).path("function").path("name").asText())
+        val toolMsg = (0 until messages.size()).map { messages.path(it) }.single { it.path("role").asText() == "tool" }
+        assertEquals("call_1", toolMsg.path("tool_call_id").asText())
+        assertEquals("""{"time":"10:30"}""", toolMsg.path("content").asText())
     }
 
     @Test

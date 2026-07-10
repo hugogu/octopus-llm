@@ -32,6 +32,9 @@ class OpenAiCompatAdapter(
             var outputTokens: Int? = null
             var cacheReadTokens: Int? = null
             var chunks = 0
+            // OpenAI streams tool calls incrementally (id/name once, arguments in fragments) keyed by
+            // index; accumulate here and emit normalized ToolCall events when the round ends.
+            val toolAcc = linkedMapOf<Int, ToolCallBuilder>()
             val baseUrl = requireNotNull(baseUrlOverride) { "baseUrlOverride is required" }
             val client = StreamingWebClient.builder(baseUrl)
                 .defaultHeader("Authorization", "Bearer $decryptedApiKey")
@@ -56,10 +59,12 @@ class OpenAiCompatAdapter(
                         cacheReadTokens = usage.path("prompt_tokens_details").intOrNull("cached_tokens")
                             ?: cacheReadTokens
                     }
+                    accumulateToolCalls(json.path("choices").path(0).path("delta").path("tool_calls"), toolAcc)
                     parseChunk(modelId, json).doOnNext {
                         if (it is LlmStreamEvent.Token) chunks++
                     }
                 }
+                .concatWith(Flux.defer { Flux.fromIterable(toolCallEvents(modelId, toolAcc)) })
                 .concatWith(
                     Mono.fromSupplier {
                         LlmStreamEvent.ModelComplete(
@@ -98,7 +103,29 @@ class OpenAiCompatAdapter(
             messages.add(mapOf("role" to "system", "content" to it))
         }
         request.history.forEach { turn ->
-            messages.add(mapOf("role" to normalizedRole(turn.role), "content" to turn.text))
+            when {
+                // A tool-result turn (feature 009): the tool's output linked back to its call.
+                turn.role == "tool" && turn.toolCallId != null ->
+                    messages.add(mapOf("role" to "tool", "tool_call_id" to turn.toolCallId, "content" to turn.text))
+                // An assistant turn that requested tools carries the tool_calls it emitted.
+                turn.toolCalls.isNotEmpty() -> messages.add(
+                    mapOf(
+                        "role" to "assistant",
+                        "content" to turn.text,
+                        "tool_calls" to turn.toolCalls.map { call ->
+                            mapOf(
+                                "id" to call.callId,
+                                "type" to "function",
+                                "function" to mapOf(
+                                    "name" to call.toolName,
+                                    "arguments" to objectMapper.writeValueAsString(call.arguments),
+                                ),
+                            )
+                        },
+                    ),
+                )
+                else -> messages.add(mapOf("role" to normalizedRole(turn.role), "content" to turn.text))
+            }
         }
 
         if (request.attachments.isEmpty()) {
@@ -143,7 +170,60 @@ class OpenAiCompatAdapter(
             }
             this["model"] = modelId
             this["messages"] = messages
+            // Advertise available tools (feature 009) in OpenAI's function-tool schema.
+            if (request.tools.isNotEmpty()) {
+                this["tools"] = request.tools.map { tool ->
+                    mapOf(
+                        "type" to "function",
+                        "function" to mapOf(
+                            "name" to tool.name,
+                            "description" to tool.description,
+                            "parameters" to tool.parameters,
+                        ),
+                    )
+                }
+            }
             this["stream"] = true
+        }
+    }
+
+    /** Mutable per-index accumulator for a streamed tool call. */
+    private class ToolCallBuilder {
+        var id: String? = null
+        var name: String? = null
+        val arguments = StringBuilder()
+    }
+
+    private fun accumulateToolCalls(toolCalls: JsonNode, acc: MutableMap<Int, ToolCallBuilder>) {
+        if (!toolCalls.isArray) return
+        toolCalls.forEach { call ->
+            val index = call.path("index").asInt(0)
+            val builder = acc.getOrPut(index) { ToolCallBuilder() }
+            call.textOrNull("id")?.let { builder.id = it }
+            val function = call.path("function")
+            function.textOrNull("name")?.let { builder.name = it }
+            function.textOrNull("arguments")?.let { builder.arguments.append(it) }
+        }
+    }
+
+    private fun toolCallEvents(modelId: String, acc: Map<Int, ToolCallBuilder>): List<LlmStreamEvent> =
+        acc.values.mapNotNull { builder ->
+            val name = builder.name ?: return@mapNotNull null
+            LlmStreamEvent.ToolCall(
+                modelId = modelId,
+                callId = builder.id ?: java.util.UUID.randomUUID().toString(),
+                toolName = name,
+                arguments = parseArguments(builder.arguments.toString()),
+            )
+        }
+
+    private fun parseArguments(raw: String): Map<String, Any?> {
+        if (raw.isBlank()) return emptyMap()
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            objectMapper.readValue(raw, Map::class.java) as Map<String, Any?>
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 

@@ -98,6 +98,18 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegi
                             modelId = target.modelId,
                             configuredModelId = target.configuredModelId,
                         )
+                        is LlmStreamEvent.ToolCall -> event.copy(
+                            modelId = target.modelId,
+                            configuredModelId = target.configuredModelId,
+                        )
+                        is LlmStreamEvent.ToolStatus -> event.copy(
+                            modelId = target.modelId,
+                            configuredModelId = target.configuredModelId,
+                        )
+                        is LlmStreamEvent.ToolResult -> event.copy(
+                            modelId = target.modelId,
+                            configuredModelId = target.configuredModelId,
+                        )
                     }
                 }
                 .onErrorResume { e ->

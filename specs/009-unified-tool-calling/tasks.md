@@ -35,7 +35,7 @@
 - [X] T005 [P] Create `UnifiedInteractionEvent.kt` sealed class in `backend/src/main/kotlin/com/octopusllm/tool/`
 - [X] T006 Create `ToolRegistry.kt`, `ToolArguments.kt`, and `ToolExecutor.kt` with timeout, retry, and per-turn deduplication in `backend/src/main/kotlin/com/octopusllm/tool/`
 - [X] T007 [P] Extend `LlmRequest.kt` in `backend/src/main/kotlin/com/octopusllm/llm/` with `systemPrompt` field (the `tools` field is deferred to the US2 adapter loop)
-- [ ] T008 [P] Extend `LlmStreamEvent.kt` with `ToolCall`/`ToolResult`/`ToolStatus` variants — DEFERRED to US2 (would force premature changes to the streaming `when` blocks before the loop exists; `UnifiedInteractionEvent` already defines the contract)
+- [X] T008 [P] Extend `LlmStreamEvent.kt` with `ToolCall`/`ToolStatus`/`ToolResult` variants; wire pass-through + SSE serialization (`ChatControllerV2.toSse`, orchestrator, `ChatService`). Also extend `LlmRequest.tools` and `HistoryTurn` (tool-call/tool-result turns). Dormant until the loop injects tools.
 - [ ] T009 Update `CapabilityMatrix` usage to gate tool availability per model — DEFERRED to US2 (`supports_function_calling` already exists on `CapabilityMatrix`)
 
 **Checkpoint**: Foundation ready — schema, tool core (registry/executor/dedup), unified events, and the self-contained `current_time` built-in tool are in place and unit-/integration-tested. The adapter tool loop (US2) can begin next.
@@ -83,7 +83,7 @@
 - [ ] T021 [P] [US2] Implement `WeatherTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
 - [ ] T022 [P] [US2] Implement `NewsTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
 - [ ] T023 [US2] Wire built-in tools into `ToolRegistry` at application startup in `backend/src/main/kotlin/com/octopusllm/tool/ToolRegistry.kt`
-- [ ] T024 [P] [US2] Update `OpenAiCompatAdapter.kt` to translate provider tool calls/results to/from unified events
+- [X] T024 [P] [US2] Update `OpenAiCompatAdapter.kt` to translate tool calls/results: serialize `tools` (function schema) + assistant `tool_calls`/`tool` history messages; accumulate streamed `tool_calls` deltas into `LlmStreamEvent.ToolCall`. Unit-tested via mock-server harness.
 - [ ] T025 [P] [US2] Update `AnthropicAdapter.kt` to translate provider tool calls/results to/from unified events
 - [ ] T026 [US2] Update `MiniMaxAdapter.kt` to capability-gate tool availability without tool translation if unsupported
 - [ ] T027 [US2] Implement tool execution loop in `ChatService.kt` that feeds tool results back to model streams
