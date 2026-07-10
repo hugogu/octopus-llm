@@ -29,16 +29,16 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T002 Create Flyway migration `V037__tool_invocations.sql` in `backend/src/main/resources/db/migration/`
-- [ ] T003 [P] Create JPA entities `ToolInvocation` and `ProviderResponseToolInvocation` in `backend/src/main/kotlin/com/octopusllm/tool/`
-- [ ] T004 [P] Create `Tool.kt`, `ToolDefinition.kt`, and `ToolResult.kt` interfaces in `backend/src/main/kotlin/com/octopusllm/tool/`
-- [ ] T005 [P] Create `UnifiedInteractionEvent.kt` sealed class in `backend/src/main/kotlin/com/octopusllm/tool/`
-- [ ] T006 Create `ToolRegistry.kt` and `ToolExecutor.kt` with timeout, retry, and deduplication in `backend/src/main/kotlin/com/octopusllm/tool/`
-- [X] T007 [P] Extend `LlmRequest.kt` in `backend/src/main/kotlin/com/octopusllm/llm/` with `systemPrompt` field (the `tools` field is deferred to US2)
-- [ ] T008 [P] Extend `LlmStreamEvent.kt` in `backend/src/main/kotlin/com/octopusllm/llm/` with `ToolCall`, `ToolResult`, and `ToolStatus` variants
-- [ ] T009 Update `CapabilityMatrix` usage to gate tool availability per model in `backend/src/main/kotlin/com/octopusllm/llm/`
+- [X] T002 Create Flyway migration `V037__tool_invocations.sql` in `backend/src/main/resources/db/migration/`
+- [X] T003 [P] Create JPA entities `ToolInvocation` and `ProviderResponseToolInvocation` (+ repositories) in `backend/src/main/kotlin/com/octopusllm/tool/`
+- [X] T004 [P] Create `Tool.kt`, `ToolDefinition.kt`, and `ToolResult.kt` in `backend/src/main/kotlin/com/octopusllm/tool/`
+- [X] T005 [P] Create `UnifiedInteractionEvent.kt` sealed class in `backend/src/main/kotlin/com/octopusllm/tool/`
+- [X] T006 Create `ToolRegistry.kt`, `ToolArguments.kt`, and `ToolExecutor.kt` with timeout, retry, and per-turn deduplication in `backend/src/main/kotlin/com/octopusllm/tool/`
+- [X] T007 [P] Extend `LlmRequest.kt` in `backend/src/main/kotlin/com/octopusllm/llm/` with `systemPrompt` field (the `tools` field is deferred to the US2 adapter loop)
+- [ ] T008 [P] Extend `LlmStreamEvent.kt` with `ToolCall`/`ToolResult`/`ToolStatus` variants — DEFERRED to US2 (would force premature changes to the streaming `when` blocks before the loop exists; `UnifiedInteractionEvent` already defines the contract)
+- [ ] T009 Update `CapabilityMatrix` usage to gate tool availability per model — DEFERRED to US2 (`supports_function_calling` already exists on `CapabilityMatrix`)
 
-**Checkpoint**: Foundation ready — database schema, tool core, and LLM event/request models are in place. User story implementation can now begin.
+**Checkpoint**: Foundation ready — schema, tool core (registry/executor/dedup), unified events, and the self-contained `current_time` built-in tool are in place and unit-/integration-tested. The adapter tool loop (US2) can begin next.
 
 ---
 
@@ -77,7 +77,7 @@
 
 ### Implementation for User Story 2
 
-- [ ] T018 [P] [US2] Implement `CurrentTimeTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
+- [X] T018 [P] [US2] Implement `CurrentTimeTool` (self-contained, no external API) in `backend/src/main/kotlin/com/octopusllm/tool/CurrentTimeTool.kt`, auto-registered via `ToolRegistry`
 - [ ] T019 [P] [US2] Implement `WebSearchTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
 - [ ] T020 [P] [US2] Implement `StockQuoteTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
 - [ ] T021 [P] [US2] Implement `WeatherTool` in `backend/src/main/kotlin/com/octopusllm/tool/BuiltInTools.kt`
