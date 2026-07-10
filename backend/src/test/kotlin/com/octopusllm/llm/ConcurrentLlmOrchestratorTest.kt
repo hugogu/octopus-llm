@@ -1,5 +1,11 @@
 package com.octopusllm.llm
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.octopusllm.tool.Tool
+import com.octopusllm.tool.ToolDefinition
+import com.octopusllm.tool.ToolExecutor
+import com.octopusllm.tool.ToolRegistry
+import com.octopusllm.tool.ToolResult
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -11,6 +17,9 @@ import reactor.test.StepVerifier
 import java.util.UUID
 
 class ConcurrentLlmOrchestratorTest {
+
+    private fun newOrchestrator(registry: ProtocolAdapterRegistry, tools: List<Tool> = emptyList()) =
+        ConcurrentLlmOrchestrator(registry, ToolExecutor(), ToolRegistry(tools), jacksonObjectMapper())
     @Test
     fun `same literal model id on two configured models remains independently attributed`() {
         val first = adapter("first")
@@ -25,7 +34,7 @@ class ConcurrentLlmOrchestratorTest {
         )
         val firstId = UUID.randomUUID()
         val secondId = UUID.randomUUID()
-        val orchestrator = ConcurrentLlmOrchestrator(ProtocolAdapterRegistry(listOf(first, second)))
+        val orchestrator = newOrchestrator(ProtocolAdapterRegistry(listOf(first, second)))
 
         StepVerifier.create(
             orchestrator.stream(
@@ -55,7 +64,7 @@ class ConcurrentLlmOrchestratorTest {
         )
         val failingId = UUID.randomUUID()
         val healthyId = UUID.randomUUID()
-        val orchestrator = ConcurrentLlmOrchestrator(ProtocolAdapterRegistry(listOf(failing, healthy)))
+        val orchestrator = newOrchestrator(ProtocolAdapterRegistry(listOf(failing, healthy)))
 
         StepVerifier.create(
             orchestrator.stream(
@@ -85,7 +94,7 @@ class ConcurrentLlmOrchestratorTest {
         )
 
         StepVerifier.create(
-            ConcurrentLlmOrchestrator(ProtocolAdapterRegistry(listOf(adapter))).stream(listOf(target), request),
+            newOrchestrator(ProtocolAdapterRegistry(listOf(adapter))).stream(listOf(target), request),
         )
             .assertNext {
                 assertTrue(it is LlmStreamEvent.CapabilityNotice)
@@ -93,6 +102,51 @@ class ConcurrentLlmOrchestratorTest {
             }
             .expectNextMatches { it is LlmStreamEvent.ModelComplete }
             .verifyComplete()
+    }
+
+    @Test
+    fun `tool loop executes a tool and continues to a final answer`() {
+        val adapter = adapter("openai")
+        val requests = mutableListOf<LlmRequest>()
+        every { adapter.stream(any(), capture(requests), any(), any()) } returnsMany listOf(
+            // Round 1: the model requests a tool.
+            Flux.just(
+                LlmStreamEvent.ToolCall("ignored", "c1", "current_time", mapOf("timezone" to "UTC")),
+                LlmStreamEvent.ModelComplete("ignored", 1, 1, 5),
+            ),
+            // Round 2: with the tool result in hand, it answers.
+            Flux.just(
+                LlmStreamEvent.Token("ignored", "It is 10:30."),
+                LlmStreamEvent.ModelComplete("ignored", 2, 3, 8),
+            ),
+        )
+        val currentTime = object : Tool {
+            override val definition = ToolDefinition("current_time", "time", emptyMap())
+            override fun execute(arguments: Map<String, Any?>) = ToolResult.Success(mapOf("time" to "10:30"))
+        }
+        val id = UUID.randomUUID()
+        val request = LlmRequest(
+            prompt = "what time is it in UTC?",
+            tools = listOf(ToolDefinition("current_time", "time", emptyMap())),
+        )
+
+        val events = newOrchestrator(ProtocolAdapterRegistry(listOf(adapter)), listOf(currentTime))
+            .stream(listOf(toolTarget(id, "gpt", "openai")), request)
+            .collectList().block()!!
+
+        // Client sees: tool_call, running status, success result, then the streamed answer + one completion.
+        assertTrue(events.any { it is LlmStreamEvent.ToolCall && it.toolName == "current_time" && it.configuredModelId == id })
+        assertTrue(events.any { it is LlmStreamEvent.ToolStatus && it.status == "running" })
+        assertTrue(events.any { it is LlmStreamEvent.ToolResult && it.status == "success" && it.result?.get("time") == "10:30" })
+        assertTrue(events.any { it is LlmStreamEvent.Token && it.delta == "It is 10:30." })
+        assertEquals(1, events.count { it is LlmStreamEvent.ModelComplete })
+
+        // The second round carried the tool exchange and dropped the user prompt.
+        assertEquals(2, requests.size)
+        val round2 = requests[1]
+        assertEquals("", round2.prompt)
+        assertTrue(round2.history.any { it.role == "assistant" && it.toolCalls.any { c -> c.toolName == "current_time" } })
+        assertTrue(round2.history.any { it.role == "tool" && it.toolCallId == "c1" })
     }
 
     private fun adapter(protocol: String): LlmAdapter =
@@ -104,6 +158,17 @@ class ConcurrentLlmOrchestratorTest {
         protocol = protocol,
         decryptedApiKey = "secret",
         capabilityMatrix = CapabilityMatrix(),
+        baseUrl = "https://8.8.8.8/v1",
+        displayName = modelId,
+        connectionLabel = protocol,
+    )
+
+    private fun toolTarget(id: UUID, modelId: String, protocol: String) = ModelDispatchTarget(
+        configuredModelId = id,
+        modelId = modelId,
+        protocol = protocol,
+        decryptedApiKey = "secret",
+        capabilityMatrix = CapabilityMatrix(supportsFunctionCalling = true),
         baseUrl = "https://8.8.8.8/v1",
         displayName = modelId,
         connectionLabel = protocol,

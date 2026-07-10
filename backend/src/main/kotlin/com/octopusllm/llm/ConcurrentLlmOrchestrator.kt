@@ -1,10 +1,16 @@
 package com.octopusllm.llm
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.octopusllm.tool.ToolExecutor
+import com.octopusllm.tool.ToolRegistry
+import com.octopusllm.tool.ToolResult
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import java.time.Duration
 import java.math.BigDecimal
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeoutException
 
 data class ModelDispatchTarget(
@@ -24,7 +30,12 @@ data class ModelDispatchTarget(
 )
 
 @Component
-class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegistry) {
+class ConcurrentLlmOrchestrator(
+    private val adapterRegistry: ProtocolAdapterRegistry,
+    private val toolExecutor: ToolExecutor,
+    private val toolRegistry: ToolRegistry,
+    private val objectMapper: ObjectMapper,
+) {
 
     companion object {
         // Max silence between stream events before a model is declared dead.
@@ -32,9 +43,15 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegi
         // but bounded so a hung provider connection surfaces as an error
         // instead of stalling the turn forever.
         private val STREAM_IDLE_TIMEOUT: Duration = Duration.ofSeconds(120)
+
+        // Safety valve on the agentic tool loop (feature 009): bound how many tool-calling rounds a
+        // single model may take in one turn before we stop and surface an error.
+        private const val MAX_TOOL_ROUNDS = 5
     }
 
     fun stream(targets: List<ModelDispatchTarget>, request: LlmRequest): Flux<LlmStreamEvent> {
+        // One dedup scope per turn, shared across every model so identical tool calls execute once.
+        val turnScope = if (request.tools.isNotEmpty()) toolExecutor.newTurnScope() else null
         val perModelFluxes = targets.map { target ->
             val adapter = adapterRegistry.getAdapter(target.protocol)
 
@@ -74,7 +91,7 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegi
                 Flux.empty()
             }
 
-            val streamFlux = adapter.stream(target.modelId, routedRequest, target.decryptedApiKey, target.baseUrl)
+            val streamFlux = streamTarget(adapter, target, routedRequest, turnScope)
                 .timeout(STREAM_IDLE_TIMEOUT)
                 .map { event ->
                     when (event) {
@@ -132,5 +149,136 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegi
         }
 
         return Flux.merge(perModelFluxes)
+    }
+
+    /**
+     * Streams one model. When tool calling is enabled and the model is capable, drives the agentic tool
+     * loop (feature 009); otherwise it is a single provider request. Deduplication is per-turn via [scope].
+     */
+    private fun streamTarget(
+        adapter: LlmAdapter,
+        target: ModelDispatchTarget,
+        request: LlmRequest,
+        scope: ToolExecutor.TurnScope?,
+    ): Flux<LlmStreamEvent> {
+        val toolsEnabled = scope != null &&
+            request.tools.isNotEmpty() &&
+            target.capabilityMatrix.supportsFunctionCalling
+        return if (toolsEnabled) {
+            toolRound(adapter, target, request, scope!!, 0)
+        } else {
+            adapter.stream(target.modelId, request, target.decryptedApiKey, target.baseUrl)
+        }
+    }
+
+    /**
+     * One round of the tool loop: stream the model, passing text through live while collecting any tool
+     * calls. If the round produced tool calls, suppress its (intermediate) completion, execute the tools,
+     * feed the results back, and recurse; otherwise the round's completion is the terminal event.
+     */
+    private fun toolRound(
+        adapter: LlmAdapter,
+        target: ModelDispatchTarget,
+        request: LlmRequest,
+        scope: ToolExecutor.TurnScope,
+        depth: Int,
+    ): Flux<LlmStreamEvent> {
+        val toolCalls = CopyOnWriteArrayList<LlmStreamEvent.ToolCall>()
+        val body = adapter.stream(target.modelId, request, target.decryptedApiKey, target.baseUrl)
+            .concatMap<LlmStreamEvent> { event ->
+                when (event) {
+                    is LlmStreamEvent.ToolCall -> {
+                        toolCalls.add(event)
+                        Flux.just(event) // the client still sees the tool_call
+                    }
+                    is LlmStreamEvent.ModelComplete ->
+                        if (toolCalls.isEmpty()) Flux.just(event) else Flux.empty()
+                    else -> Flux.just(event)
+                }
+            }
+        val continuation = Flux.defer<LlmStreamEvent> {
+            when {
+                toolCalls.isEmpty() -> Flux.empty()
+                depth >= MAX_TOOL_ROUNDS -> Flux.just(
+                    LlmStreamEvent.ModelError(target.modelId, "Tool call limit ($MAX_TOOL_ROUNDS rounds) exceeded"),
+                )
+                else -> executeAndContinue(adapter, target, request, scope, toolCalls.toList(), depth)
+            }
+        }
+        return Flux.concat(body, continuation)
+    }
+
+    private data class ToolOutcome(val event: LlmStreamEvent.ToolResult, val toolTurn: HistoryTurn)
+
+    /** Emits running status + results for [calls], then feeds them back and streams the next round. */
+    private fun executeAndContinue(
+        adapter: LlmAdapter,
+        target: ModelDispatchTarget,
+        request: LlmRequest,
+        scope: ToolExecutor.TurnScope,
+        calls: List<LlmStreamEvent.ToolCall>,
+        depth: Int,
+    ): Flux<LlmStreamEvent> {
+        val running = Flux.fromIterable(
+            calls.map { LlmStreamEvent.ToolStatus(target.modelId, it.callId, it.toolName, "running") },
+        )
+        // Sequential to keep event order deterministic; the dedup scope still shares repeated executions.
+        val gathered = Flux.concat(calls.map { executeCall(target, scope, it) }).collectList()
+        val next = gathered.flatMapMany { outcomes ->
+            val resultEvents = Flux.fromIterable(outcomes.map { it.event })
+            val assistantTurn = HistoryTurn(
+                role = "assistant",
+                text = "",
+                toolCalls = calls.map { ToolCallRef(it.callId, it.toolName, it.arguments) },
+            )
+            val carried = request.history +
+                (if (request.prompt.isNotBlank()) listOf(HistoryTurn("user", request.prompt)) else emptyList()) +
+                assistantTurn +
+                outcomes.map { it.toolTurn }
+            // prompt is cleared: the next round continues the assistant/tool exchange, not a new user turn.
+            val nextRequest = request.copy(history = carried, prompt = "")
+            Flux.concat(resultEvents, toolRound(adapter, target, nextRequest, scope, depth + 1))
+        }
+        return Flux.concat(running, next)
+    }
+
+    private fun executeCall(
+        target: ModelDispatchTarget,
+        scope: ToolExecutor.TurnScope,
+        call: LlmStreamEvent.ToolCall,
+    ): Mono<ToolOutcome> {
+        val tool = toolRegistry.find(call.toolName) ?: return Mono.just(
+            ToolOutcome(
+                LlmStreamEvent.ToolResult(
+                    target.modelId, call.callId, call.toolName, "failed",
+                    error = "Unknown tool: ${call.toolName}",
+                ),
+                HistoryTurn(
+                    "tool",
+                    objectMapper.writeValueAsString(mapOf("error" to "Unknown tool: ${call.toolName}")),
+                    toolCallId = call.callId,
+                ),
+            ),
+        )
+        return toolExecutor.executeOnce(scope, tool, call.arguments).map { result ->
+            when (result) {
+                is ToolResult.Success -> ToolOutcome(
+                    LlmStreamEvent.ToolResult(
+                        target.modelId, call.callId, call.toolName, result.status.value, result = result.data,
+                    ),
+                    HistoryTurn("tool", objectMapper.writeValueAsString(result.data), toolCallId = call.callId),
+                )
+                is ToolResult.Failure -> ToolOutcome(
+                    LlmStreamEvent.ToolResult(
+                        target.modelId, call.callId, call.toolName, result.status.value, error = result.errorMessage,
+                    ),
+                    HistoryTurn(
+                        "tool",
+                        objectMapper.writeValueAsString(mapOf("error" to result.errorMessage)),
+                        toolCallId = call.callId,
+                    ),
+                )
+            }
+        }
     }
 }

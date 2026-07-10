@@ -129,7 +129,11 @@ class OpenAiCompatAdapter(
         }
 
         if (request.attachments.isEmpty()) {
-            messages.add(mapOf("role" to "user", "content" to request.prompt))
+            // A blank prompt means a tool-loop continuation round (feature 009): the trailing messages
+            // are the assistant tool_calls + tool results, so we must not append an empty user message.
+            if (request.prompt.isNotBlank()) {
+                messages.add(mapOf("role" to "user", "content" to request.prompt))
+            }
         } else {
             val parts = mutableListOf<Map<String, Any>>()
             parts.add(mapOf("type" to "text", "text" to request.prompt))

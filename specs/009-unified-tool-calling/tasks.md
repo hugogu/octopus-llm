@@ -86,7 +86,7 @@
 - [X] T024 [P] [US2] Update `OpenAiCompatAdapter.kt` to translate tool calls/results: serialize `tools` (function schema) + assistant `tool_calls`/`tool` history messages; accumulate streamed `tool_calls` deltas into `LlmStreamEvent.ToolCall`. Unit-tested via mock-server harness.
 - [ ] T025 [P] [US2] Update `AnthropicAdapter.kt` to translate provider tool calls/results to/from unified events
 - [ ] T026 [US2] Update `MiniMaxAdapter.kt` to capability-gate tool availability without tool translation if unsupported
-- [ ] T027 [US2] Implement tool execution loop in `ChatService.kt` that feeds tool results back to model streams
+- [X] T027 [US2] Implement the agentic tool loop in `ConcurrentLlmOrchestrator.kt` (per model, capability-gated): stream → collect `ToolCall`s → execute via `ToolExecutor` → emit status/result → feed the tool exchange back into history → recurse (bounded by `MAX_TOOL_ROUNDS`). Verified by a mock-provider two-round integration test. (Placed in the orchestrator, not `ChatService`, to keep it adapter-agnostic.)
 - [ ] T028 [US2] Add persistence of tool invocations and join records via `ToolInvocationService.kt` in `backend/src/main/kotlin/com/octopusllm/tool/`
 - [ ] T029 [P] [US2] Add frontend SSE parsing for `tool_call`, `tool_result`, and `tool_status` events in `frontend/src/lib/api/chatV2.ts`
 - [ ] T030 [P] [US2] Create `ToolStatusIndicator.tsx` in `frontend/src/components/chat/`
@@ -109,8 +109,8 @@
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] Implement per-turn deduplication of identical tool invocations in `backend/src/main/kotlin/com/octopusllm/tool/ToolExecutor.kt`
-- [ ] T035 [US3] Update `ConcurrentLlmOrchestrator.kt` to distribute shared tool results to all requesting models without blocking other streams
+- [X] T034 [US3] Implement per-turn deduplication of identical tool invocations in `ToolExecutor` (`TurnScope`), now wired: `ConcurrentLlmOrchestrator` creates one scope per turn shared across all models.
+- [X] T035 [US3] `ConcurrentLlmOrchestrator` distributes shared tool results via the per-turn `TurnScope`; each model's loop runs inside the existing `Flux.merge` fan-out, so shared executions never block other models' streams.
 - [ ] T036 [US3] Update `ResponseGroup.tsx` to show per-model tool status and results
 - [ ] T037 [US3] Add capability-based graceful degradation for models that do not support tool calling in `backend/src/main/kotlin/com/octopusllm/llm/ConcurrentLlmOrchestrator.kt`
 
