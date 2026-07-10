@@ -20,7 +20,9 @@ object ProtocolDefinitions {
             inputModalities = listOf("text"),
             outputModalities = listOf("text"),
             supportsStreaming = true,
-            supportsFunctionCalling = false,
+            // Feature 009: the OpenAI-compatible adapter translates tool calls, so tool calling is on by
+            // default; a per-model override can still disable it for endpoints that don't support it.
+            supportsFunctionCalling = true,
             supportsSystemPrompt = true,
         ),
     )
@@ -33,7 +35,8 @@ object ProtocolDefinitions {
             inputModalities = listOf("text"),
             outputModalities = listOf("text"),
             supportsStreaming = true,
-            supportsFunctionCalling = false,
+            // Feature 009: the Anthropic adapter translates tool calls, so tool calling is on by default.
+            supportsFunctionCalling = true,
             supportsSystemPrompt = true,
         ),
     )

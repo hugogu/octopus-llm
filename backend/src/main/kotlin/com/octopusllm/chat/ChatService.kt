@@ -20,6 +20,9 @@ import com.octopusllm.migration.MigrationOperation
 import com.octopusllm.migration.MigrationOperationService
 import com.octopusllm.model.ProtocolDefinitions
 import com.octopusllm.share.ShareService
+import com.octopusllm.tool.ToolInvocationService
+import com.octopusllm.tool.ToolRegistry
+import com.octopusllm.tool.ToolResult
 import java.util.Base64
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
@@ -33,6 +36,7 @@ import java.time.Instant
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 @Service
 class ChatService(
@@ -52,6 +56,8 @@ class ChatService(
     private val migrationMediaStagingService: MigrationMediaStagingService,
     private val sharedQuestImportTxOps: SharedQuestImportTxOps,
     private val timeContext: TimeContext,
+    private val toolRegistry: ToolRegistry,
+    private val toolInvocationService: ToolInvocationService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -439,6 +445,10 @@ class ChatService(
         val textBuffers = ConcurrentHashMap<UUID, StringBuilder>()
         val reasoningBuffers = ConcurrentHashMap<UUID, StringBuilder>()
         val startTimes = ConcurrentHashMap<UUID, Long>()
+        // Feature 009: tool calls this model made, accumulated in stream order and persisted (with
+        // per-response links) when the model completes. The stream mapper runs sequentially, so these
+        // are fully populated before the ModelComplete branch reads them.
+        val pendingTools = ConcurrentHashMap<UUID, MutableList<PendingToolCall>>()
 
         val targetById = targets.associateBy { it.configuredModelId }
         targets.forEach {
@@ -485,7 +495,7 @@ class ChatService(
                             priceCurrency = target.priceCurrency,
                         ),
                         userId,
-                    ).map { saved -> event.copy(responseId = saved.id) }
+                    ).flatMap { saved -> persistToolInvocations(turn, saved, pendingTools[configuredModelId]).thenReturn(event.copy(responseId = saved.id)) }
                     is LlmStreamEvent.ModelError -> persistResponse(
                         ProviderResponse(
                             turn = turn,
@@ -510,11 +520,20 @@ class ChatService(
                         userId,
                     ).map { saved -> event.copy(responseId = saved.id) }
                     is LlmStreamEvent.CapabilityNotice -> Mono.just(event)
-                    // Tool events (feature 009) are surfaced to the client as-is; per-invocation
-                    // persistence is wired with the tool loop (US2).
-                    is LlmStreamEvent.ToolCall -> Mono.just(event)
+                    // Tool events (feature 009): surfaced to the client, and accumulated per model so the
+                    // executions can be persisted and linked to this model's response on completion.
+                    is LlmStreamEvent.ToolCall -> {
+                        pendingTools.computeIfAbsent(configuredModelId) { CopyOnWriteArrayList() }
+                            .add(PendingToolCall(event.callId, event.toolName, event.arguments))
+                        Mono.just(event)
+                    }
                     is LlmStreamEvent.ToolStatus -> Mono.just(event)
-                    is LlmStreamEvent.ToolResult -> Mono.just(event)
+                    is LlmStreamEvent.ToolResult -> {
+                        pendingTools[configuredModelId]
+                            ?.firstOrNull { it.callId == event.callId }
+                            ?.result = toDomainToolResult(event)
+                        Mono.just(event)
+                    }
                 }
             }
 
@@ -596,6 +615,9 @@ class ChatService(
             // Feature 009 US1: always inject the current date/time so relative references resolve
             // against "now" instead of a model's training cutoff.
             systemPrompt = timeContext.systemPrompt(),
+            // Feature 009 US2: advertise the built-in tools; the orchestrator only engages the tool loop
+            // for models whose capability matrix reports function calling.
+            tools = toolRegistry.definitions(),
             // Supports both the feature-007 media-reference shape (media_type/mime_type/url) and the
             // legacy inline-base64 shape (type/data/mimeType). Media is only on the current turn.
             attachments = turn.attachments.orEmpty().mapNotNull { ref ->
@@ -621,6 +643,40 @@ class ChatService(
 
     private fun latestResponses(turn: ChatTurn): List<ProviderResponse> {
         return latestProviderResponses(turn, responseRepository.findByTurnId(turn.id))
+    }
+
+    /** A tool call a model made this turn; [result] is filled in when its tool_result event arrives. */
+    private class PendingToolCall(
+        val callId: String,
+        val toolName: String,
+        val arguments: Map<String, Any?>,
+        var result: ToolResult? = null,
+    )
+
+    private fun toDomainToolResult(event: LlmStreamEvent.ToolResult): ToolResult =
+        if (event.status == "success") {
+            ToolResult.Success(event.result ?: emptyMap())
+        } else {
+            ToolResult.Failure(event.error ?: "Tool failed", timedOut = event.status == "timeout")
+        }
+
+    /** Records each completed tool call (deduped per turn) and links it to this model's response. */
+    private fun persistToolInvocations(
+        turn: ChatTurn,
+        response: ProviderResponse,
+        calls: List<PendingToolCall>?,
+    ): Mono<Unit> {
+        val completed = calls.orEmpty().filter { it.result != null }
+        if (completed.isEmpty()) return Mono.just(Unit)
+        return Mono.fromCallable {
+            completed.forEach { call ->
+                val invocation = toolInvocationService.record(
+                    turn.session.id, turn.id, call.toolName, call.arguments, call.result!!,
+                )
+                toolInvocationService.link(response.id, invocation.id)
+            }
+            Unit
+        }.subscribeOn(Schedulers.boundedElastic())
     }
 
     private fun persistResponse(response: ProviderResponse, userId: UUID): Mono<ProviderResponse> =

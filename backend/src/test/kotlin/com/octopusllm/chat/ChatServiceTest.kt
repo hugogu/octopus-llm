@@ -39,6 +39,8 @@ class ChatServiceTest {
     private val migrationOperationService = mockk<com.octopusllm.migration.MigrationOperationService>()
     private val migrationMediaStagingService = mockk<com.octopusllm.migration.MigrationMediaStagingService>()
     private val sharedQuestImportTxOps = mockk<SharedQuestImportTxOps>()
+    private val toolRegistry = mockk<com.octopusllm.tool.ToolRegistry> { every { definitions() } returns emptyList() }
+    private val toolInvocationService = mockk<com.octopusllm.tool.ToolInvocationService>()
     private val service = ChatService(
         sessionRepository,
         turnRepository,
@@ -56,6 +58,8 @@ class ChatServiceTest {
         migrationMediaStagingService,
         sharedQuestImportTxOps,
         TimeContext("Asia/Shanghai"),
+        toolRegistry,
+        toolInvocationService,
     )
 
     @Test
