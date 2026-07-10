@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CapabilityMatrix } from "@/lib/types/api";
+import type { CapabilityMatrix, ToolCallState } from "@/lib/types/api";
 import { getToken } from "@/lib/api/auth";
 import { likeResponse, unlikeResponse } from "@/lib/api/reactions";
 import ModelResponsePanel from "./ModelResponsePanel";
@@ -23,6 +23,7 @@ export interface ResponsePanelData {
   capabilityNotice?: string;
   capabilityMatrix?: CapabilityMatrix;
   responseId?: string;
+  toolCalls?: ToolCallState[];
   likeCount?: number;
   likedByMe?: boolean;
   anonymousLikeCount?: number;
@@ -115,6 +116,7 @@ export default function ResponseGroup({ panels }: { panels: ResponsePanelData[] 
         capabilityNotice={panel.capabilityNotice}
         capabilityMatrix={panel.capabilityMatrix}
         responseId={panel.responseId}
+        toolCalls={panel.toolCalls}
         likeCount={panel.likeCount}
         likedByMe={panel.likedByMe}
         anonymousLikeCount={panel.anonymousLikeCount}

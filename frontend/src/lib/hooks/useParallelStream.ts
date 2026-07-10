@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
-import type { SseEventV2 } from '@/lib/types/api';
+import type { SseEventV2, ToolCallState, ToolCallStatus } from '@/lib/types/api';
 
 export interface ModelStreamState {
   text: string;
@@ -15,6 +15,21 @@ export interface ModelStreamState {
   latencyMs?: number;
   capabilityNotice?: string;
   responseId?: string;
+  // Tool invocations for this model in the current turn (feature 009), accumulated by callId.
+  toolCalls?: ToolCallState[];
+}
+
+/** Merges a tool event into the per-model list, upserting by callId while preserving order. */
+function upsertToolCall(
+  list: ToolCallState[] | undefined,
+  callId: string,
+  patch: Omit<Partial<ToolCallState>, 'callId'> & { toolName: string },
+): ToolCallState[] {
+  const existing = list ?? [];
+  if (!existing.some((call) => call.callId === callId)) {
+    return [...existing, { callId, status: 'pending', ...patch }];
+  }
+  return existing.map((call) => (call.callId === callId ? { ...call, ...patch } : call));
 }
 
 const emptyState = (): Pick<ModelStreamState, 'text' | 'reasoning'> => ({ text: '', reasoning: '' });
@@ -138,6 +153,32 @@ export function useParallelStream() {
         status: 'error',
         errorMessage: event.error,
         responseId: event.responseId,
+      });
+      immediate = true;
+    } else if (event.event === 'tool_call') {
+      next = withModel(event.configuredModelId, {
+        toolCalls: upsertToolCall(prior(event.configuredModelId).toolCalls, event.callId, {
+          toolName: event.toolName,
+          arguments: event.arguments,
+          status: 'pending',
+        }),
+        status: 'streaming',
+      });
+    } else if (event.event === 'tool_status') {
+      next = withModel(event.configuredModelId, {
+        toolCalls: upsertToolCall(prior(event.configuredModelId).toolCalls, event.callId, {
+          toolName: event.toolName,
+          status: event.status as ToolCallStatus,
+        }),
+      });
+    } else if (event.event === 'tool_result') {
+      next = withModel(event.configuredModelId, {
+        toolCalls: upsertToolCall(prior(event.configuredModelId).toolCalls, event.callId, {
+          toolName: event.toolName,
+          status: event.status as ToolCallStatus,
+          result: event.result,
+          error: event.error,
+        }),
       });
       immediate = true;
     } else if (event.event === 'all_complete') {

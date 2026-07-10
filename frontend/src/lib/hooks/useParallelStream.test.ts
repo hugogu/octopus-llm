@@ -51,6 +51,46 @@ describe("useParallelStream", () => {
     });
   });
 
+  it("accumulates a tool call across its call/status/result events", () => {
+    const { result } = renderHook(() => useParallelStream());
+    act(() => result.current.start("session-a", ["configured-a"]));
+    act(() => result.current.handleEvent("session-a", {
+      event: "tool_call",
+      configuredModelId: "configured-a",
+      modelId: "provider-id",
+      callId: "c1",
+      toolName: "current_time",
+      arguments: { timezone: "UTC" },
+    }));
+    act(() => result.current.handleEvent("session-a", {
+      event: "tool_status",
+      configuredModelId: "configured-a",
+      modelId: "provider-id",
+      callId: "c1",
+      toolName: "current_time",
+      status: "running",
+    }));
+    act(() => result.current.handleEvent("session-a", {
+      event: "tool_result",
+      configuredModelId: "configured-a",
+      modelId: "provider-id",
+      callId: "c1",
+      toolName: "current_time",
+      status: "success",
+      result: { time: "10:30" },
+      error: null,
+    }));
+
+    const calls = result.current.streams["session-a"]?.models["configured-a"]?.toolCalls;
+    expect(calls).toHaveLength(1);
+    expect(calls?.[0]).toMatchObject({
+      callId: "c1",
+      toolName: "current_time",
+      status: "success",
+      result: { time: "10:30" },
+    });
+  });
+
   it("keeps a background session stream when another session starts", async () => {
     const { result } = renderHook(() => useParallelStream());
     act(() => result.current.start("session-a", ["model-a"]));

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { Maximize2, Minimize2, RotateCcw, ThumbsUp, Trash2 } from "lucide-react";
-import type { CapabilityMatrix } from "@/lib/types/api";
+import type { CapabilityMatrix, ToolCallState } from "@/lib/types/api";
 import StreamingMarkdown from "./StreamingMarkdown";
 import ThinkingBlock from "./ThinkingBlock";
+import ToolStatusIndicator from "./ToolStatusIndicator";
 import ExpandableContent from "./ExpandableContent";
 import CopyButton from "@/components/ui/CopyButton";
 import ResponseLikeButton from "./ResponseLikeButton";
@@ -27,6 +28,7 @@ interface ModelResponsePanelProps {
   capabilityNotice?: string;
   capabilityMatrix?: CapabilityMatrix;
   responseId?: string;
+  toolCalls?: ToolCallState[];
   likeCount?: number;
   likedByMe?: boolean;
   anonymousLikeCount?: number;
@@ -58,6 +60,7 @@ export default function ModelResponsePanel({
   capabilityNotice,
   capabilityMatrix,
   responseId,
+  toolCalls,
   likeCount = 0,
   likedByMe = false,
   anonymousLikeCount = 0,
@@ -189,6 +192,7 @@ export default function ModelResponsePanel({
       {deleteError && <div role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">{deleteError}</div>}
 
       <div className="min-h-[60px] flex-1 px-4 py-3 text-sm">
+        <ToolStatusIndicator toolCalls={toolCalls} />
         {status === "error" ? (
           <span className="text-red-600">{errorMessage ?? "An error occurred"}</span>
         ) : (

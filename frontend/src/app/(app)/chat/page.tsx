@@ -564,6 +564,7 @@ export default function ChatPage() {
                           capabilityNotice: state?.capabilityNotice,
                           capabilityMatrix: model?.capabilityMatrix,
                           responseId: state?.responseId,
+                          toolCalls: state?.toolCalls,
                         };
                       })}
                     />

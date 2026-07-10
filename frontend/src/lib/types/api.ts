@@ -427,6 +427,19 @@ type ModelSseIdentity = {
   modelId: string;
 };
 
+/** Lifecycle of a tool invocation surfaced to the UI (feature 009). Mirrors the backend status values. */
+export type ToolCallStatus = "pending" | "running" | "success" | "failed" | "timeout";
+
+/** Accumulated per-model view of one tool call across its tool_call/tool_status/tool_result events. */
+export interface ToolCallState {
+  callId: string;
+  toolName: string;
+  status: ToolCallStatus;
+  arguments?: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  error?: string | null;
+}
+
 export type SseEventV2 =
   | { event: "turn_created"; turnId: string; sequenceNum: number }
   | (ModelSseIdentity & { event: "capability_notice"; notice: string })
@@ -442,4 +455,19 @@ export type SseEventV2 =
       responseId: string;
     })
   | (ModelSseIdentity & { event: "model_error"; error: string; responseId: string })
+  | (ModelSseIdentity & {
+      event: "tool_call";
+      callId: string;
+      toolName: string;
+      arguments: Record<string, unknown>;
+    })
+  | (ModelSseIdentity & { event: "tool_status"; callId: string; toolName: string; status: string })
+  | (ModelSseIdentity & {
+      event: "tool_result";
+      callId: string;
+      toolName: string;
+      status: string;
+      result: Record<string, unknown> | null;
+      error: string | null;
+    })
   | { event: "all_complete" };

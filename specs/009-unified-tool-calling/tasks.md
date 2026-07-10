@@ -88,9 +88,9 @@
 - [X] T026 [US2] MiniMax capability-gates tool availability without tool translation: all protocol baselines set `supports_function_calling = false`, so the orchestrator's loop never engages unless a model override opts in; `MiniMaxAdapter.buildBody` ignores `request.tools` by design (no MiniMax tool translation in this release).
 - [X] T027 [US2] Implement the agentic tool loop in `ConcurrentLlmOrchestrator.kt` (per model, capability-gated): stream → collect `ToolCall`s → execute via `ToolExecutor` → emit status/result → feed the tool exchange back into history → recurse (bounded by `MAX_TOOL_ROUNDS`). Verified by a mock-provider two-round integration test. (Placed in the orchestrator, not `ChatService`, to keep it adapter-agnostic.)
 - [X] T028 [US2] Add persistence of tool invocations and join records via `ToolInvocationService.kt` (dedup upsert keyed by `(quest,turn,tool,args_hash)` with race-safe re-read; idempotent per-response `link`). Postgres integration test covers reuse, failure mapping, and shared lineage. Not yet called from the loop — wired at enablement.
-- [ ] T029 [P] [US2] Add frontend SSE parsing for `tool_call`, `tool_result`, and `tool_status` events in `frontend/src/lib/api/chatV2.ts`
-- [ ] T030 [P] [US2] Create `ToolStatusIndicator.tsx` in `frontend/src/components/chat/`
-- [ ] T031 [US2] Update `MessageThread.tsx` to render tool status chips
+- [X] T029 [P] [US2] Add frontend SSE tool events: `SseEventV2` + `ToolCallState` types in `lib/types/api.ts`, accumulated per-callId in `useParallelStream` (`ModelStreamState.toolCalls`). (Parsing itself is the shared `readSse` in `chatV2.ts`, which is event-shape agnostic.) Hook test covers call→status→result.
+- [X] T030 [P] [US2] Create `ToolStatusIndicator.tsx` in `frontend/src/components/chat/` (status chips per tool call; error via title). Component test included.
+- [X] T031 [US2] Render tool status chips in `ModelResponsePanel.tsx` (the live per-model streaming panel used by `ResponseGroup`), threaded via `ResponsePanelData.toolCalls`.
 
 **Checkpoint**: User Stories 1 AND 2 should both work independently.
 
@@ -111,7 +111,7 @@
 
 - [X] T034 [US3] Implement per-turn deduplication of identical tool invocations in `ToolExecutor` (`TurnScope`), now wired: `ConcurrentLlmOrchestrator` creates one scope per turn shared across all models.
 - [X] T035 [US3] `ConcurrentLlmOrchestrator` distributes shared tool results via the per-turn `TurnScope`; each model's loop runs inside the existing `Flux.merge` fan-out, so shared executions never block other models' streams.
-- [ ] T036 [US3] Update `ResponseGroup.tsx` to show per-model tool status and results
+- [X] T036 [US3] `ResponseGroup.tsx` threads `toolCalls` per panel to `ModelResponsePanel`, so each model in the group shows its own tool-status chips.
 - [ ] T037 [US3] Add capability-based graceful degradation for models that do not support tool calling in `backend/src/main/kotlin/com/octopusllm/llm/ConcurrentLlmOrchestrator.kt`
 
 **Checkpoint**: All user stories should now be independently functional.
