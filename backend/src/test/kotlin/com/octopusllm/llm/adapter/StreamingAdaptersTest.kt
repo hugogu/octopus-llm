@@ -235,6 +235,97 @@ class StreamingAdaptersTest {
     }
 
     @Test
+    fun `anthropic stream advertises tools and maps streamed tool_use`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/messages") { exchange ->
+            captured = capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"type":"message_start","message":{"usage":{"input_tokens":5}}}""" + "\n\n",
+                    """data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"current_time","input":{}}}""" + "\n\n",
+                    """data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"timezone"}}""" + "\n\n",
+                    """data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\":\"UTC\"}"}}""" + "\n\n",
+                    """data: {"type":"content_block_stop","index":0}""" + "\n\n",
+                    """data: {"type":"message_delta","usage":{"output_tokens":3}}""" + "\n\n",
+                    """data: {"type":"message_stop"}""" + "\n\n",
+                ),
+            )
+        }
+
+        val events = AnthropicAdapter(mapper).stream(
+            modelId = "claude-test",
+            request = LlmRequest(
+                prompt = "what time is it?",
+                tools = listOf(
+                    ToolDefinition(
+                        "current_time",
+                        "Return the current time",
+                        mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
+                    ),
+                ),
+            ),
+            decryptedApiKey = "anthropic-secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        val body = mapper.readTree(captured!!.body)
+        assertEquals("current_time", body.path("tools").path(0).path("name").asText())
+        assertTrue(body.path("tools").path(0).path("input_schema").isObject)
+
+        val toolCall = events.filterIsInstance<LlmStreamEvent.ToolCall>().single()
+        assertEquals("toolu_1", toolCall.callId)
+        assertEquals("current_time", toolCall.toolName)
+        assertEquals(mapOf("timezone" to "UTC"), toolCall.arguments)
+        assertTrue(events.indexOf(toolCall) < events.indexOfFirst { it is LlmStreamEvent.ModelComplete })
+    }
+
+    @Test
+    fun `anthropic serializes assistant tool_use and tool_result history`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/messages") { exchange ->
+            captured = capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}""" + "\n\n",
+                    """data: {"type":"message_stop"}""" + "\n\n",
+                ),
+            )
+        }
+
+        AnthropicAdapter(mapper).stream(
+            modelId = "claude-test",
+            request = LlmRequest(
+                prompt = "and in words?",
+                history = listOf(
+                    HistoryTurn(role = "user", text = "what time is it?"),
+                    HistoryTurn(
+                        role = "assistant",
+                        text = "",
+                        toolCalls = listOf(ToolCallRef("toolu_1", "current_time", mapOf("timezone" to "UTC"))),
+                    ),
+                    HistoryTurn(role = "tool", text = """{"time":"10:30"}""", toolCallId = "toolu_1"),
+                ),
+            ),
+            decryptedApiKey = "anthropic-secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        val messages = mapper.readTree(captured!!.body).path("messages")
+        val assistant = (0 until messages.size()).map { messages.path(it) }.single { it.path("role").asText() == "assistant" }
+        val toolUse = assistant.path("content").path(0)
+        assertEquals("tool_use", toolUse.path("type").asText())
+        assertEquals("toolu_1", toolUse.path("id").asText())
+        assertEquals("current_time", toolUse.path("name").asText())
+        // The tool result is a user message with a tool_result block.
+        val toolResult = (0 until messages.size()).map { messages.path(it) }
+            .flatMap { msg -> (0 until msg.path("content").size()).map { msg.path("content").path(it) } }
+            .single { it.path("type").asText() == "tool_result" }
+        assertEquals("toolu_1", toolResult.path("tool_use_id").asText())
+    }
+
+    @Test
     fun `anthropic stream sends messages request and maps token usage`() {
         var captured: CapturedRequest? = null
         startServer("/v1/messages") { exchange ->

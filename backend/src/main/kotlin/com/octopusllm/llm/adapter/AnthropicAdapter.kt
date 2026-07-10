@@ -33,6 +33,9 @@ class AnthropicAdapter(
             var outputTokens: Int? = null
             var cacheReadTokens: Int? = null
             var cacheWriteTokens: Int? = null
+            // Anthropic streams tool calls as content blocks: a tool_use block_start carries id/name,
+            // then input_json_delta fragments build the arguments JSON. Accumulate by block index.
+            val toolAcc = linkedMapOf<Int, ToolUseBuilder>()
             val baseUrl = requireNotNull(baseUrlOverride) { "baseUrlOverride is required" }
             val client = StreamingWebClient.builder(baseUrl)
                 .defaultHeader("x-api-key", decryptedApiKey)
@@ -56,7 +59,25 @@ class AnthropicAdapter(
                             cacheWriteTokens = usage.intOrNull("cache_creation_input_tokens") ?: cacheWriteTokens
                             Flux.empty()
                         }
-                        "content_block_delta" -> parseContentDelta(modelId, json.path("delta"))
+                        "content_block_start" -> {
+                            val block = json.path("content_block")
+                            if (block.path("type").asText() == "tool_use") {
+                                val builder = toolAcc.getOrPut(json.path("index").asInt(0)) { ToolUseBuilder() }
+                                block.textOrNull("id")?.let { builder.id = it }
+                                block.textOrNull("name")?.let { builder.name = it }
+                            }
+                            Flux.empty()
+                        }
+                        "content_block_delta" -> {
+                            val delta = json.path("delta")
+                            if (delta.path("type").asText() == "input_json_delta") {
+                                toolAcc.getOrPut(json.path("index").asInt(0)) { ToolUseBuilder() }
+                                    .arguments.append(delta.path("partial_json").asText())
+                                Flux.empty()
+                            } else {
+                                parseContentDelta(modelId, delta)
+                            }
+                        }
                         "message_delta" -> {
                             outputTokens = json.path("usage").intOrNull("output_tokens") ?: outputTokens
                             Flux.empty()
@@ -64,6 +85,7 @@ class AnthropicAdapter(
                         else -> Flux.empty()
                     }
                 }
+                .concatWith(Flux.defer { Flux.fromIterable(toolCallEvents(modelId, toolAcc)) })
                 .concatWith(
                     Mono.fromSupplier {
                         LlmStreamEvent.ModelComplete(
@@ -102,11 +124,42 @@ class AnthropicAdapter(
     private fun buildBody(modelId: String, request: LlmRequest): Map<String, Any> {
         val messages = mutableListOf<Map<String, Any>>()
         request.history.forEach { turn ->
-            messages.add(mapOf("role" to normalizedRole(turn.role), "content" to turn.text))
+            when {
+                // A tool result comes back as a user turn with a tool_result content block (feature 009).
+                turn.role == "tool" && turn.toolCallId != null -> messages.add(
+                    mapOf(
+                        "role" to "user",
+                        "content" to listOf(
+                            mapOf("type" to "tool_result", "tool_use_id" to turn.toolCallId, "content" to turn.text),
+                        ),
+                    ),
+                )
+                // An assistant turn that requested tools emits tool_use blocks (+ any text block).
+                turn.toolCalls.isNotEmpty() -> {
+                    val content = mutableListOf<Map<String, Any>>()
+                    if (turn.text.isNotBlank()) content.add(mapOf("type" to "text", "text" to turn.text))
+                    turn.toolCalls.forEach { call ->
+                        content.add(
+                            mapOf(
+                                "type" to "tool_use",
+                                "id" to call.callId,
+                                "name" to call.toolName,
+                                "input" to call.arguments,
+                            ),
+                        )
+                    }
+                    messages.add(mapOf("role" to "assistant", "content" to content))
+                }
+                else -> messages.add(mapOf("role" to normalizedRole(turn.role), "content" to turn.text))
+            }
         }
 
         if (request.attachments.isEmpty()) {
-            messages.add(mapOf("role" to "user", "content" to request.prompt))
+            // A blank prompt is a tool-loop continuation round: the trailing tool_result user message is
+            // already the last turn, so we must not append an empty user message.
+            if (request.prompt.isNotBlank()) {
+                messages.add(mapOf("role" to "user", "content" to request.prompt))
+            }
         } else {
             val parts = mutableListOf<Map<String, Any>>()
             parts.add(mapOf("type" to "text", "text" to request.prompt))
@@ -130,7 +183,48 @@ class AnthropicAdapter(
             // Anthropic carries the system prompt as a top-level field, not a message role.
             request.systemPrompt?.takeIf { it.isNotBlank() }?.let { put("system", it) }
             put("messages", messages)
+            // Advertise available tools (feature 009) in Anthropic's tool schema.
+            if (request.tools.isNotEmpty()) {
+                put(
+                    "tools",
+                    request.tools.map { tool ->
+                        mapOf(
+                            "name" to tool.name,
+                            "description" to tool.description,
+                            "input_schema" to tool.parameters,
+                        )
+                    },
+                )
+            }
             put("stream", true)
+        }
+    }
+
+    /** Mutable per-block accumulator for a streamed Anthropic tool_use. */
+    private class ToolUseBuilder {
+        var id: String? = null
+        var name: String? = null
+        val arguments = StringBuilder()
+    }
+
+    private fun toolCallEvents(modelId: String, acc: Map<Int, ToolUseBuilder>): List<LlmStreamEvent> =
+        acc.values.mapNotNull { builder ->
+            val name = builder.name ?: return@mapNotNull null
+            LlmStreamEvent.ToolCall(
+                modelId = modelId,
+                callId = builder.id ?: java.util.UUID.randomUUID().toString(),
+                toolName = name,
+                arguments = parseArguments(builder.arguments.toString()),
+            )
+        }
+
+    private fun parseArguments(raw: String): Map<String, Any?> {
+        if (raw.isBlank()) return emptyMap()
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            objectMapper.readValue(raw, Map::class.java) as Map<String, Any?>
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 
