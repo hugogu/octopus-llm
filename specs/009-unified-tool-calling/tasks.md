@@ -19,7 +19,7 @@
 
 **Purpose**: Verify existing project setup and prepare the feature branch.
 
-- [ ] T001 [P] Verify backend Gradle and frontend Node.js build environments are ready on branch `009-unified-tool-calling`
+- [X] T001 [P] Verify backend Gradle and frontend Node.js build environments are ready on branch `009-unified-tool-calling`
 
 ---
 
@@ -34,7 +34,7 @@
 - [ ] T004 [P] Create `Tool.kt`, `ToolDefinition.kt`, and `ToolResult.kt` interfaces in `backend/src/main/kotlin/com/octopusllm/tool/`
 - [ ] T005 [P] Create `UnifiedInteractionEvent.kt` sealed class in `backend/src/main/kotlin/com/octopusllm/tool/`
 - [ ] T006 Create `ToolRegistry.kt` and `ToolExecutor.kt` with timeout, retry, and deduplication in `backend/src/main/kotlin/com/octopusllm/tool/`
-- [ ] T007 [P] Extend `LlmRequest.kt` in `backend/src/main/kotlin/com/octopusllm/llm/` with `systemPrompt` and `tools` fields
+- [X] T007 [P] Extend `LlmRequest.kt` in `backend/src/main/kotlin/com/octopusllm/llm/` with `systemPrompt` field (the `tools` field is deferred to US2)
 - [ ] T008 [P] Extend `LlmStreamEvent.kt` in `backend/src/main/kotlin/com/octopusllm/llm/` with `ToolCall`, `ToolResult`, and `ToolStatus` variants
 - [ ] T009 Update `CapabilityMatrix` usage to gate tool availability per model in `backend/src/main/kotlin/com/octopusllm/llm/`
 
@@ -50,14 +50,14 @@
 
 ### Tests for User Story 1
 
-- [ ] T010 [P] [US1] Add backend integration test for time-aware answer in `backend/src/test/kotlin/com/octopusllm/chat/ChatServiceTimeAwarenessTest.kt`
+- [X] T010 [P] [US1] Add backend tests for time context (`chat/TimeContextTest.kt`) and per-adapter system-prompt injection (`llm/adapter/StreamingAdaptersTest.kt`)
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Update `ChatService.kt` to always inject `TimeContext` into `LlmRequest.systemPrompt`
-- [ ] T012 [P] [US1] Update `OpenAiCompatAdapter.kt` to emit the system prompt when `supports_system_prompt` is true
-- [ ] T013 [P] [US1] Update `AnthropicAdapter.kt` to emit the system prompt when `supports_system_prompt` is true
-- [ ] T014 [US1] Update `MiniMaxAdapter.kt` to emit the system prompt or fallback when `supports_system_prompt` is true
+- [X] T011 [US1] Update `ChatService.kt` to always inject `TimeContext` into `LlmRequest.systemPrompt` (new `chat/TimeContext.kt`, zone via `app.time.zone`, default Asia/Shanghai)
+- [X] T012 [P] [US1] Update `OpenAiCompatAdapter.kt` to emit the system prompt as a leading `system` message
+- [X] T013 [P] [US1] Update `AnthropicAdapter.kt` to emit the system prompt as a top-level `system` field
+- [X] T014 [US1] Update `MiniMaxAdapter.kt` to emit the system prompt; `ConcurrentLlmOrchestrator` folds it into the prompt when `supports_system_prompt` is false
 
 **Checkpoint**: User Story 1 should be fully functional and testable independently.
 

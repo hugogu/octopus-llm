@@ -55,6 +55,7 @@ class ChatServiceTest {
         migrationOperationService,
         migrationMediaStagingService,
         sharedQuestImportTxOps,
+        TimeContext("Asia/Shanghai"),
     )
 
     @Test

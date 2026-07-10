@@ -102,6 +102,9 @@ class MiniMaxAdapter : LlmAdapter {
 
     private fun buildBody(modelId: String, request: LlmRequest): Map<String, Any> {
         val messages = mutableListOf<Map<String, Any>>()
+        request.systemPrompt?.takeIf { it.isNotBlank() }?.let {
+            messages.add(mapOf("role" to "system", "content" to it))
+        }
         request.history.forEach { turn ->
             messages.add(mapOf("role" to turn.role, "content" to turn.text))
         }

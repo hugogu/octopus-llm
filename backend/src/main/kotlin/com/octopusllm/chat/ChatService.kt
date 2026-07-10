@@ -51,6 +51,7 @@ class ChatService(
     private val migrationOperationService: MigrationOperationService,
     private val migrationMediaStagingService: MigrationMediaStagingService,
     private val sharedQuestImportTxOps: SharedQuestImportTxOps,
+    private val timeContext: TimeContext,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -587,6 +588,9 @@ class ChatService(
         return LlmRequest(
             prompt = turn.promptText,
             history = history,
+            // Feature 009 US1: always inject the current date/time so relative references resolve
+            // against "now" instead of a model's training cutoff.
+            systemPrompt = timeContext.systemPrompt(),
             // Supports both the feature-007 media-reference shape (media_type/mime_type/url) and the
             // legacy inline-base64 shape (type/data/mimeType). Media is only on the current turn.
             attachments = turn.attachments.orEmpty().mapNotNull { ref ->

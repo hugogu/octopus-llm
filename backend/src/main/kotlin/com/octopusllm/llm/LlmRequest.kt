@@ -24,4 +24,11 @@ data class LlmRequest(
     val history: List<HistoryTurn> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
     val customParams: Map<String, Any?> = emptyMap(),
+    /**
+     * Provider-independent system prompt (feature 009). Carries the always-on time context so models
+     * can resolve relative terms like "今天"/"下周". Adapters emit it in their native shape (a leading
+     * `system` message for OpenAI-compatible/MiniMax, a top-level `system` field for Anthropic). When a
+     * model does not support a system prompt, the orchestrator folds it into the user prompt instead.
+     */
+    val systemPrompt: String? = null,
 )

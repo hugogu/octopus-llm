@@ -124,12 +124,14 @@ class AnthropicAdapter(
             messages.add(mapOf("role" to "user", "content" to parts))
         }
 
-        return mapOf(
-            "model" to modelId,
-            "max_tokens" to 4096,
-            "messages" to messages,
-            "stream" to true,
-        )
+        return buildMap {
+            put("model", modelId)
+            put("max_tokens", 4096)
+            // Anthropic carries the system prompt as a top-level field, not a message role.
+            request.systemPrompt?.takeIf { it.isNotBlank() }?.let { put("system", it) }
+            put("messages", messages)
+            put("stream", true)
+        }
     }
 
     private fun parseContentDelta(modelId: String, delta: JsonNode): Flux<LlmStreamEvent> =

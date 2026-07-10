@@ -46,7 +46,17 @@ class ConcurrentLlmOrchestrator(private val adapterRegistry: ProtocolAdapterRegi
                 att.type !in target.capabilityMatrix.inputModalities
             }
 
+            // Models that support a system role receive the time context (feature 009) natively; for the
+            // rest we fold it into the user prompt so time-awareness still works without a system prompt.
+            val supportsSystem = target.capabilityMatrix.supportsSystemPrompt
+            val systemPrompt = request.systemPrompt?.takeIf { it.isNotBlank() }
             val routedRequest = request.copy(
+                prompt = if (!supportsSystem && systemPrompt != null) {
+                    "$systemPrompt\n\n${request.prompt}"
+                } else {
+                    request.prompt
+                },
+                systemPrompt = if (supportsSystem) systemPrompt else null,
                 attachments = supportedAttachments,
                 customParams = target.customParams,
             )

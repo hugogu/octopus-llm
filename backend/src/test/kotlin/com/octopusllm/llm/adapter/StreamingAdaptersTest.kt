@@ -79,6 +79,80 @@ class StreamingAdaptersTest {
     }
 
     @Test
+    fun `openai stream prepends the system prompt as a leading system message`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/chat/completions") { exchange ->
+            captured = capture(exchange)
+            sendSse(exchange, listOf("""data: {"choices":[{"delta":{"content":"ok"}}]}""" + "\n\n", "data: [DONE]\n\n"))
+        }
+
+        OpenAiCompatAdapter(mapper).stream(
+            modelId = "provider-model",
+            request = LlmRequest(prompt = "hi", systemPrompt = "当前日期与时间：2026-07-10"),
+            decryptedApiKey = "test-secret",
+            baseUrlOverride = baseUrl("/v1"),
+        ).collectList().block()!!
+
+        val messages = mapper.readTree(captured!!.body).path("messages")
+        assertEquals("system", messages.path(0).path("role").asText())
+        assertEquals("当前日期与时间：2026-07-10", messages.path(0).path("content").asText())
+        assertEquals("user", messages.path(1).path("role").asText())
+    }
+
+    @Test
+    fun `minimax stream prepends the system prompt as a leading system message`() {
+        var captured: CapturedRequest? = null
+        startServer("/text/chatcompletion_v2") { exchange ->
+            captured = capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}""" + "\n\n",
+                    "data: [DONE]\n\n",
+                ),
+            )
+        }
+
+        MiniMaxAdapter().stream(
+            modelId = "minimax-m",
+            request = LlmRequest(prompt = "hi", systemPrompt = "当前日期与时间：2026-07-10"),
+            decryptedApiKey = "secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        val messages = mapper.readTree(captured!!.body).path("messages")
+        assertEquals("system", messages.path(0).path("role").asText())
+        assertEquals("当前日期与时间：2026-07-10", messages.path(0).path("content").asText())
+    }
+
+    @Test
+    fun `anthropic stream sends the system prompt as a top-level field`() {
+        var captured: CapturedRequest? = null
+        startServer("/v1/messages") { exchange ->
+            captured = capture(exchange)
+            sendSse(
+                exchange,
+                listOf(
+                    """data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}""" + "\n\n",
+                    """data: {"type":"message_stop"}""" + "\n\n",
+                ),
+            )
+        }
+
+        AnthropicAdapter(mapper).stream(
+            modelId = "claude-test",
+            request = LlmRequest(prompt = "hi", systemPrompt = "当前日期与时间：2026-07-10"),
+            decryptedApiKey = "anthropic-secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        val body = mapper.readTree(captured!!.body)
+        assertEquals("当前日期与时间：2026-07-10", body.path("system").asText())
+        // System is a top-level field, not a message role, for Anthropic.
+        assertEquals("user", body.path("messages").path(0).path("role").asText())
+    }
+
+    @Test
     fun `anthropic stream sends messages request and maps token usage`() {
         var captured: CapturedRequest? = null
         startServer("/v1/messages") { exchange ->
