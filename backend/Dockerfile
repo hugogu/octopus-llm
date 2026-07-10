@@ -1,5 +1,7 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
+# CN-internet-safe maven mirror (init.gradle.kts lives in build context)
+COPY init.gradle.kts /root/.gradle/init.gradle.kts
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
 RUN ./gradlew dependencies --no-daemon -q || true
