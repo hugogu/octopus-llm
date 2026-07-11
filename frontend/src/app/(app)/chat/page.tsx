@@ -32,6 +32,7 @@ import type {
   GetSessionResponseV2,
   MediaReference,
   SseEventV2,
+  ToolCallStatus,
 } from "@/lib/types/api";
 import {
   conversationFilename,
@@ -438,6 +439,16 @@ export default function ChatPage() {
             latencyMs: retryState?.latencyMs ?? response.latencyMs,
             capabilityMatrix: modelsById[response.configuredModelId]?.capabilityMatrix,
             responseId: retryState?.responseId ?? response.responseId,
+            // Feature 009: persisted tool calls so history keeps tool activity after completion; a live
+            // retry's tool events take precedence while it streams.
+            toolCalls: retryState?.toolCalls ?? response.toolCalls?.map((tool, index) => ({
+              callId: `${response.responseId}:${index}`,
+              toolName: tool.toolName,
+              status: tool.status as ToolCallStatus,
+              arguments: tool.arguments,
+              result: tool.result ?? undefined,
+              error: tool.error ?? undefined,
+            })),
             likeCount: response.likeCount,
             likedByMe: response.likedByMe,
             anonymousLikeCount: response.anonymousLikeCount,

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { ToolCallState } from "@/lib/types/api";
 import ToolStatusIndicator from "./ToolStatusIndicator";
@@ -30,5 +30,32 @@ describe("ToolStatusIndicator", () => {
 
     expect(screen.getByText("失败")).toBeInTheDocument();
     expect(screen.getByTitle("provider 503 after retry")).toBeInTheDocument();
+  });
+
+  it("expands a chip to show request arguments and the result", () => {
+    const calls: ToolCallState[] = [
+      { callId: "c1", toolName: "web_search", status: "success", arguments: { query: "上海天气" }, result: { answer: "晴" } },
+    ];
+    render(<ToolStatusIndicator toolCalls={calls} />);
+
+    // Collapsed by default.
+    expect(screen.queryByText("请求参数")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("web_search"));
+    expect(screen.getByText("请求参数")).toBeInTheDocument();
+    expect(screen.getByText(/上海天气/)).toBeInTheDocument();
+    expect(screen.getByText("返回结果")).toBeInTheDocument();
+    expect(screen.getByText(/晴/)).toBeInTheDocument();
+  });
+
+  it("shows the error block instead of a result on a failed call", () => {
+    const calls: ToolCallState[] = [
+      { callId: "c4", toolName: "web_search", status: "timeout", arguments: { query: "x" }, error: "Tool timed out after 15s" },
+    ];
+    render(<ToolStatusIndicator toolCalls={calls} />);
+
+    fireEvent.click(screen.getByText("web_search"));
+    expect(screen.getByText("错误")).toBeInTheDocument();
+    expect(screen.getByText("Tool timed out after 15s")).toBeInTheDocument();
+    expect(screen.queryByText("返回结果")).not.toBeInTheDocument();
   });
 });

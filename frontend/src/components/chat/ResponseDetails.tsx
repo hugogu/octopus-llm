@@ -46,7 +46,7 @@ export default function ResponseDetails({
   const flags = capabilityMatrix
     ? [
         capabilityMatrix.supports_streaming ? 'streaming' : null,
-        capabilityMatrix.supports_function_calling ? 'functions' : null,
+        capabilityMatrix.supports_function_calling ? 'tools / search' : null,
       ].filter(Boolean as unknown as (v: string | null) => v is string)
     : [];
 

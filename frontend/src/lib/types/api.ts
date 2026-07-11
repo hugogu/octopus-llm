@@ -390,6 +390,16 @@ export interface ProviderResponseV2 {
   likeCount: number;
   likedByMe: boolean;
   anonymousLikeCount: number;
+  toolCalls?: ToolCallV2[];
+}
+
+/** A persisted tool invocation on a historical response (feature 009). */
+export interface ToolCallV2 {
+  toolName: string;
+  status: string;
+  arguments: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  error: string | null;
 }
 
 export interface ChatTurnV2 {

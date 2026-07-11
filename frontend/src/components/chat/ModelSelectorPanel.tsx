@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, SlidersHorizontal, Wrench } from "lucide-react";
 import type { ConfiguredModelV2 } from "@/lib/types/api";
 
 interface ModelSelectorPanelProps {
@@ -113,6 +113,12 @@ export default function ModelSelectorPanel({
                       {model.builtin ? "Built-in" : "Custom"}
                     </span>
                     <span className="font-medium">{model.displayName}</span>
+                    {model.capabilityMatrix?.supports_function_calling ? (
+                      <Wrench
+                        className={`ml-1 inline h-3 w-3 align-[-1px] ${selected ? "text-orange-100" : "text-stone-400"}`}
+                        aria-label="支持工具调用 / 联网搜索"
+                      />
+                    ) : null}
                     <span className={`ml-1.5 text-xs ${selected ? "text-orange-100" : "text-stone-400"}`}>
                       {model.connectionLabel ?? model.protocol}
                     </span>

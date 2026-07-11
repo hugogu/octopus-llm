@@ -55,6 +55,11 @@ export default function ModelRow({ model, onEdit, onChanged }: Props) {
                 {modality}
               </span>
             ))}
+          {model.capabilityMatrix?.supports_function_calling ? (
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-sky-700">
+              tools / search
+            </span>
+          ) : null}
           <span className="text-xs text-stone-400">
             {model.priceCurrency
               ? `${model.inputPricePerMtok ?? "—"} in / ${model.outputPricePerMtok ?? "—"} out per 1M ${model.priceCurrency}`
