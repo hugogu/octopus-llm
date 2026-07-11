@@ -8,35 +8,33 @@ export interface ToolInfo {
   available: boolean;
 }
 
-export interface WebSearchProvider {
+export interface WebSearchProviderView {
   id: string;
   label: string;
-  defaultBaseUrl: string;
-  defaultModel: string;
-}
-
-export interface WebSearchConfig {
-  enabled: boolean;
-  provider: string;
-  baseUrl: string | null;
-  model: string | null;
+  needsModel: boolean;
+  baseUrl: string;
+  model: string;
   apiKeySet: boolean;
 }
 
 export interface ToolSettingsAdmin {
   tools: ToolInfo[];
-  webSearch: WebSearchConfig;
-  webSearchProviders: WebSearchProvider[];
+  webSearchEnabled: boolean;
+  webSearchActiveProvider: string;
+  webSearchProviders: WebSearchProviderView[];
   updatedAt: string;
   updatedBy: string | null;
 }
 
-export interface ToolSettingsUpdate {
+export interface WebSearchProviderUpdate {
+  baseUrl?: string;
+  model?: string;
+  apiKey?: string;
+}
+
+export interface ToolActivationUpdate {
   webSearchEnabled?: boolean;
-  webSearchProvider?: string;
-  webSearchBaseUrl?: string;
-  webSearchModel?: string;
-  webSearchApiKey?: string;
+  webSearchActiveProvider?: string;
 }
 
 async function authed<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
@@ -56,7 +54,18 @@ export function getToolSettings(token: string): Promise<ToolSettingsAdmin> {
   return authed<ToolSettingsAdmin>("/api/v2/admin/tool-settings", token);
 }
 
-export function updateToolSettings(token: string, body: ToolSettingsUpdate): Promise<ToolSettingsAdmin> {
+export function updateWebSearchProvider(
+  token: string,
+  provider: string,
+  body: WebSearchProviderUpdate,
+): Promise<ToolSettingsAdmin> {
+  return authed<ToolSettingsAdmin>(`/api/v2/admin/tool-settings/providers/${encodeURIComponent(provider)}`, token, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateToolActivation(token: string, body: ToolActivationUpdate): Promise<ToolSettingsAdmin> {
   return authed<ToolSettingsAdmin>("/api/v2/admin/tool-settings", token, {
     method: "PUT",
     body: JSON.stringify(body),
