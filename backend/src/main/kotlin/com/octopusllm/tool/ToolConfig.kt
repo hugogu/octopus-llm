@@ -18,8 +18,8 @@ class ToolConfig {
     @ConditionalOnProperty(prefix = "app.tools.web-search", name = ["api-key"])
     fun webSearchTool(
         @Value("\${app.tools.web-search.api-key}") apiKey: String,
-        @Value("\${app.tools.web-search.base-url:https://api.xiaomimimo.com/v1}") baseUrl: String,
-        @Value("\${app.tools.web-search.model:mimo-v2.5}") model: String,
+        @Value("\${app.tools.web-search.base-url:https://token-plan-cn.xiaomimimo.com/v1}") baseUrl: String,
+        @Value("\${app.tools.web-search.model:mimo-v2.5-pro}") model: String,
         @Value("\${app.tools.web-search.limit:3}") limit: Int,
         objectMapper: ObjectMapper,
     ): Tool = WebSearchTool(apiKey, baseUrl, model, limit, objectMapper)

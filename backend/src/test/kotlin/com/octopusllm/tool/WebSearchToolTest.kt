@@ -17,9 +17,12 @@ class WebSearchToolTest {
     @AfterEach
     fun stop() = server?.stop(0) ?: Unit
 
+    private var apiKeyHeader: String? = null
+
     private fun start(status: Int, responseBody: String, capture: (String) -> Unit = {}) {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/v1/chat/completions") { exchange: HttpExchange ->
+                apiKeyHeader = exchange.requestHeaders.getFirst("api-key")
                 capture(exchange.requestBody.use { String(it.readAllBytes(), StandardCharsets.UTF_8) })
                 val bytes = responseBody.toByteArray(StandardCharsets.UTF_8)
                 exchange.sendResponseHeaders(status, bytes.size.toLong())
@@ -51,6 +54,7 @@ class WebSearchToolTest {
 
         val result = tool().execute(mapOf("query" to "贵州茅台今天股价")) as ToolResult.Success
 
+        assertEquals("test-key", apiKeyHeader)
         val sent = mapper.readTree(body)
         assertEquals("web_search", sent.path("tools").path(0).path("type").asText())
         assertTrue(sent.path("tools").path(0).path("force_search").asBoolean())

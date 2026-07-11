@@ -54,7 +54,8 @@ class WebSearchTool(
             ),
         )
         val request = HttpRequest.newBuilder(URI.create(endpoint))
-            .header("Authorization", "Bearer $apiKey")
+            // MiMo authenticates with an `api-key` header, not `Authorization: Bearer`.
+            .header("api-key", apiKey)
             .header("Content-Type", "application/json")
             .timeout(Duration.ofSeconds(14))
             .POST(HttpRequest.BodyPublishers.ofString(body))
