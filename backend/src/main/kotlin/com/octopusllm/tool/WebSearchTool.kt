@@ -10,6 +10,8 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
+private const val MAX_KIMI_ROUNDS = 3
+
 /**
  * Built-in `web_search` tool (feature 009). Backed by a provider that performs the search server-side
  * (MiMo-style `{"type":"web_search"}` on an OpenAI-shaped chat endpoint): we send the query, the provider
@@ -51,6 +53,9 @@ class WebSearchTool(
             ?: return ToolResult.Failure("web_search 未配置（请在管理后台 → Tools 配置搜索 Provider）")
         val query = (arguments["query"] as? String)?.takeIf { it.isNotBlank() }
             ?: return ToolResult.Failure("web_search requires a non-empty 'query'")
+
+        // Kimi (Moonshot) uses a distinct two-round builtin_function handshake — handled separately.
+        if (config.provider == "kimi") return executeKimi(config, query)
 
         val endpoint = when (config.provider) {
             "glm" -> "${config.baseUrl.trimEnd('/')}/web_search"
@@ -105,6 +110,62 @@ class WebSearchTool(
             return ToolResult.Failure("web search returned no results (POST $endpoint)")
         }
         return ToolResult.Success(mapOf("answer" to answer, "citations" to citations, "endpoint" to endpoint))
+    }
+
+    /**
+     * Kimi (Moonshot) builtin `$web_search` (feature 009): a bounded tool-calling loop. The model may
+     * request `$web_search`; per Moonshot's builtin-function contract the client echoes the tool_call
+     * arguments back as the tool result, and the server performs the actual search before answering.
+     */
+    private fun executeKimi(config: WebSearchRuntimeConfig, query: String): ToolResult {
+        val endpoint = "${config.baseUrl.trimEnd('/')}/chat/completions"
+        val tools = listOf(mapOf("type" to "builtin_function", "function" to mapOf("name" to "\$web_search")))
+        val messages = mutableListOf<Any>(mapOf("role" to "user", "content" to query))
+
+        repeat(MAX_KIMI_ROUNDS) {
+            val body = objectMapper.writeValueAsString(
+                mapOf("model" to config.model, "messages" to messages, "tools" to tools, "stream" to false),
+            )
+            val request = HttpRequest.newBuilder(URI.create(endpoint))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer ${config.apiKey}")
+                .timeout(Duration.ofSeconds(14))
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
+            val response = try {
+                httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            } catch (error: Exception) {
+                return ToolResult.Failure("web search request failed (POST $endpoint): ${error.message ?: error.javaClass.simpleName}")
+            }
+            if (response.statusCode() !in 200..299) {
+                val preview = response.body()?.take(500)?.replace("\n", " ").orEmpty()
+                return ToolResult.Failure("web search returned HTTP ${response.statusCode()} (POST $endpoint): $preview")
+            }
+
+            val message = objectMapper.readTree(response.body()).path("choices").path(0).path("message")
+            val toolCalls = message.path("tool_calls")
+            if (!toolCalls.isArray || toolCalls.isEmpty) {
+                val answer = message.path("content").asText("")
+                return if (answer.isBlank()) {
+                    ToolResult.Failure("web search returned no results (POST $endpoint)")
+                } else {
+                    ToolResult.Success(mapOf("answer" to answer, "citations" to emptyList<Map<String, Any?>>(), "endpoint" to endpoint))
+                }
+            }
+            // Echo each $web_search tool call's arguments back; Moonshot performs the search server-side.
+            messages.add(objectMapper.convertValue(message, Map::class.java))
+            toolCalls.forEach { call ->
+                messages.add(
+                    mapOf(
+                        "role" to "tool",
+                        "tool_call_id" to call.path("id").asText(""),
+                        "name" to call.path("function").path("name").asText(""),
+                        "content" to call.path("function").path("arguments").asText("{}"),
+                    ),
+                )
+            }
+        }
+        return ToolResult.Failure("web search exceeded the round limit (POST $endpoint)")
     }
 
     /** Builds the provider-specific request body enabling server-side web search. */

@@ -36,6 +36,22 @@ class WebSearchToolTest {
         }
     }
 
+    /** Serves the given responses in order across successive requests (for multi-round flows). */
+    private fun startRounds(vararg responses: String, capture: (String) -> Unit = {}) {
+        val idx = java.util.concurrent.atomic.AtomicInteger(0)
+        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/v1/chat/completions") { exchange: HttpExchange ->
+                authHeader = exchange.requestHeaders.getFirst("Authorization")
+                capture(exchange.requestBody.use { String(it.readAllBytes(), StandardCharsets.UTF_8) })
+                val i = idx.getAndIncrement().coerceAtMost(responses.size - 1)
+                val bytes = responses[i].toByteArray(StandardCharsets.UTF_8)
+                exchange.sendResponseHeaders(200, bytes.size.toLong())
+                exchange.responseBody.use { it.write(bytes) }
+            }
+            start()
+        }
+    }
+
     private fun tool(config: WebSearchRuntimeConfig?): WebSearchTool {
         val settings = mockk<ToolSettingsService> { every { webSearchConfig() } returns config }
         return WebSearchTool(settings, mapper, limit = 3)
@@ -149,6 +165,37 @@ class WebSearchToolTest {
         val citations = result.data["citations"] as List<Map<String, Any?>>
         assertEquals("https://t.io/1", citations.single()["url"])
         assertEquals("tavily body", citations.single()["summary"])
+    }
+
+    @Test
+    fun `kimi runs the builtin web_search two-round handshake`() {
+        val ws = "${'$'}web_search"
+        val requests = mutableListOf<String>()
+        startRounds(
+            // Round 1: the model requests the builtin $web_search.
+            """{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":"","tool_calls":[
+              {"id":"ws:0","type":"function","function":{"name":"$ws","arguments":"{\"query\":\"mars\"}"}}]}}]}""",
+            // Round 2: the final answer after the server-side search.
+            """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"Mars answer."}}]}""",
+            capture = { requests.add(it) },
+        )
+
+        val result = tool(
+            WebSearchRuntimeConfig("kimi", "http://127.0.0.1:${server!!.address.port}/v1", "kimi-k2.6", "test-key"),
+        ).execute(mapOf("query" to "mars rover")) as ToolResult.Success
+
+        assertEquals("Bearer test-key", authHeader)
+        assertEquals("Mars answer.", result.data["answer"])
+        // Round 1 advertises the builtin tool...
+        val round1 = mapper.readTree(requests[0])
+        assertEquals("builtin_function", round1.path("tools").path(0).path("type").asText())
+        assertEquals(ws, round1.path("tools").path(0).path("function").path("name").asText())
+        // ...round 2 echoes the tool_call arguments back as a tool message.
+        val round2Messages = mapper.readTree(requests[1]).path("messages")
+        val toolMsg = (0 until round2Messages.size()).map { round2Messages.path(it) }.single { it.path("role").asText() == "tool" }
+        assertEquals("ws:0", toolMsg.path("tool_call_id").asText())
+        assertEquals(ws, toolMsg.path("name").asText())
+        assertTrue(toolMsg.path("content").asText().contains("mars"))
     }
 
     @Test

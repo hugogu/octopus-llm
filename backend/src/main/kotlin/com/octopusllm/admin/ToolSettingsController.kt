@@ -59,6 +59,7 @@ class ToolSettingsController(
             WebSearchProviderView("openrouter", "OpenRouter · web 插件", "https://openrouter.ai/api/v1", "deepseek/deepseek-chat"),
             WebSearchProviderView("glm", "GLM · 智谱 web_search", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
             WebSearchProviderView("tavily", "Tavily Search", "https://api.tavily.com", ""),
+            WebSearchProviderView("kimi", "Kimi · Moonshot (\$web_search)", "https://api.moonshot.ai/v1", "kimi-k2.6"),
         )
     }
 

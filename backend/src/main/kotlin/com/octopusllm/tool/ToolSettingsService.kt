@@ -64,7 +64,7 @@ class ToolSettingsService(
 
     /** Chat-completions-style providers need a model; dedicated search APIs (glm, tavily) do not. */
     private fun needsModel(provider: String): Boolean =
-        provider == "mimo" || provider == "mimo-standard" || provider == "openrouter"
+        provider == "mimo" || provider == "mimo-standard" || provider == "openrouter" || provider == "kimi"
 
     @Transactional
     fun update(adminId: UUID, req: ToolSettingsUpdate): ToolSettings {
