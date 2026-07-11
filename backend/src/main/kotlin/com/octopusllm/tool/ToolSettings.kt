@@ -22,17 +22,8 @@ class ToolSettings(
     @Column(name = "web_search_enabled", nullable = false)
     var webSearchEnabled: Boolean = false,
 
-    @Column(name = "web_search_provider", nullable = false, length = 32)
-    var webSearchProvider: String = "mimo",
-
-    @Column(name = "web_search_base_url", columnDefinition = "TEXT")
-    var webSearchBaseUrl: String? = null,
-
-    @Column(name = "web_search_model", columnDefinition = "TEXT")
-    var webSearchModel: String? = null,
-
-    @Column(name = "web_search_api_key", columnDefinition = "TEXT")
-    var webSearchApiKey: String? = null,
+    @Column(name = "web_search_active_provider", nullable = false, length = 32)
+    var webSearchActiveProvider: String = "mimo",
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),

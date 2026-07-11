@@ -14,23 +14,29 @@ import java.util.UUID
 /** Resolved, decrypted web_search provider config for runtime use. [provider] selects the request shape. */
 data class WebSearchRuntimeConfig(val provider: String, val baseUrl: String, val model: String, val apiKey: String)
 
-/** Admin-supplied tool-settings update (feature 009). Null fields are left unchanged. */
-data class ToolSettingsUpdate(
+/** Admin-supplied update for a single provider's config (feature 009). Null fields are left unchanged. */
+data class WebSearchProviderUpdate(
+    val baseUrl: String? = null,
+    val model: String? = null,
+    val apiKey: String? = null,
+)
+
+/** Admin-supplied update for the web_search activation (which provider is on, and whether enabled). */
+data class ToolSettingsActivationUpdate(
     val webSearchEnabled: Boolean? = null,
-    val webSearchProvider: String? = null,
-    val webSearchBaseUrl: String? = null,
-    val webSearchModel: String? = null,
-    val webSearchApiKey: String? = null,
+    val webSearchActiveProvider: String? = null,
 )
 
 /**
- * Reads/updates the admin-managed tool configuration. First read seeds a row from the deploy-time
- * `app.tools.web-search.*` env (so existing env config keeps working), after which the admin panel is
- * authoritative. The provider key is stored encrypted and only ever decrypted for runtime execution.
+ * Reads/updates the admin-managed tool configuration. Each web_search provider's url/model/key is stored
+ * in its own row so they coexist; [ToolSettings] holds only the enabled flag and the active provider.
+ * First read seeds a MiMo provider row from the deploy-time `app.tools.web-search.*` env (backward
+ * compatibility). Provider keys are stored encrypted and only decrypted for runtime execution.
  */
 @Service
 class ToolSettingsService(
     private val repository: ToolSettingsRepository,
+    private val providerRepository: WebSearchProviderSettingsRepository,
     private val encryptionService: ApiKeyEncryptionService,
     @Value("\${app.tools.web-search.base-url:https://token-plan-cn.xiaomimimo.com/v1}") private val defaultBaseUrl: String,
     @Value("\${app.tools.web-search.model:mimo-v2.5-pro}") private val defaultModel: String,
@@ -41,57 +47,78 @@ class ToolSettingsService(
     @Transactional
     fun get(): ToolSettings =
         repository.findById(ToolSettings.SINGLETON_ID).orElseGet {
-            val seed = ToolSettings(webSearchBaseUrl = defaultBaseUrl, webSearchModel = defaultModel)
-            if (envApiKey.isNotBlank()) {
-                seed.webSearchApiKey = encryptSecret(envApiKey)
-                seed.webSearchEnabled = true
+            val settings = repository.save(ToolSettings())
+            if (envApiKey.isNotBlank() && providerRepository.findByProvider("mimo") == null) {
+                providerRepository.save(
+                    WebSearchProviderSettings(
+                        provider = "mimo",
+                        baseUrl = defaultBaseUrl,
+                        model = defaultModel,
+                        apiKey = encryptSecret(envApiKey),
+                    ),
+                )
+                settings.webSearchEnabled = true
+                repository.save(settings)
             }
-            repository.save(seed)
+            settings
         }
 
-    /** Decrypted web_search config, or null when the tool is disabled or incompletely configured. */
+    /** All saved provider rows, keyed by provider id. */
+    fun providerConfigs(): Map<String, WebSearchProviderSettings> =
+        providerRepository.findAll().associateBy { it.provider }
+
+    /** Decrypted config for the active provider, or null when disabled or incompletely configured. */
     fun webSearchConfig(): WebSearchRuntimeConfig? {
-        val s = get()
-        if (!s.webSearchEnabled) return null
-        val key = s.webSearchApiKey?.let { runCatching { decryptSecret(it) }.getOrNull() }
-        if (s.webSearchBaseUrl.isNullOrBlank() || key.isNullOrBlank() ||
-            (needsModel(s.webSearchProvider) && s.webSearchModel.isNullOrBlank())
+        val settings = get()
+        if (!settings.webSearchEnabled) return null
+        val row = providerRepository.findByProvider(settings.webSearchActiveProvider) ?: return null
+        val key = row.apiKey?.let { runCatching { decryptSecret(it) }.getOrNull() }
+        if (row.baseUrl.isNullOrBlank() || key.isNullOrBlank() ||
+            (WebSearchProviders.needsModel(settings.webSearchActiveProvider) && row.model.isNullOrBlank())
         ) {
             return null
         }
-        return WebSearchRuntimeConfig(s.webSearchProvider, s.webSearchBaseUrl!!, s.webSearchModel.orEmpty(), key)
+        return WebSearchRuntimeConfig(settings.webSearchActiveProvider, row.baseUrl!!, row.model.orEmpty(), key)
     }
 
-    /** Chat-completions-style providers need a model; dedicated search APIs (glm, tavily) do not. */
-    private fun needsModel(provider: String): Boolean =
-        provider == "mimo" || provider == "mimo-standard" || provider == "openrouter" || provider == "kimi"
+    @Transactional
+    fun updateProvider(adminId: UUID, provider: String, req: WebSearchProviderUpdate): WebSearchProviderSettings {
+        val row = providerRepository.findByProvider(provider) ?: WebSearchProviderSettings(provider = provider)
+        req.baseUrl?.let { row.baseUrl = it }
+        req.model?.let { row.model = it }
+        req.apiKey?.takeIf { it.isNotBlank() }?.let { row.apiKey = encryptSecret(it) }
+        row.updatedBy = adminId
+        row.updatedAt = Instant.now()
+        log.info("web_search_provider_updated by={} provider={}", adminId.toString().take(8), provider)
+        return providerRepository.save(row)
+    }
 
     @Transactional
-    fun update(adminId: UUID, req: ToolSettingsUpdate): ToolSettings {
-        val s = get()
-        val enabled = req.webSearchEnabled ?: s.webSearchEnabled
-        val baseUrl = req.webSearchBaseUrl ?: s.webSearchBaseUrl
-        val model = req.webSearchModel ?: s.webSearchModel
-        val newKeyPlain = req.webSearchApiKey?.takeIf { it.isNotBlank() }
-        val hasKey = newKeyPlain != null || !s.webSearchApiKey.isNullOrBlank()
+    fun updateActivation(adminId: UUID, req: ToolSettingsActivationUpdate): ToolSettings {
+        val settings = get()
+        val activeProvider = req.webSearchActiveProvider ?: settings.webSearchActiveProvider
+        val enabled = req.webSearchEnabled ?: settings.webSearchEnabled
 
-        val provider = req.webSearchProvider ?: s.webSearchProvider
-        if (enabled && (baseUrl.isNullOrBlank() || !hasKey || (needsModel(provider) && model.isNullOrBlank()))) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "web_search requires a base URL and API key (and a model for chat-based providers) when enabled",
-            )
+        if (enabled) {
+            val row = providerRepository.findByProvider(activeProvider)
+            val hasKey = !row?.apiKey.isNullOrBlank()
+            if (row == null || row.baseUrl.isNullOrBlank() || !hasKey ||
+                (WebSearchProviders.needsModel(activeProvider) && row.model.isNullOrBlank())
+            ) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider '$activeProvider' is not fully configured (base URL, API key" +
+                        "${if (WebSearchProviders.needsModel(activeProvider)) ", model" else ""} required)",
+                )
+            }
         }
 
-        req.webSearchProvider?.let { s.webSearchProvider = it }
-        req.webSearchBaseUrl?.let { s.webSearchBaseUrl = it }
-        req.webSearchModel?.let { s.webSearchModel = it }
-        newKeyPlain?.let { s.webSearchApiKey = encryptSecret(it) }
-        s.webSearchEnabled = enabled
-        s.updatedBy = adminId
-        s.updatedAt = Instant.now()
-        log.info("tool_settings_updated by={} web_search_enabled={}", adminId.toString().take(8), enabled)
-        return repository.save(s)
+        settings.webSearchActiveProvider = activeProvider
+        settings.webSearchEnabled = enabled
+        settings.updatedBy = adminId
+        settings.updatedAt = Instant.now()
+        log.info("tool_settings_updated by={} active={} enabled={}", adminId.toString().take(8), activeProvider, enabled)
+        return repository.save(settings)
     }
 
     private fun encryptSecret(plain: String): String {

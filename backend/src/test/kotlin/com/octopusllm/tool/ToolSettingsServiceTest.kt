@@ -24,11 +24,13 @@ import java.util.UUID
 class ToolSettingsServiceTest {
 
     @Autowired private lateinit var repository: ToolSettingsRepository
+    @Autowired private lateinit var providerRepository: WebSearchProviderSettingsRepository
     @Autowired private lateinit var encryption: ApiKeyEncryptionService
 
     private val service by lazy {
-        ToolSettingsService(repository, encryption, "https://base/v1", "model-x", envApiKey = "")
+        ToolSettingsService(repository, providerRepository, encryption, "https://base/v1", "model-x", envApiKey = "")
     }
+    private val admin = UUID.randomUUID()
 
     companion object {
         @Container
@@ -40,46 +42,60 @@ class ToolSettingsServiceTest {
             registry.add("spring.datasource.url", postgres::getJdbcUrl)
             registry.add("spring.datasource.username", postgres::getUsername)
             registry.add("spring.datasource.password", postgres::getPassword)
-            // ApiKeyEncryptionService needs a 32-byte base64 AES key.
             registry.add("app.encryption.master-key") { "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=" }
         }
     }
 
     @Test
-    fun `seeds a disabled default from env base url and model`() {
-        val settings = service.get()
-        assertEquals("https://base/v1", settings.webSearchBaseUrl)
-        assertEquals("model-x", settings.webSearchModel)
-        assertNull(service.webSearchConfig()) // disabled by default
+    fun `defaults to disabled with no active config`() {
+        service.get()
+        assertNull(service.webSearchConfig())
     }
 
     @Test
-    fun `enabling requires a key and then resolves a decrypted config`() {
-        val admin = UUID.randomUUID()
-        // Missing key while enabling is rejected.
-        assertThrows(ResponseStatusException::class.java) {
-            service.update(admin, ToolSettingsUpdate(webSearchEnabled = true))
-        }
+    fun `configuring a provider then activating it resolves a decrypted config`() {
+        service.updateProvider(admin, "openrouter", WebSearchProviderUpdate(baseUrl = "https://or/v1", model = "m", apiKey = "or-key"))
+        // Not active/enabled yet.
+        assertNull(service.webSearchConfig())
 
-        service.update(
-            admin,
-            ToolSettingsUpdate(webSearchEnabled = true, webSearchBaseUrl = "https://mimo/v1", webSearchModel = "m", webSearchApiKey = "secret-key"),
-        )
+        service.updateActivation(admin, ToolSettingsActivationUpdate(webSearchEnabled = true, webSearchActiveProvider = "openrouter"))
 
         val config = service.webSearchConfig()!!
-        assertEquals("https://mimo/v1", config.baseUrl)
-        assertEquals("secret-key", config.apiKey) // decrypted round-trip
-        // The stored key is encrypted, not plaintext.
-        assert(service.get().webSearchApiKey!!.let { it != "secret-key" && it.contains(":") })
+        assertEquals("openrouter", config.provider)
+        assertEquals("or-key", config.apiKey) // decrypted round-trip
+        // Stored encrypted, not plaintext.
+        assert(providerRepository.findByProvider("openrouter")!!.apiKey!!.let { it != "or-key" && it.contains(":") })
     }
 
     @Test
-    fun `disabling makes the config unavailable without dropping the stored key`() {
-        val admin = UUID.randomUUID()
-        service.update(admin, ToolSettingsUpdate(webSearchEnabled = true, webSearchBaseUrl = "https://m/v1", webSearchModel = "m", webSearchApiKey = "k"))
-        service.update(admin, ToolSettingsUpdate(webSearchEnabled = false))
+    fun `enabling an unconfigured active provider is rejected`() {
+        assertThrows(ResponseStatusException::class.java) {
+            service.updateActivation(admin, ToolSettingsActivationUpdate(webSearchEnabled = true, webSearchActiveProvider = "kimi"))
+        }
+    }
 
-        assertNull(service.webSearchConfig())
-        assert(!service.get().webSearchApiKey.isNullOrBlank()) // key retained for re-enable
+    @Test
+    fun `providers coexist and keys are retained when switching the active provider`() {
+        service.updateProvider(admin, "tavily", WebSearchProviderUpdate(baseUrl = "https://api.tavily.com", apiKey = "tvly"))
+        service.updateProvider(admin, "openrouter", WebSearchProviderUpdate(baseUrl = "https://or/v1", model = "m", apiKey = "or-key"))
+
+        // Tavily needs no model; activating it works.
+        service.updateActivation(admin, ToolSettingsActivationUpdate(webSearchEnabled = true, webSearchActiveProvider = "tavily"))
+        assertEquals("tavily", service.webSearchConfig()!!.provider)
+
+        // Switch active to OpenRouter without re-entering its key.
+        service.updateActivation(admin, ToolSettingsActivationUpdate(webSearchActiveProvider = "openrouter"))
+        val config = service.webSearchConfig()!!
+        assertEquals("openrouter", config.provider)
+        assertEquals("or-key", config.apiKey)
+        // Tavily's config is still there.
+        assertEquals("tvly", providerRepository.findByProvider("tavily")!!.apiKey!!.let { encryptedRoundTrip(it) })
+    }
+
+    // Helper: confirm the stored value decrypts back to the original via the service's scheme.
+    private fun encryptedRoundTrip(stored: String): String {
+        val parts = stored.split(":", limit = 2)
+        val dec = java.util.Base64.getDecoder()
+        return encryption.decrypt(dec.decode(parts[1]), dec.decode(parts[0]))
     }
 }
