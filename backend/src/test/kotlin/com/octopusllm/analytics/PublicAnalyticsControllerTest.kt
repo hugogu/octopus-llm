@@ -27,7 +27,7 @@ class PublicAnalyticsControllerTest @Autowired constructor(
             check(!body.contains(prohibited)) { "public payload leaked $prohibited" }
         }
 
-        web.get().uri("/api/v2/analytics/public/by-model?page=0&size=101")
+        web.get().uri("/api/v2/analytics/public/by-model?page=0&size=301")
             .exchange().expectStatus().isBadRequest
     }
 }

@@ -37,8 +37,8 @@ fun boundedPageRequest(
     if (page < 0) {
         throw ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be at least 0")
     }
-    if (size !in 1..100) {
-        throw ResponseStatusException(HttpStatus.BAD_REQUEST, "size must be between 1 and 100")
+    if (size !in 1..300) {
+        throw ResponseStatusException(HttpStatus.BAD_REQUEST, "size must be between 1 and 300")
     }
     return PageRequest.of(page, size, Sort.by(orders.toList()))
 }

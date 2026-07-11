@@ -94,7 +94,7 @@ export default function ChatPage() {
     }
     setModelsLoading(true);
     try {
-      const response = await listConfiguredModels(token, undefined, 0, 100);
+      const response = await listConfiguredModels(token, undefined, 0, 300);
       setModels(response.items);
       setLoadError(null);
     } catch (error) {
