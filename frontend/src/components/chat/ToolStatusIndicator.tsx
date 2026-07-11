@@ -57,7 +57,13 @@ export default function ToolStatusIndicator({ toolCalls }: { toolCalls?: ToolCal
       {toolCalls.map((call) => {
         const style = STATUS_STYLE[call.status] ?? STATUS_STYLE.pending;
         const open = openId === call.callId;
-        const hasDetail = Boolean(call.arguments || call.result || call.error);
+        // The request URL is part of "the request": surface it in the request area and drop it from
+        // the result JSON to avoid duplication.
+        const endpoint = typeof call.result?.endpoint === "string" ? (call.result.endpoint as string) : undefined;
+        const resultBody = call.result
+          ? Object.fromEntries(Object.entries(call.result).filter(([key]) => key !== "endpoint"))
+          : undefined;
+        const hasDetail = Boolean(call.arguments || resultBody || call.error || endpoint);
         return (
           <div key={call.callId} className="flex flex-col">
             <button
@@ -87,10 +93,11 @@ export default function ToolStatusIndicator({ toolCalls }: { toolCalls?: ToolCal
                 {call.arguments && Object.keys(call.arguments).length > 0 && (
                   <DetailBlock label="请求参数" body={pretty(call.arguments)} />
                 )}
+                {endpoint && <DetailBlock label="请求地址 (URL)" body={endpoint} />}
                 {call.error ? (
                   <DetailBlock label="错误" body={call.error} tone="red" />
-                ) : call.result ? (
-                  <DetailBlock label="返回结果" body={pretty(call.result)} />
+                ) : resultBody && Object.keys(resultBody).length > 0 ? (
+                  <DetailBlock label="返回结果" body={pretty(resultBody)} />
                 ) : null}
               </div>
             )}

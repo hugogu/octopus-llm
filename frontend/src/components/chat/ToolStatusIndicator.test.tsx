@@ -32,9 +32,15 @@ describe("ToolStatusIndicator", () => {
     expect(screen.getByTitle("provider 503 after retry")).toBeInTheDocument();
   });
 
-  it("expands a chip to show request arguments and the result", () => {
+  it("expands a chip to show request arguments, the request URL, and the result", () => {
     const calls: ToolCallState[] = [
-      { callId: "c1", toolName: "web_search", status: "success", arguments: { query: "上海天气" }, result: { answer: "晴" } },
+      {
+        callId: "c1",
+        toolName: "web_search",
+        status: "success",
+        arguments: { query: "上海天气" },
+        result: { answer: "晴", endpoint: "https://openrouter.ai/api/v1/chat/completions" },
+      },
     ];
     render(<ToolStatusIndicator toolCalls={calls} />);
 
@@ -43,8 +49,13 @@ describe("ToolStatusIndicator", () => {
     fireEvent.click(screen.getByText("web_search"));
     expect(screen.getByText("请求参数")).toBeInTheDocument();
     expect(screen.getByText(/上海天气/)).toBeInTheDocument();
+    // The endpoint is surfaced in the request area...
+    expect(screen.getByText("请求地址 (URL)")).toBeInTheDocument();
+    expect(screen.getByText("https://openrouter.ai/api/v1/chat/completions")).toBeInTheDocument();
+    // ...and no longer duplicated inside the result JSON.
     expect(screen.getByText("返回结果")).toBeInTheDocument();
     expect(screen.getByText(/晴/)).toBeInTheDocument();
+    expect(screen.queryByText(/endpoint/)).not.toBeInTheDocument();
   });
 
   it("shows the error block instead of a result on a failed call", () => {
