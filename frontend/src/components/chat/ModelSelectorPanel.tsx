@@ -29,6 +29,23 @@ export default function ModelSelectorPanel({
     return enabledModels.filter((model) => selectedSet.has(model.id));
   }, [enabledModels, selectedIds]);
 
+  // Group by provider (connection label, falling back to protocol) and sort both the groups and the
+  // models within each group by name, so a long model list stays easy to scan.
+  const groupedModels = useMemo(() => {
+    const groups = new Map<string, ConfiguredModelV2[]>();
+    for (const model of enabledModels) {
+      const key = model.connectionLabel ?? model.protocol;
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(model);
+      else groups.set(key, [model]);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([label, items]) =>
+        [label, [...items].sort((x, y) => x.displayName.localeCompare(y.displayName))] as const,
+      );
+  }, [enabledModels]);
+
   useEffect(() => {
     if (!open) return;
     function handlePointerDown(event: PointerEvent) {
@@ -86,45 +103,54 @@ export default function ModelSelectorPanel({
           {enabledModels.length === 0 ? (
             <p className="py-3 text-sm text-stone-500">No enabled models. Configure one in Settings.</p>
           ) : (
-            <div className="flex max-h-72 flex-wrap gap-2 overflow-y-auto pr-1">
-              {enabledModels.map((model) => {
-                const selected = selectedIds.includes(model.id);
-                return (
-                  <button
-                    key={model.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => toggle(model.id)}
-                    className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                      selected
-                        ? "border-[#c96442] bg-[#c96442] text-white shadow-sm"
-                        : "border-stone-300 bg-white text-stone-700 hover:border-stone-500"
-                    }`}
-                  >
-                    <span
-                      className={`mr-1.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
-                        selected
-                          ? "bg-white/20 text-white"
-                          : model.builtin
-                            ? "bg-sky-100 text-sky-700"
-                            : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {model.builtin ? "Built-in" : "Custom"}
+            <div className="flex max-h-72 flex-col gap-3 overflow-y-auto pr-1">
+              {groupedModels.map(([label, items]) => (
+                <div key={label}>
+                  <p className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
+                    {label}
+                    <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[9px] font-medium text-stone-500">
+                      {items.length}
                     </span>
-                    <span className="font-medium">{model.displayName}</span>
-                    {model.capabilityMatrix?.supports_function_calling ? (
-                      <Wrench
-                        className={`ml-1 inline h-3 w-3 align-[-1px] ${selected ? "text-orange-100" : "text-stone-400"}`}
-                        aria-label="支持工具调用 / 联网搜索"
-                      />
-                    ) : null}
-                    <span className={`ml-1.5 text-xs ${selected ? "text-orange-100" : "text-stone-400"}`}>
-                      {model.connectionLabel ?? model.protocol}
-                    </span>
-                  </button>
-                );
-              })}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {items.map((model) => {
+                      const selected = selectedIds.includes(model.id);
+                      return (
+                        <button
+                          key={model.id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => toggle(model.id)}
+                          className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                            selected
+                              ? "border-[#c96442] bg-[#c96442] text-white shadow-sm"
+                              : "border-stone-300 bg-white text-stone-700 hover:border-stone-500"
+                          }`}
+                        >
+                          <span
+                            className={`mr-1.5 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+                              selected
+                                ? "bg-white/20 text-white"
+                                : model.builtin
+                                  ? "bg-sky-100 text-sky-700"
+                                  : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {model.builtin ? "Built-in" : "Custom"}
+                          </span>
+                          <span className="font-medium">{model.displayName}</span>
+                          {model.capabilityMatrix?.supports_function_calling ? (
+                            <Wrench
+                              className={`ml-1 inline h-3 w-3 align-[-1px] ${selected ? "text-orange-100" : "text-stone-400"}`}
+                              aria-label="支持工具调用 / 联网搜索"
+                            />
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
