@@ -11,8 +11,8 @@ import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 
-/** Resolved, decrypted web_search provider config for runtime use. */
-data class WebSearchRuntimeConfig(val baseUrl: String, val model: String, val apiKey: String)
+/** Resolved, decrypted web_search provider config for runtime use. [provider] selects the request shape. */
+data class WebSearchRuntimeConfig(val provider: String, val baseUrl: String, val model: String, val apiKey: String)
 
 /** Admin-supplied tool-settings update (feature 009). Null fields are left unchanged. */
 data class ToolSettingsUpdate(
@@ -57,7 +57,7 @@ class ToolSettingsService(
         if (s.webSearchBaseUrl.isNullOrBlank() || s.webSearchModel.isNullOrBlank() || key.isNullOrBlank()) {
             return null
         }
-        return WebSearchRuntimeConfig(s.webSearchBaseUrl!!, s.webSearchModel!!, key)
+        return WebSearchRuntimeConfig(s.webSearchProvider, s.webSearchBaseUrl!!, s.webSearchModel!!, key)
     }
 
     @Transactional
