@@ -52,7 +52,10 @@ class WebSearchTool(
         val query = (arguments["query"] as? String)?.takeIf { it.isNotBlank() }
             ?: return ToolResult.Failure("web_search requires a non-empty 'query'")
 
-        val endpoint = "${config.baseUrl.trimEnd('/')}/chat/completions"
+        val endpoint = when (config.provider) {
+            "glm" -> "${config.baseUrl.trimEnd('/')}/web_search"
+            else -> "${config.baseUrl.trimEnd('/')}/chat/completions"
+        }
         val requestBuilder = HttpRequest.newBuilder(URI.create(endpoint))
             .header("Content-Type", "application/json")
             .timeout(Duration.ofSeconds(14))
@@ -72,13 +75,29 @@ class WebSearchTool(
             return ToolResult.Failure("web search request failed (POST $endpoint): $reason")
         }
         if (response.statusCode() !in 200..299) {
-            return ToolResult.Failure("web search returned HTTP ${response.statusCode()} (POST $endpoint)")
+            val bodyPreview = response.body()?.take(800)?.replace("\n", " ") ?: ""
+            val message = when {
+                bodyPreview.contains("webSearchEnabled is false") ->
+                    "MiMo web search is not enabled for this API key; enable it in the MiMo console or choose a different provider"
+                else -> bodyPreview
+            }
+            return ToolResult.Failure("web search returned HTTP ${response.statusCode()} (POST $endpoint): $message")
         }
 
         val json = objectMapper.readTree(response.body())
-        val message = json.path("choices").path(0).path("message")
-        val answer = message.path("content").asText("")
-        val citations = parseCitations(message).ifEmpty { parseGlmResults(json) }
+        val (answer, citations) = when (config.provider) {
+            "glm" -> {
+                val results = parseGlmSearchResults(json)
+                val summary = results.joinToString("\n\n") { (it["summary"] as String).ifBlank { it["title"] as String } }
+                summary to results
+            }
+            else -> {
+                val message = json.path("choices").path(0).path("message")
+                val ans = message.path("content").asText("")
+                val cites = parseCitations(message).ifEmpty { parseGlmResults(json) }
+                ans to cites
+            }
+        }
         if (answer.isBlank() && citations.isEmpty()) {
             return ToolResult.Failure("web search returned no results (POST $endpoint)")
         }
@@ -96,18 +115,17 @@ class WebSearchTool(
                 "plugins" to listOf(mapOf("id" to "web", "max_results" to limit)),
                 "stream" to false,
             )
-            // GLM (Zhipu): the built-in web_search tool with search_result returns citations.
+            // GLM (Zhipu): dedicated /web_search endpoint (not chat completions).
             "glm" -> mapOf(
-                "model" to config.model,
-                "messages" to messages,
-                "tools" to listOf(mapOf("type" to "web_search", "web_search" to mapOf("enable" to true, "search_result" to true))),
-                "stream" to false,
+                "search_engine" to "search-prime",
+                "search_query" to query,
+                "count" to limit,
             )
-            // MiMo (default): the web_search tool, forced on.
+            // MiMo (default): top-level web_search feature, forced on.
             else -> mapOf(
                 "model" to config.model,
                 "messages" to messages,
-                "tools" to listOf(mapOf("type" to "web_search", "force_search" to true, "limit" to limit)),
+                "web_search" to mapOf("enable" to true, "force_search" to true),
                 "stream" to false,
             )
         }
@@ -130,7 +148,17 @@ class WebSearchTool(
                 )
             }
 
-    /** GLM returns search hits under a top-level `web_search` array ({title, link, content}). */
+    /** GLM /web_search returns hits under a `search_result` array ({title, content, link}). */
+    private fun parseGlmSearchResults(json: JsonNode): List<Map<String, Any?>> =
+        json.path("search_result").filter { it.isObject }.map {
+            mapOf(
+                "url" to it.path("link").asText("").ifBlank { it.path("url").asText("") },
+                "title" to it.path("title").asText(""),
+                "summary" to it.path("content").asText(""),
+            )
+        }
+
+    /** GLM chat response (legacy) returns search hits under a top-level `web_search` array ({title, link, content}). */
     private fun parseGlmResults(json: JsonNode): List<Map<String, Any?>> =
         json.path("web_search").filter { it.isObject }.map {
             mapOf(

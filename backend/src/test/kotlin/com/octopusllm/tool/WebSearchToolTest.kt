@@ -22,9 +22,9 @@ class WebSearchToolTest {
     @AfterEach
     fun stop() = server?.stop(0) ?: Unit
 
-    private fun start(status: Int, responseBody: String, capture: (String) -> Unit = {}) {
+    private fun start(status: Int, responseBody: String, path: String = "/v1/chat/completions", capture: (String) -> Unit = {}) {
         server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
-            createContext("/v1/chat/completions") { exchange: HttpExchange ->
+            createContext(path) { exchange: HttpExchange ->
                 apiKeyHeader = exchange.requestHeaders.getFirst("api-key")
                 authHeader = exchange.requestHeaders.getFirst("Authorization")
                 capture(exchange.requestBody.use { String(it.readAllBytes(), StandardCharsets.UTF_8) })
@@ -58,7 +58,7 @@ class WebSearchToolTest {
     }
 
     @Test
-    fun `mimo uses api-key header, web_search tool, flat annotations`() {
+    fun `mimo uses api-key header and top-level web_search feature`() {
         var body: String? = null
         start(
             200,
@@ -70,8 +70,9 @@ class WebSearchToolTest {
 
         assertEquals("test-key", apiKeyHeader)
         val sent = mapper.readTree(body)
-        assertEquals("web_search", sent.path("tools").path(0).path("type").asText())
-        assertTrue(sent.path("tools").path(0).path("force_search").asBoolean())
+        assertTrue(sent.path("web_search").path("enable").asBoolean())
+        assertTrue(sent.path("web_search").path("force_search").asBoolean())
+        assertTrue(sent.path("tools").isMissingNode)
         assertEquals("茅台约 1680。", result.data["answer"])
         assertTrue((result.data["endpoint"] as String).endsWith("/chat/completions"))
         @Suppress("UNCHECKED_CAST")
@@ -102,23 +103,27 @@ class WebSearchToolTest {
     }
 
     @Test
-    fun `glm uses bearer, web_search tool, and top-level web_search results`() {
+    fun `glm uses bearer and dedicated web_search endpoint`() {
         var body: String? = null
         start(
-            200,
-            """{"choices":[{"message":{"content":"答案"}}],"web_search":[
-              {"title":"G","link":"https://g.cn/y","content":"glm body"}]}""",
+            status = 200,
+            responseBody = """{"id":"1","created":1,"search_result":[
+              {"title":"G","content":"glm body","link":"https://g.cn/y","media":"","icon":"","refer":"","publish_date":""}]}""",
+            path = "/v1/web_search",
         ) { body = it }
 
         val result = configuredTool("glm").execute(mapOf("query" to "上海天气")) as ToolResult.Success
 
         assertEquals("Bearer test-key", authHeader)
         val sent = mapper.readTree(body)
-        assertEquals("web_search", sent.path("tools").path(0).path("type").asText())
-        assertTrue(sent.path("tools").path(0).path("web_search").path("enable").asBoolean())
+        assertEquals("search-prime", sent.path("search_engine").asText())
+        assertEquals("上海天气", sent.path("search_query").asText())
+        assertEquals(3, sent.path("count").asInt())
+        assertTrue((result.data["endpoint"] as String).endsWith("/web_search"))
         @Suppress("UNCHECKED_CAST")
         val citations = result.data["citations"] as List<Map<String, Any?>>
         assertEquals("https://g.cn/y", citations.single()["url"])
+        assertEquals("glm body", result.data["answer"])
     }
 
     @Test
