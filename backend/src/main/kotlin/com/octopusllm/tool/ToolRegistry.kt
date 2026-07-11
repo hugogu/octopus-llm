@@ -18,5 +18,7 @@ class ToolRegistry(tools: List<Tool>) {
 
     fun find(name: String): Tool? = byName[name]
 
-    fun definitions(): List<ToolDefinition> = byName.values.map { it.definition }
+    /** Definitions to advertise this turn — only currently-available tools (feature 009). */
+    fun definitions(): List<ToolDefinition> =
+        byName.values.filter { it.isAvailable() }.map { it.definition }
 }

@@ -1,6 +1,8 @@
 package com.octopusllm.tool
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Component
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -12,18 +14,19 @@ import java.time.Duration
  * (MiMo-style `{"type":"web_search"}` on an OpenAI-shaped chat endpoint): we send the query, the provider
  * searches and answers, and we return that answer plus source citations. Being an app-side [Tool], it is
  * available to *any* function-calling model through the unified loop, and subsumes weather/stock/news
- * lookups. Registered only when configured (see `ToolConfig`); execution failures degrade gracefully.
+ * lookups.
+ *
+ * The provider is admin-configured ([ToolSettingsService]); the tool advertises itself only while
+ * configured/enabled, and execution failures degrade gracefully. The endpoint is included in every
+ * outcome so a failure can be reproduced.
  */
+@Component
 class WebSearchTool(
-    private val apiKey: String,
-    baseUrl: String,
-    private val model: String,
-    private val limit: Int,
+    private val toolSettings: ToolSettingsService,
     private val objectMapper: ObjectMapper,
+    @Value("\${app.tools.web-search.limit:3}") private val limit: Int = 3,
     private val httpClient: HttpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build(),
 ) : Tool {
-    private val endpoint = "${baseUrl.trimEnd('/')}/chat/completions"
-
     override val definition = ToolDefinition(
         name = "web_search",
         description = "Search the web for up-to-date information — current news, prices, weather, sports, " +
@@ -40,13 +43,18 @@ class WebSearchTool(
         ),
     )
 
+    override fun isAvailable(): Boolean = toolSettings.webSearchConfig() != null
+
     override fun execute(arguments: Map<String, Any?>): ToolResult {
+        val config = toolSettings.webSearchConfig()
+            ?: return ToolResult.Failure("web_search 未配置（请在管理后台 → Tools 配置搜索 Provider）")
         val query = (arguments["query"] as? String)?.takeIf { it.isNotBlank() }
             ?: return ToolResult.Failure("web_search requires a non-empty 'query'")
 
+        val endpoint = "${config.baseUrl.trimEnd('/')}/chat/completions"
         val body = objectMapper.writeValueAsString(
             mapOf(
-                "model" to model,
+                "model" to config.model,
                 "messages" to listOf(mapOf("role" to "user", "content" to query)),
                 // Provider-side web search; force it so the tool always performs a live lookup.
                 "tools" to listOf(mapOf("type" to "web_search", "force_search" to true, "limit" to limit)),
@@ -55,14 +63,13 @@ class WebSearchTool(
         )
         val request = HttpRequest.newBuilder(URI.create(endpoint))
             // MiMo authenticates with an `api-key` header, not `Authorization: Bearer`.
-            .header("api-key", apiKey)
+            .header("api-key", config.apiKey)
             .header("Content-Type", "application/json")
             .timeout(Duration.ofSeconds(14))
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
 
-        // Surface the endpoint in every outcome so a failure can be reproduced/verified. We catch the
-        // HTTP exception here (rather than letting it propagate) to attach the URL to the message.
+        // Surface the endpoint in every outcome so a failure can be reproduced/verified.
         val response = try {
             httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         } catch (error: Exception) {
