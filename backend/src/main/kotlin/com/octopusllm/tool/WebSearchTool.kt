@@ -61,11 +61,16 @@ class WebSearchTool(
             .POST(HttpRequest.BodyPublishers.ofString(body))
             .build()
 
-        // IOException propagates to ToolExecutor, which applies the timeout/retry policy; a non-2xx
-        // status is a definitive failure and is surfaced (not retried).
-        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        // Surface the endpoint in every outcome so a failure can be reproduced/verified. We catch the
+        // HTTP exception here (rather than letting it propagate) to attach the URL to the message.
+        val response = try {
+            httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        } catch (error: Exception) {
+            val reason = error.message ?: error.javaClass.simpleName
+            return ToolResult.Failure("web search request failed (POST $endpoint): $reason")
+        }
         if (response.statusCode() !in 200..299) {
-            return ToolResult.Failure("web search provider returned HTTP ${response.statusCode()}")
+            return ToolResult.Failure("web search returned HTTP ${response.statusCode()} (POST $endpoint)")
         }
 
         val message = objectMapper.readTree(response.body()).path("choices").path(0).path("message")
@@ -80,8 +85,8 @@ class WebSearchTool(
                 )
             }
         if (answer.isBlank() && citations.isEmpty()) {
-            return ToolResult.Failure("web search returned no results")
+            return ToolResult.Failure("web search returned no results (POST $endpoint)")
         }
-        return ToolResult.Success(mapOf("answer" to answer, "citations" to citations))
+        return ToolResult.Success(mapOf("answer" to answer, "citations" to citations, "endpoint" to endpoint))
     }
 }

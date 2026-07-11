@@ -59,6 +59,7 @@ class WebSearchToolTest {
         assertEquals("web_search", sent.path("tools").path(0).path("type").asText())
         assertTrue(sent.path("tools").path(0).path("force_search").asBoolean())
         assertEquals("茅台今日约 1680 元。", result.data["answer"])
+        assertTrue((result.data["endpoint"] as String).endsWith("/chat/completions"))
         @Suppress("UNCHECKED_CAST")
         val citations = result.data["citations"] as List<Map<String, Any?>>
         assertEquals("https://x.com/a", citations.single()["url"])
