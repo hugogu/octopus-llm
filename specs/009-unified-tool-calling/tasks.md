@@ -104,15 +104,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T032 [P] [US3] Add backend integration test for cross-model tool deduplication in `backend/src/test/kotlin/com/octopusllm/tool/CrossModelToolDeduplicationTest.kt`
-- [ ] T033 [P] [US3] Add backend integration test for graceful degradation of unsupported models in `backend/src/test/kotlin/com/octopusllm/tool/UnsupportedModelToolTest.kt`
+- [X] T032 [P] [US3] Add backend integration test for cross-model tool deduplication in `backend/src/test/kotlin/com/octopusllm/tool/CrossModelToolDeduplicationTest.kt` (two models, same tool+args → executed once, result shared, each still emits its own tool events).
+- [X] T033 [P] [US3] Add backend integration test for graceful degradation of unsupported models in `backend/src/test/kotlin/com/octopusllm/tool/UnsupportedModelToolTest.kt` (unsupported model gets no tools advertised and answers normally; capable model still uses tools; turn stays intact).
 
 ### Implementation for User Story 3
 
 - [X] T034 [US3] Implement per-turn deduplication of identical tool invocations in `ToolExecutor` (`TurnScope`), now wired: `ConcurrentLlmOrchestrator` creates one scope per turn shared across all models.
 - [X] T035 [US3] `ConcurrentLlmOrchestrator` distributes shared tool results via the per-turn `TurnScope`; each model's loop runs inside the existing `Flux.merge` fan-out, so shared executions never block other models' streams.
 - [X] T036 [US3] `ResponseGroup.tsx` threads `toolCalls` per panel to `ModelResponsePanel`, so each model in the group shows its own tool-status chips.
-- [ ] T037 [US3] Add capability-based graceful degradation for models that do not support tool calling in `backend/src/main/kotlin/com/octopusllm/llm/ConcurrentLlmOrchestrator.kt`
+- [X] T037 [US3] Capability-based graceful degradation in `ConcurrentLlmOrchestrator`: tools are stripped from the routed request for models whose capability reports no function calling, so an unsupported model is never offered a tool it can't resolve. Covered by T033.
 
 **Checkpoint**: All user stories should now be independently functional.
 

@@ -76,6 +76,9 @@ class ConcurrentLlmOrchestrator(
                 systemPrompt = if (supportsSystem) systemPrompt else null,
                 attachments = supportedAttachments,
                 customParams = target.customParams,
+                // Graceful degradation (feature 009 US3): only advertise tools to models that can call
+                // them, so an unsupported model never sees a tool it can't resolve.
+                tools = if (target.capabilityMatrix.supportsFunctionCalling) request.tools else emptyList(),
             )
 
             val noticeFlux: Flux<LlmStreamEvent> = if (droppedAttachments.isNotEmpty()) {
