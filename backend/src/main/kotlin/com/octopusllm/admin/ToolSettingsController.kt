@@ -56,7 +56,7 @@ class ToolSettingsController(
         private val PROVIDERS = listOf(
             WebSearchProviderView("mimo", "MiMo · 小米 (token-plan CN)", "https://token-plan-cn.xiaomimimo.com/v1", "mimo-v2.5-pro"),
             WebSearchProviderView("mimo-standard", "MiMo · 小米 (standard)", "https://api.xiaomimimo.com/v1", "mimo-v2.5-pro"),
-            WebSearchProviderView("openrouter", "OpenRouter · web 插件", "https://openrouter.ai/api/v1", "openai/gpt-4o-mini"),
+            WebSearchProviderView("openrouter", "OpenRouter · web 插件", "https://openrouter.ai/api/v1", "deepseek/deepseek-chat"),
             WebSearchProviderView("glm", "GLM · 智谱 web_search", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
         )
     }
