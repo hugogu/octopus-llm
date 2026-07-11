@@ -160,6 +160,12 @@ class ChatService(
             session to visible
         }
 
+    /** Tool invocations each response consumed (feature 009), for history rendering. */
+    fun toolInvocationsForResponses(
+        responseIds: List<UUID>,
+    ): Mono<Map<UUID, List<com.octopusllm.tool.ToolInvocation>>> =
+        blocking { toolInvocationService.invocationsByResponse(responseIds) }
+
     fun deleteSession(sessionId: UUID, userId: UUID): Mono<Unit> =
         blocking {
             val session = requireSession(sessionId, userId)

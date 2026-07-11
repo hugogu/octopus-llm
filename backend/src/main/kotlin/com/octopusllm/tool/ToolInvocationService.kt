@@ -53,6 +53,21 @@ class ToolInvocationService(
         }
     }
 
+    /**
+     * Loads the tool invocations each of [responseIds] consumed, in stable order, for history/share
+     * rendering. One round-trip per table; returns an empty map for an empty input.
+     */
+    fun invocationsByResponse(responseIds: List<UUID>): Map<UUID, List<ToolInvocation>> {
+        if (responseIds.isEmpty()) return emptyMap()
+        val links = joins.findByProviderResponseIdIn(responseIds)
+        if (links.isEmpty()) return emptyMap()
+        val byId = invocations.findAllById(links.map { it.toolInvocationId }.distinct()).associateBy { it.id }
+        return links
+            .mapNotNull { link -> byId[link.toolInvocationId]?.let { link.providerResponseId to it } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, list) -> list.sortedBy { it.createdAt } }
+    }
+
     /** Links a provider_response to an executed tool invocation; idempotent under the unique constraint. */
     fun link(providerResponseId: UUID, toolInvocationId: UUID) {
         if (joins.findByProviderResponseId(providerResponseId).any { it.toolInvocationId == toolInvocationId }) {

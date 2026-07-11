@@ -66,6 +66,16 @@ data class ProviderResponseDtoV2(
     val likeCount: Long,
     val likedByMe: Boolean,
     val anonymousLikeCount: Long,
+    // Tool invocations this response consumed (feature 009), so history shows past tool activity.
+    val toolCalls: List<ToolCallDtoV2> = emptyList(),
+)
+
+data class ToolCallDtoV2(
+    val toolName: String,
+    val status: String,
+    val arguments: Map<String, Any?>,
+    val result: Map<String, Any?>?,
+    val error: String?,
 )
 
 data class TurnDtoV2(
@@ -122,9 +132,11 @@ class ChatControllerV2(
             Mono.zip(
                 reactionService.states(responseIds, userId(principal)),
                 reactionService.anonymousCounts(responseIds),
+                chatService.toolInvocationsForResponses(responseIds),
             ).map { tuple ->
               val states = tuple.t1
               val anonymousCounts = tuple.t2
+              val toolsByResponse = tuple.t3
               mapOf(
                 "id" to session.id,
                 "title" to session.title,
@@ -137,7 +149,9 @@ class ChatControllerV2(
                         selectedConfiguredModelIds = turn.selectedConfiguredModelIds.toList(),
                         attachments = turn.attachments.orEmpty()
                             .sortedBy { (it["order"] as? Number)?.toInt() ?: 0 },
-                        responses = responses.map { responseDto(it, states[it.id], anonymousCounts[it.id] ?: 0) },
+                        responses = responses.map {
+                            responseDto(it, states[it.id], anonymousCounts[it.id] ?: 0, toolsByResponse[it.id].orEmpty())
+                        },
                         createdAt = turn.createdAt,
                     )
                 },
@@ -313,6 +327,7 @@ class ChatControllerV2(
         response: ProviderResponse,
         likeState: com.octopusllm.reaction.LikeState?,
         anonymousLikeCount: Long,
+        toolInvocations: List<com.octopusllm.tool.ToolInvocation> = emptyList(),
     ) =
         ProviderResponseDtoV2(
             responseId = response.id,
@@ -333,6 +348,15 @@ class ChatControllerV2(
             likeCount = likeState?.likeCount ?: 0,
             likedByMe = likeState?.likedByMe ?: false,
             anonymousLikeCount = anonymousLikeCount,
+            toolCalls = toolInvocations.map {
+                ToolCallDtoV2(
+                    toolName = it.toolName,
+                    status = it.status,
+                    arguments = it.arguments,
+                    result = it.result,
+                    error = it.errorMessage,
+                )
+            },
         )
 
     private fun userId(principal: String) = UUID.fromString(principal)

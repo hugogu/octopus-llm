@@ -110,4 +110,22 @@ class ToolInvocationServiceTest {
         assertEquals(2, joins.findByToolInvocationId(invocation.id).size)
         assertEquals(1, joins.findByProviderResponseId(responseA.id).size)
     }
+
+    @Test
+    fun `loads invocations grouped by response for history rendering`() {
+        val turn = newTurn()
+        val invocation = service.record(
+            turn.session.id, turn.id, "stock_quote", mapOf("symbol" to "600519"),
+            ToolResult.Success(mapOf("price" to 1680.5)),
+        )
+        val responseA = response(turn)
+        val responseB = response(turn)
+        service.link(responseA.id, invocation.id)
+
+        val byResponse = service.invocationsByResponse(listOf(responseA.id, responseB.id))
+
+        assertEquals("stock_quote", byResponse[responseA.id]?.single()?.toolName)
+        assertEquals(null, byResponse[responseB.id]) // no tools linked to B
+        assertEquals(emptyMap<Any, Any>(), service.invocationsByResponse(emptyList()))
+    }
 }

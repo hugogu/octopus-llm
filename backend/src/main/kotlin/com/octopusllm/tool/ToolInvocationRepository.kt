@@ -19,4 +19,6 @@ interface ProviderResponseToolInvocationRepository : JpaRepository<ProviderRespo
     fun findByProviderResponseId(providerResponseId: UUID): List<ProviderResponseToolInvocation>
 
     fun findByToolInvocationId(toolInvocationId: UUID): List<ProviderResponseToolInvocation>
+
+    fun findByProviderResponseIdIn(providerResponseIds: Collection<UUID>): List<ProviderResponseToolInvocation>
 }
