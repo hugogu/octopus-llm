@@ -54,11 +54,17 @@ class ToolSettingsService(
         val s = get()
         if (!s.webSearchEnabled) return null
         val key = s.webSearchApiKey?.let { runCatching { decryptSecret(it) }.getOrNull() }
-        if (s.webSearchBaseUrl.isNullOrBlank() || s.webSearchModel.isNullOrBlank() || key.isNullOrBlank()) {
+        if (s.webSearchBaseUrl.isNullOrBlank() || key.isNullOrBlank() ||
+            (needsModel(s.webSearchProvider) && s.webSearchModel.isNullOrBlank())
+        ) {
             return null
         }
-        return WebSearchRuntimeConfig(s.webSearchProvider, s.webSearchBaseUrl!!, s.webSearchModel!!, key)
+        return WebSearchRuntimeConfig(s.webSearchProvider, s.webSearchBaseUrl!!, s.webSearchModel.orEmpty(), key)
     }
+
+    /** Chat-completions-style providers need a model; dedicated search APIs (glm, tavily) do not. */
+    private fun needsModel(provider: String): Boolean =
+        provider == "mimo" || provider == "mimo-standard" || provider == "openrouter"
 
     @Transactional
     fun update(adminId: UUID, req: ToolSettingsUpdate): ToolSettings {
@@ -69,10 +75,11 @@ class ToolSettingsService(
         val newKeyPlain = req.webSearchApiKey?.takeIf { it.isNotBlank() }
         val hasKey = newKeyPlain != null || !s.webSearchApiKey.isNullOrBlank()
 
-        if (enabled && (baseUrl.isNullOrBlank() || model.isNullOrBlank() || !hasKey)) {
+        val provider = req.webSearchProvider ?: s.webSearchProvider
+        if (enabled && (baseUrl.isNullOrBlank() || !hasKey || (needsModel(provider) && model.isNullOrBlank()))) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "web_search requires a base URL, model, and API key when enabled",
+                "web_search requires a base URL and API key (and a model for chat-based providers) when enabled",
             )
         }
 

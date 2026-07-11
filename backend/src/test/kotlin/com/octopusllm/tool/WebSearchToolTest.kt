@@ -127,6 +127,31 @@ class WebSearchToolTest {
     }
 
     @Test
+    fun `tavily uses bearer, dedicated search endpoint, and results array`() {
+        var body: String? = null
+        start(
+            status = 200,
+            responseBody = """{"query":"mars","answer":"Mars answer.","results":[
+              {"title":"T","url":"https://t.io/1","content":"tavily body","score":0.9}]}""",
+            path = "/v1/search",
+        ) { body = it }
+
+        val result = configuredTool("tavily").execute(mapOf("query" to "mars rover")) as ToolResult.Success
+
+        assertEquals("Bearer test-key", authHeader)
+        val sent = mapper.readTree(body)
+        assertEquals("mars rover", sent.path("query").asText())
+        assertTrue(sent.path("include_answer").asBoolean())
+        assertEquals(3, sent.path("max_results").asInt())
+        assertTrue((result.data["endpoint"] as String).endsWith("/search"))
+        assertEquals("Mars answer.", result.data["answer"])
+        @Suppress("UNCHECKED_CAST")
+        val citations = result.data["citations"] as List<Map<String, Any?>>
+        assertEquals("https://t.io/1", citations.single()["url"])
+        assertEquals("tavily body", citations.single()["summary"])
+    }
+
+    @Test
     fun `missing query fails without calling the provider`() {
         val result = tool(WebSearchRuntimeConfig("mimo", "http://127.0.0.1:1/v1", "m", "k")).execute(emptyMap())
         assertTrue(result is ToolResult.Failure)

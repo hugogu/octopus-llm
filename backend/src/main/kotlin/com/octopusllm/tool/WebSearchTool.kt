@@ -54,6 +54,7 @@ class WebSearchTool(
 
         val endpoint = when (config.provider) {
             "glm" -> "${config.baseUrl.trimEnd('/')}/web_search"
+            "tavily" -> "${config.baseUrl.trimEnd('/')}/search"
             else -> "${config.baseUrl.trimEnd('/')}/chat/completions"
         }
         val requestBuilder = HttpRequest.newBuilder(URI.create(endpoint))
@@ -91,6 +92,8 @@ class WebSearchTool(
                 val summary = results.joinToString("\n\n") { (it["summary"] as String).ifBlank { it["title"] as String } }
                 summary to results
             }
+            // Tavily: dedicated /search endpoint returning an `answer` + `results` array.
+            "tavily" -> json.path("answer").asText("") to parseTavilyResults(json)
             else -> {
                 val message = json.path("choices").path(0).path("message")
                 val ans = message.path("content").asText("")
@@ -121,6 +124,12 @@ class WebSearchTool(
                 "search_query" to query,
                 "count" to limit,
             )
+            // Tavily: dedicated search API; ask it to synthesize a short answer too.
+            "tavily" -> mapOf(
+                "query" to query,
+                "max_results" to limit,
+                "include_answer" to true,
+            )
             // MiMo (default): top-level web_search feature, forced on.
             else -> mapOf(
                 "model" to config.model,
@@ -147,6 +156,16 @@ class WebSearchTool(
                     "summary" to src.path("summary").asText("").ifBlank { src.path("content").asText("") },
                 )
             }
+
+    /** Tavily /search returns hits under a `results` array ({title, url, content}). */
+    private fun parseTavilyResults(json: JsonNode): List<Map<String, Any?>> =
+        json.path("results").filter { it.isObject }.map {
+            mapOf(
+                "url" to it.path("url").asText(""),
+                "title" to it.path("title").asText(""),
+                "summary" to it.path("content").asText(""),
+            )
+        }
 
     /** GLM /web_search returns hits under a `search_result` array ({title, content, link}). */
     private fun parseGlmSearchResults(json: JsonNode): List<Map<String, Any?>> =

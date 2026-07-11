@@ -58,6 +58,7 @@ class ToolSettingsController(
             WebSearchProviderView("mimo-standard", "MiMo · 小米 (standard)", "https://api.xiaomimimo.com/v1", "mimo-v2.5-pro"),
             WebSearchProviderView("openrouter", "OpenRouter · web 插件", "https://openrouter.ai/api/v1", "deepseek/deepseek-chat"),
             WebSearchProviderView("glm", "GLM · 智谱 web_search", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash"),
+            WebSearchProviderView("tavily", "Tavily Search", "https://api.tavily.com", ""),
         )
     }
 
