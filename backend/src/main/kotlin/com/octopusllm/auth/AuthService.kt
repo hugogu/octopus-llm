@@ -87,6 +87,9 @@ class AuthService(
         if (user.isDisabled) {
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
         }
+        user.lastLoginAt = Instant.now()
+        user.updatedAt = Instant.now()
+        userRepository.save(user)
         jwtTokenService.issue(user.id, user.sessionEpoch)
     }.subscribeOn(Schedulers.boundedElastic())
 

@@ -227,6 +227,7 @@ export interface AdminUser {
   isAdmin: boolean;
   suspectedTest: boolean;
   createdAt: string;
+  lastLoginAt: string | null;
 }
 
 export interface BuiltinConnection {

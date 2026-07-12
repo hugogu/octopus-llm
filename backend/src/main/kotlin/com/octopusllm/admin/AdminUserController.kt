@@ -26,6 +26,7 @@ data class AdminUserResponse(
     val isAdmin: Boolean,
     val suspectedTest: Boolean,
     val createdAt: Instant,
+    val lastLoginAt: Instant?,
 )
 
 @RestController
@@ -102,5 +103,6 @@ class AdminUserController(private val service: AdminUserService) {
         isAdmin = user.isAdmin,
         suspectedTest = !user.isAdmin && TestAccountHeuristic.isTestEmail(user.email),
         createdAt = user.createdAt,
+        lastLoginAt = user.lastLoginAt,
     )
 }

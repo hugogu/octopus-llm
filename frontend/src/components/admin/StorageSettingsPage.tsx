@@ -124,6 +124,20 @@ export default function StorageSettingsPage() {
           {success && <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>}
 
           <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-semibold text-stone-800">Limits</h2>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {mbInput("Max image", "maxImageBytes")}
+              {mbInput("Max video", "maxVideoBytes")}
+              {mbInput("Max audio", "maxAudioBytes")}
+              <label className="block text-sm">
+                <span className="text-stone-700">Max files / message</span>
+                <input type="number" min="1" value={form.maxFilesPerPrompt ?? ""} onChange={(e) => set("maxFilesPerPrompt", Number(e.target.value))} className={`mt-1 ${inputClass}`} />
+              </label>
+              {mbInput("Max total / message", "maxTotalBytesPerPrompt")}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-stone-800">Backend</h2>
             <div className="flex gap-2">
               {(["local", "s3"] as const).map((b) => (
@@ -158,20 +172,6 @@ export default function StorageSettingsPage() {
                 </label>
               </div>
             )}
-          </section>
-
-          <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-stone-800">Limits</h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {mbInput("Max image", "maxImageBytes")}
-              {mbInput("Max video", "maxVideoBytes")}
-              {mbInput("Max audio", "maxAudioBytes")}
-              <label className="block text-sm">
-                <span className="text-stone-700">Max files / message</span>
-                <input type="number" min="1" value={form.maxFilesPerPrompt ?? ""} onChange={(e) => set("maxFilesPerPrompt", Number(e.target.value))} className={`mt-1 ${inputClass}`} />
-              </label>
-              {mbInput("Max total / message", "maxTotalBytesPerPrompt")}
-            </div>
           </section>
         </div>
       )}

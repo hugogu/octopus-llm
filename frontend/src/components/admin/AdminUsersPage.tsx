@@ -173,6 +173,7 @@ export default function AdminUsersPage() {
                 <tr className="border-b border-stone-200 bg-stone-50/70 text-left text-xs uppercase tracking-wide text-stone-500">
                   <th className="px-4 py-3 font-medium">Account</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Last login</th>
                   <th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr>
               </thead>
@@ -196,6 +197,9 @@ export default function AdminUsersPage() {
                         <Pill tone={u.isDisabled ? "red" : "green"}>{u.isDisabled ? "Disabled" : "Enabled"}</Pill>
                         <Pill tone={u.isActive ? "green" : "amber"}>{u.isActive ? "Activated" : "Not activated"}</Pill>
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-stone-600">
+                      {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : "Never"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center justify-end gap-1.5">
