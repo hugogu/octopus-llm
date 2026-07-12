@@ -47,3 +47,4 @@ data/
 .tmp-screens/
 .gradle-local/
 .next/
+.playwright-mcp/
