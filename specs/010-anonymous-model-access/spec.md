@@ -124,7 +124,7 @@ An authenticated user continues using the service with their existing account hi
 - **FR-016**: Bulk operations MUST display the exact target scope before confirmation, disable conflicting controls while processing, and report successful, already-satisfied, and failed items after completion. Partial failures MUST be visible and retryable.
 - **FR-017**: Anonymous-access changes MUST take effect for newly loaded public model lists and new anonymous turns without requiring a service restart. Revoking access MUST prevent new turns and retries while not corrupting already stored local conversations.
 - **FR-018**: Every administrator-initiated change to anonymous access, normal display state, or model deletion MUST be auditable with the administrator, operation time, affected models, and resulting action.
-- **FR-019**: Anonymous access MUST not expose API keys, private connection settings, personal account data, or another user's conversations, and MUST continue to honor the service's existing throttling, spend, safety, and model-capability policies.
+- **FR-019**: Anonymous access MUST not expose API keys, private connection settings, personal account data, or another user's conversations. It MUST enforce safe anonymous defaults for per-client request rate, concurrent requests, prompt/history size, selected-model count, and provider execution duration, and MUST continue to honor the service's existing spend, safety, and model-capability policies.
 - **FR-020**: Authenticated users MUST retain their existing model access, server-side history, account features, and sharing behavior unless an administrator changes the corresponding normal model state or existing account policy.
 
 ### Scope Boundaries
@@ -133,7 +133,7 @@ An authenticated user continues using the service with their existing account hi
 - Account creation, login, password recovery, provider configuration, model configuration, and the existing authenticated sharing experience remain existing capabilities; this feature only connects registration to local-conversation synchronization and adds anonymous-access policy management.
 - Anonymous access applies only to models and provider connections controlled by the administrator. User-owned models and user-provided provider credentials are never eligible for the public catalogue.
 - Anonymous conversation data is intentionally browser-scoped. Cross-device recovery, anonymous share links, and server-side anonymous history are not included.
-- Anonymous abuse quotas and spend limits use the service's existing policy mechanisms. Adding a separate quota-management product surface is not required for this feature unless a later specification extends the scope.
+- Anonymous abuse quotas and spend limits use dedicated safe defaults and the service's existing operational policy mechanisms. Adding a separate quota-management product surface is not required for this feature unless a later specification extends the scope.
 
 ### Assumptions
 
@@ -141,9 +141,10 @@ An authenticated user continues using the service with their existing account hi
 - Only administrator-controlled models backed by service-managed provider configuration can be placed on the anonymous allowlist; user-owned or user-key-backed models remain private.
 - “批量展示” means bulk show/hide of a model in the normal model picker, represented by the existing enabled/display state. It is intentionally independent from “allow anonymous access”.
 - A visitor who registers in the same browser is the owner of that browser's anonymous local conversations. The first release does not merge local conversations into an unrelated existing account through a separate login flow.
+- The first release accepts text prompts for anonymous chat. Media upload and server-side tool execution remain authenticated-only until they have an explicit anonymous policy and abuse controls.
 - Local conversation migration preserves all fields supported by the authenticated session format and retains unsupported local fields locally with an explicit migration status when they cannot be imported.
 - Existing authenticated sessions and historical responses remain governed by the platform's current immutable-history and retention behavior.
-- The service may reject or throttle anonymous requests according to existing operational, safety, or spend protections; the anonymous model allowlist does not bypass them.
+- The service rejects or throttles anonymous requests according to dedicated anonymous defaults and existing operational, safety, or spend protections; the anonymous model allowlist does not bypass them.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -167,6 +168,7 @@ An authenticated user continues using the service with their existing account hi
 - **SC-007**: Before synchronization, 100% of anonymous conversations remain unavailable through authenticated history and share links; browser-local anonymous data is never presented as another user's data.
 - **SC-008**: Revoking anonymous access or hiding a model is reflected in newly opened public model lists within one normal page refresh and prevents new anonymous turns for that model.
 - **SC-009**: Existing authenticated users complete their normal model selection, history, and sharing tasks with no measurable regression attributable solely to anonymous-access configuration.
+- **SC-010**: 100% of requests that exceed anonymous rate, concurrency, payload, model-count, or execution-duration limits are rejected or terminated with a clear non-sensitive explanation, and no such request bypasses the model allowlist.
 
 ## Notes
 

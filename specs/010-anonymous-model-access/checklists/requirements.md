@@ -34,7 +34,7 @@
 - The repository does not contain the Spec Kit template or create-feature script referenced by the requested skill. The specification follows the established `specs/001...009` format and the checklist structure supplied by the skill.
 - “Browser-local storage” is retained because it is an explicit product constraint in the request, not an implementation choice introduced by this specification.
 - “Batch display” is explicitly defined as bulk show/hide of the existing normal model enabled/display state; it is separate from anonymous access.
-- Anonymous quota management is deliberately bounded to existing service protections; no new quota-administration surface is assumed.
+- Anonymous quota management is deliberately bounded to dedicated safe defaults because the current project has no general chat throttle; no new quota-administration surface is added by this feature.
 
 ## Notes
 
