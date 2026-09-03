@@ -19,6 +19,7 @@ import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.TimeoutException
 
 data class AnonymousModelView(
     val id: UUID,
@@ -104,12 +105,17 @@ class AnonymousChatService(
     fun streamPrepared(prepared: PreparedAnonymousTurn): Flux<LlmStreamEvent> =
         runner.stream(prepared.targets, prepared.request)
             .timeout(Duration.ofSeconds(throttleService.executionTimeoutSeconds.coerceAtLeast(1)))
-            .onErrorResume {
+            .onErrorResume { error ->
+                val message = if (error is TimeoutException) {
+                    "The model did not finish in time"
+                } else {
+                    "The model could not complete this request"
+                }
                 Flux.fromIterable(
                     prepared.models.map { model ->
                         LlmStreamEvent.ModelError(
                             modelId = model.modelId,
-                            error = "The model did not finish in time",
+                            error = message,
                             configuredModelId = model.id,
                         )
                     },

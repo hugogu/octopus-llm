@@ -8,6 +8,7 @@ import {
   readAnonymousConversations,
   replaceAnonymousConversation,
   writeAnonymousConversations,
+  type AnonymousConversation,
 } from "./anonymousConversationStorage";
 
 describe("anonymous conversation storage", () => {
@@ -29,6 +30,34 @@ describe("anonymous conversation storage", () => {
     const reordered = { ...conversation, turns: [...conversation.turns] };
     expect(canonicalAnonymousConversation(conversation)).toBe(canonicalAnonymousConversation(reordered));
     expect(await anonymousConversationDigest(conversation)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("matches the backend digest compatibility vector", async () => {
+    const conversation: AnonymousConversation = {
+      id: "00000000-0000-0000-0000-000000000001",
+      title: "Local",
+      createdAt: "2026-09-02T00:00:00.000Z",
+      updatedAt: "2026-09-02T00:01:00.000Z",
+      syncStatus: "LOCAL_ONLY",
+      turns: [{
+        id: "00000000-0000-0000-0000-000000000002",
+        clientRequestId: "00000000-0000-0000-0000-000000000003",
+        promptText: "hello",
+        createdAt: "2026-09-02T00:00:00.000Z",
+        responses: [{
+          configuredModelId: "00000000-0000-0000-0000-000000000004",
+          modelId: "model",
+          modelDisplayName: "Model",
+          protocol: "openai-compatible",
+          status: "COMPLETE",
+          responseText: "world",
+        }],
+      }],
+    };
+
+    await expect(anonymousConversationDigest(conversation)).resolves.toBe(
+      "3d3f4fe8e161ae3502d1e7dc75a471b1ab59e9ff59039d8f583a427e80236845",
+    );
   });
 
   it("returns a warning instead of throwing when storage is unavailable", () => {
