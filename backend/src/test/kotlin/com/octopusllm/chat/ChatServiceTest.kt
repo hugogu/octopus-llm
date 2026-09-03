@@ -5,7 +5,6 @@ import com.octopusllm.connection.ConfiguredModelService
 import com.octopusllm.connection.ConnectionService
 import com.octopusllm.admin.StorageSettings
 import com.octopusllm.connection.ConfiguredModel
-import com.octopusllm.llm.ConcurrentLlmOrchestrator
 import com.octopusllm.llm.LlmStreamEvent
 import com.octopusllm.llm.ModelDispatchTarget
 import com.octopusllm.media.Media
@@ -30,7 +29,7 @@ class ChatServiceTest {
     private val userRepository = mockk<UserRepository>()
     private val configuredModelService = mockk<ConfiguredModelService>()
     private val connectionService = mockk<ConnectionService>()
-    private val orchestrator = mockk<ConcurrentLlmOrchestrator>()
+    private val runner = mockk<LlmTurnRunner>()
     private val mediaRepository = mockk<com.octopusllm.media.MediaRepository>()
     private val storageSettingsService = mockk<com.octopusllm.admin.StorageSettingsService>()
     private val mediaStorageFactory = mockk<com.octopusllm.media.MediaStorageFactory>()
@@ -48,7 +47,7 @@ class ChatServiceTest {
         userRepository,
         configuredModelService,
         connectionService,
-        orchestrator,
+        runner,
         mediaRepository,
         storageSettingsService,
         mediaStorageFactory,
@@ -154,7 +153,7 @@ class ChatServiceTest {
         } returns failed
         every { configuredModelService.requireSelectable(user.id, listOf(model.id)) } returns listOf(model)
         every { connectionService.decryptAndValidate(connection) } returns "secret"
-        every { orchestrator.stream(any(), any()) } returns Flux.just(
+        every { runner.stream(any(), any()) } returns Flux.just(
             LlmStreamEvent.Token(model.modelId, "answer", model.id),
             LlmStreamEvent.ModelComplete(model.modelId, 3, 4, 20, configuredModelId = model.id),
         )
@@ -200,7 +199,7 @@ class ChatServiceTest {
             .expectNextMatches { it is LlmStreamEvent.ModelComplete && it.responseId == existing.id }
             .verifyComplete()
 
-        verify(exactly = 0) { orchestrator.stream(any(), any()) }
+        verify(exactly = 0) { runner.stream(any(), any()) }
         verify(exactly = 0) { configuredModelService.requireSelectable(any(), any()) }
     }
 
@@ -238,7 +237,7 @@ class ChatServiceTest {
         every { sessionRepository.save(any()) } answers { firstArg() }
         every { connectionService.decryptAndValidate(connection) } returns "secret"
         every { responseRepository.save(any()) } answers { firstArg() }
-        every { orchestrator.stream(capture(targets), any()) } returns Flux.just(
+        every { runner.stream(capture(targets), any()) } returns Flux.just(
             LlmStreamEvent.ModelComplete(vision.modelId, 1, 1, 5, configuredModelId = vision.id),
         )
 
@@ -292,7 +291,7 @@ class ChatServiceTest {
         ).expectErrorMatches { it is ResponseStatusException && it.statusCode == HttpStatus.CONFLICT }
             .verify()
 
-        verify(exactly = 0) { orchestrator.stream(any(), any()) }
+        verify(exactly = 0) { runner.stream(any(), any()) }
     }
 
     private fun response(

@@ -61,6 +61,18 @@ app:
     trusted-proxies: ${TRUSTED_PROXIES:}
   anonymous-visitor:
     hmac-secret: ${ANONYMOUS_VISITOR_HMAC_SECRET:local-development-anonymous-visitor-secret}
+  anonymous:
+    rate-limit: ${ANONYMOUS_RATE_LIMIT:20}
+    rate-window-seconds: ${ANONYMOUS_RATE_WINDOW_SECONDS:60}
+    concurrency-limit: ${ANONYMOUS_CONCURRENCY_LIMIT:2}
+    prompt-max-bytes: ${ANONYMOUS_PROMPT_MAX_BYTES:12000}
+    history-max-bytes: ${ANONYMOUS_HISTORY_MAX_BYTES:48000}
+    history-max-turns: ${ANONYMOUS_HISTORY_MAX_TURNS:20}
+    model-max-count: ${ANONYMOUS_MODEL_MAX_COUNT:4}
+    execution-timeout-seconds: ${ANONYMOUS_EXECUTION_TIMEOUT_SECONDS:120}
+    operation-max-targets: ${ANONYMOUS_OPERATION_MAX_TARGETS:1000}
+    sync-max-conversations: ${ANONYMOUS_SYNC_MAX_CONVERSATIONS:20}
+    sync-max-body-bytes: ${ANONYMOUS_SYNC_MAX_BODY_BYTES:5242880}
   render:
     plantuml:
       server-url: ${PLANTUML_SERVER_URL:http://localhost:8080}

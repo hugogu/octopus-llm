@@ -10,6 +10,7 @@ import ResponseGroup, { type ResponsePanelData } from "@/components/chat/Respons
 import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import SessionSidebar from "@/components/chat/SessionSidebar";
 import ShareConversationButton from "@/components/chat/ShareConversationButton";
+import AnonymousChatPage from "@/components/chat/AnonymousChatPage";
 import { getToken } from "@/lib/api/auth";
 import { confirmDialog } from "@/lib/ui/confirm";
 import {
@@ -21,6 +22,7 @@ import {
   streamTurnV2,
 } from "@/lib/api/chatV2";
 import { listConfiguredModels } from "@/lib/api/connections";
+import { syncAnonymousConversations } from "@/lib/api/anonymousConversationSync";
 import { getMediaLimits, uploadMedia } from "@/lib/api/media";
 import { DEFAULT_MEDIA_LIMITS, type MediaLimits } from "@/lib/media/limits";
 import { useParallelStream } from "@/lib/hooks/useParallelStream";
@@ -39,6 +41,7 @@ import {
   conversationToMarkdown,
   downloadTextFile,
 } from "@/lib/utils/exportConversation";
+import { readAnonymousConversations } from "@/lib/utils/anonymousConversationStorage";
 
 const SELECTED_MODELS_STORAGE_KEY = "octopus:selected-configured-model-ids";
 
@@ -53,6 +56,17 @@ const retryStreamKey = (turnId: string, configuredModelId: string) =>
   `retry:${turnId}:${configuredModelId}`;
 
 export default function ChatPage() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  useEffect(() => {
+    queueMicrotask(() => setAuthenticated(Boolean(getToken())));
+  }, []);
+  if (authenticated === null) {
+    return <main className="flex min-h-screen items-center justify-center bg-[#faf9f5]"><p className="text-sm text-stone-500">Loading chat…</p></main>;
+  }
+  return authenticated ? <AuthenticatedChatPage /> : <AnonymousChatPage />;
+}
+
+function AuthenticatedChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const querySessionId = searchParams.get("session");
@@ -66,6 +80,8 @@ export default function ChatPage() {
   const [liveTurns, setLiveTurns] = useState<Record<string, DraftTurnState>>({});
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [mediaLimits, setMediaLimits] = useState<MediaLimits>(DEFAULT_MEDIA_LIMITS);
+  const [localSyncCount, setLocalSyncCount] = useState(0);
+  const [syncingLocal, setSyncingLocal] = useState(false);
   const initializedSelectionRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const { streams, start, clear, handleEvent } = useParallelStream();
@@ -232,6 +248,30 @@ export default function ChatPage() {
     const token = getToken();
     if (!token) return;
     queueMicrotask(() => void getMediaLimits(token).then(setMediaLimits).catch(() => {}));
+  }, []);
+  useEffect(() => {
+    queueMicrotask(() => setLocalSyncCount(
+      readAnonymousConversations().envelope.conversations
+        .filter((conversation) => conversation.syncStatus === "LOCAL_ONLY").length,
+    ));
+  }, []);
+
+  const handleSyncLocal = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setSyncingLocal(true);
+    try {
+      await syncAnonymousConversations(token);
+      setLocalSyncCount(
+        readAnonymousConversations().envelope.conversations
+          .filter((conversation) => conversation.syncStatus === "LOCAL_ONLY").length,
+      );
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Local conversation synchronization failed");
+    } finally {
+      setSyncingLocal(false);
+    }
   }, []);
   const currentSessionMeta = sessionId
     ? sessions.find((session) => session.id === sessionId)
@@ -528,6 +568,16 @@ export default function ChatPage() {
                     <Trash2 className="h-3.5 w-3.5" /> Delete
                   </button>
                 </>
+              ) : null}
+              {localSyncCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => void handleSyncLocal()}
+                  disabled={syncingLocal}
+                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 disabled:opacity-50"
+                >
+                  {syncingLocal ? "Syncing local…" : `Sync ${localSyncCount} local conversation${localSyncCount === 1 ? "" : "s"}`}
+                </button>
               ) : null}
             </div>
           </div>

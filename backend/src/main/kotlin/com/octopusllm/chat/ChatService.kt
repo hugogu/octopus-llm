@@ -7,7 +7,6 @@ import com.octopusllm.connection.ConfiguredModel
 import com.octopusllm.connection.ConfiguredModelService
 import com.octopusllm.connection.ConnectionService
 import com.octopusllm.llm.Attachment
-import com.octopusllm.llm.ConcurrentLlmOrchestrator
 import com.octopusllm.llm.HistoryTurn
 import com.octopusllm.llm.LlmRequest
 import com.octopusllm.llm.LlmStreamEvent
@@ -46,7 +45,7 @@ class ChatService(
     private val userRepository: UserRepository,
     private val configuredModelService: ConfiguredModelService,
     private val connectionService: ConnectionService,
-    private val orchestrator: ConcurrentLlmOrchestrator,
+    private val runner: LlmTurnRunner,
     private val mediaRepository: MediaRepository,
     private val storageSettingsService: StorageSettingsService,
     private val mediaStorageFactory: MediaStorageFactory,
@@ -463,7 +462,7 @@ class ChatService(
             startTimes[it.configuredModelId] = System.currentTimeMillis()
         }
 
-        val modelEvents = orchestrator.stream(targets, request)
+        val modelEvents = runner.stream(targets, request)
             .flatMap<LlmStreamEvent> { event ->
                 val configuredModelId = configuredModelId(event) ?: return@flatMap Mono.just(event)
                 val target = targetById[configuredModelId] ?: return@flatMap Mono.just(event)

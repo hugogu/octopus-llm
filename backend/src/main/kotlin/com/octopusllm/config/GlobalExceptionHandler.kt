@@ -2,6 +2,7 @@ package com.octopusllm.config
 
 import com.octopusllm.api.v2.ApiErrorResponse
 import org.springframework.http.HttpStatus
+import org.springframework.http.CacheControl
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.FieldError
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -20,20 +21,19 @@ class GlobalExceptionHandler {
             code = ex.statusCode.toString(),
             message = ex.reason ?: ex.message,
         )
-        return Mono.just(ResponseEntity.status(ex.statusCode).body(body))
+        return Mono.just(noStore(ResponseEntity.status(ex.statusCode), body))
     }
 
     @ExceptionHandler(DuplicateRequestException::class)
     fun handleDuplicateRequest(ex: DuplicateRequestException): Mono<ResponseEntity<ApiErrorResponse>> {
         return Mono.just(
-            ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(
-                    ApiErrorResponse(
-                        code = "DUPLICATE_REQUEST",
-                        message = ex.message ?: "Duplicate client request ID",
-                        details = mapOf("turnId" to ex.turnId),
-                    ),
+            noStore(ResponseEntity.status(HttpStatus.CONFLICT),
+                ApiErrorResponse(
+                    code = "DUPLICATE_REQUEST",
+                    message = ex.message ?: "Duplicate client request ID",
+                    details = mapOf("turnId" to ex.turnId),
                 ),
+            ),
         )
     }
 
@@ -48,7 +48,7 @@ class GlobalExceptionHandler {
             message = "Request validation failed",
             details = fieldErrors,
         )
-        return Mono.just(ResponseEntity.badRequest().body(body))
+        return Mono.just(noStore(ResponseEntity.badRequest(), body))
     }
 
     @ExceptionHandler(Exception::class)
@@ -57,6 +57,9 @@ class GlobalExceptionHandler {
             code = "INTERNAL_ERROR",
             message = "An unexpected error occurred",
         )
-        return Mono.just(ResponseEntity.internalServerError().body(body))
+        return Mono.just(noStore(ResponseEntity.internalServerError(), body))
     }
+
+    private fun <T> noStore(builder: ResponseEntity.BodyBuilder, body: T): ResponseEntity<T> =
+        builder.cacheControl(CacheControl.noStore()).body(body)
 }

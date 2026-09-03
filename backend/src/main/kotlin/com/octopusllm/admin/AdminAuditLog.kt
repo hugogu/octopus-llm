@@ -21,11 +21,19 @@ enum class AdminAuditAction {
     ALLOCATE,
     REVOKE,
     DELETE_USER,
+    MODEL_ANONYMOUS_ALLOW,
+    MODEL_ANONYMOUS_REVOKE,
+    MODEL_SHOW,
+    MODEL_HIDE,
+    MODEL_DELETE,
+    MODEL_BULK_OPERATION,
 }
 
 enum class AdminAuditTargetType {
     USER,
     CONNECTION,
+    MODEL,
+    MODEL_BULK_OPERATION,
 }
 
 @Entity

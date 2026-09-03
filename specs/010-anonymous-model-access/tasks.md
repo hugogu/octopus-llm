@@ -12,9 +12,9 @@
 
 **Purpose**: Establish configuration and test helpers without changing runtime behavior.
 
-- [ ] T001 [P] Document conservative anonymous runtime defaults and environment bindings in `backend/src/main/resources/application.yml` and `backend/src/main/resources/application-docker.yml`
-- [ ] T002 [P] Add non-secret anonymous configuration placeholders and local-development notes to `.env.example`
-- [ ] T003 [P] Add browser `localStorage` and SSE test helpers for anonymous flows in `frontend/src/test/setup.ts`
+- [X] T001 [P] Document conservative anonymous runtime defaults and environment bindings in `backend/src/main/resources/application.yml` and `backend/src/main/resources/application-docker.yml`
+- [X] T002 [P] Add non-secret anonymous configuration placeholders and local-development notes to `.env.example`
+- [X] T003 [P] Add browser `localStorage` and SSE test helpers for anonymous flows in `frontend/src/test/setup.ts`
 
 ---
 
@@ -24,14 +24,14 @@
 
 **⚠️ CRITICAL**: No user story implementation should begin until this phase is complete.
 
-- [ ] T004 Add Flyway migration `backend/src/main/resources/db/migration/V041__anonymous_model_access.sql` for `configured_models.is_anonymous_allowed`, anonymous request leases, conversation import identities, bulk-operation snapshots/items, indexes, and audit action/target constraints, then add migration-shape coverage in `backend/src/test/kotlin/com/octopusllm/migration/AnonymousModelAccessMigrationTest.kt`
-- [ ] T005 [P] Extend `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModel.kt` and `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModelRepository.kt` with the anonymous-policy field, built-in/admin scope predicates, safe public projection, and stable paginated ordering
-- [ ] T006 [P] Implement import-identity and expiring-concurrency persistence in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationImport.kt`, `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationImportRepository.kt`, `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousRequestLease.kt`, and `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousRequestLeaseRepository.kt` with unique keys and atomic claim/release behavior
-- [ ] T007 [P] Implement bulk-operation entities and repository in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelBulkOperation.kt` and `backend/src/main/kotlin/com/octopusllm/admin/AdminModelBulkOperationRepository.kt`, and extend safe model-related actions/targets in `backend/src/main/kotlin/com/octopusllm/admin/AdminAuditLog.kt`
-- [ ] T008 [P] Implement anonymous configuration binding, HMAC client-key derivation, fixed-window request limits, expiring stream leases, payload/model-count guards, and execution deadlines in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousThrottleService.kt`
-- [ ] T009 Extract provider-agnostic request normalization, capability filtering, target construction, concurrent dispatch, and normalized stream events into `backend/src/main/kotlin/com/octopusllm/chat/LlmTurnRunner.kt` without moving authenticated persistence out of `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
-- [ ] T010 Update exact public route authorization and cache policy in `backend/src/main/kotlin/com/octopusllm/config/SecurityConfig.kt` so only anonymous catalogue/chat endpoints are public while sync, account, chat-session, media, tool, share, and admin routes remain protected
-- [ ] T011 Extend safe pre-SSE error responses and `Cache-Control: no-store` handling for the new public APIs in `backend/src/main/kotlin/com/octopusllm/config/GlobalExceptionHandler.kt`
+- [X] T004 Add Flyway migration `backend/src/main/resources/db/migration/V041__anonymous_model_access.sql` for `configured_models.is_anonymous_allowed`, anonymous request leases, conversation import identities, bulk-operation snapshots/items, indexes, and audit action/target constraints, then add migration-shape coverage in `backend/src/test/kotlin/com/octopusllm/migration/AnonymousModelAccessMigrationTest.kt`
+- [X] T005 [P] Extend `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModel.kt` and `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModelRepository.kt` with the anonymous-policy field, built-in/admin scope predicates, safe public projection, and stable paginated ordering
+- [X] T006 [P] Implement import-identity and expiring-concurrency persistence in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationImport.kt`, `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationImportRepository.kt`, `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousRequestLease.kt`, and `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousRequestLeaseRepository.kt` with unique keys and atomic claim/release behavior
+- [X] T007 [P] Implement bulk-operation entities and repository in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelBulkOperation.kt` and `backend/src/main/kotlin/com/octopusllm/admin/AdminModelBulkOperationRepository.kt`, and extend safe model-related actions/targets in `backend/src/main/kotlin/com/octopusllm/admin/AdminAuditLog.kt`
+- [X] T008 [P] Implement anonymous configuration binding, HMAC client-key derivation, fixed-window request limits, expiring stream leases, payload/model-count guards, and execution deadlines in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousThrottleService.kt`
+- [X] T009 Extract provider-agnostic request normalization, capability filtering, target construction, concurrent dispatch, and normalized stream events into `backend/src/main/kotlin/com/octopusllm/chat/LlmTurnRunner.kt` without moving authenticated persistence out of `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
+- [X] T010 Update exact public route authorization and cache policy in `backend/src/main/kotlin/com/octopusllm/config/SecurityConfig.kt` so only anonymous catalogue/chat endpoints are public while sync, account, chat-session, media, tool, share, and admin routes remain protected
+- [X] T011 Extend safe pre-SSE error responses and `Cache-Control: no-store` handling for the new public APIs in `backend/src/main/kotlin/com/octopusllm/config/GlobalExceptionHandler.kt`
 
 **Checkpoint**: Schema, shared execution, public security boundaries, and common limits are ready; user stories can now be implemented in their dependency order.
 
@@ -45,18 +45,18 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add backend contract tests for public model filtering, safe DTO redaction, stale/revoked model rejection, text-only validation, anonymous limits, no server persistence, and normalized multi-model SSE in `backend/src/test/kotlin/com/octopusllm/anonymous/AnonymousChatControllerTest.kt`
-- [ ] T013 [P] [US1] Add frontend API/SSE client tests for paginated public models, event parsing, safe errors, model-specific failures, and revoked selections in `frontend/src/lib/api/anonymousChat.test.ts`
+- [X] T012 [P] [US1] Add backend contract tests for public model filtering, safe DTO redaction, stale/revoked model rejection, text-only validation, anonymous limits, no server persistence, and normalized multi-model SSE in `backend/src/test/kotlin/com/octopusllm/anonymous/AnonymousChatControllerTest.kt`
+- [X] T013 [P] [US1] Add frontend API/SSE client tests for paginated public models, event parsing, safe errors, model-specific failures, and revoked selections in `frontend/src/lib/api/anonymousChat.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Implement the safe built-in model catalogue query and DTO mapping in `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModelService.kt` and `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousChatService.kt`
-- [ ] T015 [US1] Implement anonymous turn validation, current allowlist recheck, bounded user/assistant history, throttle/lease lifecycle, metrics marker, and `LlmTurnRunner` integration in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousChatService.kt`
-- [ ] T016 [US1] Expose `GET /api/v2/anonymous/models` and `POST /api/v2/anonymous/chat/turns` with safe JSON/SSE error behavior in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousChatController.kt`
-- [ ] T017 [US1] Implement same-origin public catalogue and anonymous SSE requests, including page traversal up to the 100-item maximum, in `frontend/src/lib/api/anonymousChat.ts`
-- [ ] T018 [US1] Relocate the chat entry out of the auth-redirecting layout and connect the shared surface to public/authenticated modes in `frontend/src/app/chat/page.tsx`, `frontend/src/app/(app)/chat/page.tsx`, and `frontend/src/components/chat/ChatPage.tsx`
-- [ ] T019 [US1] Add anonymous empty, revoked-model, rate-limit, and provider-error states while keeping media, tools, account history, and sharing controls unavailable in `frontend/src/components/chat/AnonymousChatNotice.tsx` and `frontend/src/components/chat/ChatPage.tsx`
-- [ ] T020 [US1] Add unauthenticated public-chat Playwright coverage for model filtering, first prompt streaming, empty state, and direct-request authorization in `frontend/e2e/anonymous-chat.spec.ts`
+- [X] T014 [US1] Implement the safe built-in model catalogue query and DTO mapping in `backend/src/main/kotlin/com/octopusllm/connection/ConfiguredModelService.kt` and `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousChatService.kt`
+- [X] T015 [US1] Implement anonymous turn validation, current allowlist recheck, bounded user/assistant history, throttle/lease lifecycle, metrics marker, and `LlmTurnRunner` integration in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousChatService.kt`
+- [X] T016 [US1] Expose `GET /api/v2/anonymous/models` and `POST /api/v2/anonymous/chat/turns` with safe JSON/SSE error behavior in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousChatController.kt`
+- [X] T017 [US1] Implement same-origin public catalogue and anonymous SSE requests, including page traversal up to the 100-item maximum, in `frontend/src/lib/api/anonymousChat.ts`
+- [X] T018 [US1] Relocate the chat entry out of the auth-redirecting layout and connect the shared surface to public/authenticated modes in `frontend/src/app/chat/page.tsx`, `frontend/src/app/(app)/chat/page.tsx`, and `frontend/src/components/chat/ChatPage.tsx`
+- [X] T019 [US1] Add anonymous empty, revoked-model, rate-limit, and provider-error states while keeping media, tools, account history, and sharing controls unavailable in `frontend/src/components/chat/AnonymousChatNotice.tsx` and `frontend/src/components/chat/ChatPage.tsx`
+- [X] T020 [US1] Add unauthenticated public-chat Playwright coverage for model filtering, first prompt streaming, empty state, and direct-request authorization in `frontend/e2e/anonymous-chat.spec.ts`
 
 **Checkpoint**: A visitor can reach `/chat`, use approved text-only models, and receive concurrent streamed responses without creating server history.
 
@@ -75,12 +75,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Implement administrator-only cross-connection model search, filtering, stable sorting, pagination, and safe response projection in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelAccessService.kt`
-- [ ] T024 [US2] Implement preview-frozen selection, explicit-ID/filter modes, exclusions, bounded target count, per-item idempotent outcomes, concurrent-change handling, and operation expiry in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelAccessService.kt` and `backend/src/main/kotlin/com/octopusllm/admin/AdminModelBulkOperation.kt`
-- [ ] T025 [US2] Expose `GET /api/v2/admin/models`, preview, execute, and operation-status endpoints with administrator identity and safe error responses in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelAccessController.kt`
-- [ ] T026 [US2] Implement the same-origin admin model list, selection, preview, execute, status, and failed-item retry clients in `frontend/src/lib/api/adminModelAccess.ts`
-- [ ] T027 [US2] Build the responsive `/admin/models` table with URL-backed filters/page state, page/all matching selection, state badges, confirmations, progress, result summaries, and retry affordances in `frontend/src/components/admin/AdminModelAccessPage.tsx` and `frontend/src/app/(app)/admin/models/page.tsx`
-- [ ] T028 [US2] Add the model-management navigation entry and connected admin route wiring in `frontend/src/components/admin/AdminShell.tsx` and `frontend/src/app/(app)/admin/models/page.tsx`
+- [X] T023 [US2] Implement administrator-only cross-connection model search, filtering, stable sorting, pagination, and safe response projection in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelAccessService.kt`
+- [X] T024 [US2] Implement preview-frozen selection, explicit-ID/filter modes, exclusions, bounded target count, per-item idempotent outcomes, concurrent-change handling, and operation expiry in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelAccessService.kt` and `backend/src/main/kotlin/com/octopusllm/admin/AdminModelBulkOperation.kt`
+- [X] T025 [US2] Expose `GET /api/v2/admin/models`, preview, execute, and operation-status endpoints with administrator identity and safe error responses in `backend/src/main/kotlin/com/octopusllm/admin/AdminModelAccessController.kt`
+- [X] T026 [US2] Implement the same-origin admin model list, selection, preview, execute, status, and failed-item retry clients in `frontend/src/lib/api/adminModelAccess.ts`
+- [X] T027 [US2] Build the responsive `/admin/models` table with URL-backed filters/page state, page/all matching selection, state badges, confirmations, progress, result summaries, and retry affordances in `frontend/src/components/admin/AdminModelAccessPage.tsx` and `frontend/src/app/(app)/admin/models/page.tsx`
+- [X] T028 [US2] Add the model-management navigation entry and connected admin route wiring in `frontend/src/components/admin/AdminShell.tsx` and `frontend/src/app/(app)/admin/models/page.tsx`
 - [ ] T029 [US2] Add administrator Playwright coverage for 100-plus models, cross-connection filtering, multi-page select-all, preview scope, all bulk actions, partial results, and historical-response preservation in `frontend/e2e/admin-anonymous-model-access.spec.ts`
 
 **Checkpoint**: Administrators can safely manage the public allowlist and normal display state across the catalogue without changing the other state accidentally.
@@ -101,10 +101,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Implement the versioned `octopus.anonymous-conversations.v1` envelope, stable conversation/turn/request IDs, canonical digest, size bounds, corruption recovery, quota handling, and atomic local replacement in `frontend/src/lib/utils/anonymousConversationStorage.ts`
-- [ ] T034 [US3] Implement local conversation CRUD, active-conversation selection, event persistence, refresh restoration, and storage warning state in `frontend/src/lib/hooks/useAnonymousConversations.ts`
-- [ ] T035 [US3] Integrate local prompt/response snapshots and partial/error states with the anonymous stream in `frontend/src/components/chat/ChatPage.tsx` and `frontend/src/components/chat/MessageThread.tsx`
-- [ ] T036 [US3] Add local conversation listing/actions and explicitly suppress share, account-session, media, and tool actions until a server session ID exists in `frontend/src/components/chat/SessionSidebar.tsx` and `frontend/src/components/chat/ShareConversationButton.tsx`
+- [X] T033 [US3] Implement the versioned `octopus.anonymous-conversations.v1` envelope, stable conversation/turn/request IDs, canonical digest, size bounds, corruption recovery, quota handling, and atomic local replacement in `frontend/src/lib/utils/anonymousConversationStorage.ts`
+- [X] T034 [US3] Implement local conversation CRUD, active-conversation selection, event persistence, refresh restoration, and storage warning state in `frontend/src/lib/hooks/useAnonymousConversations.ts`
+- [X] T035 [US3] Integrate local prompt/response snapshots and partial/error states with the anonymous stream in `frontend/src/components/chat/AnonymousChatPage.tsx` and `frontend/src/components/chat/AnonymousChatNotice.tsx`
+- [X] T036 [US3] Add local conversation listing/actions and explicitly suppress share, account-session, media, and tool actions until a server session ID exists in `frontend/src/components/chat/AnonymousChatPage.tsx`
 - [ ] T037 [US3] Add refresh, storage failure, stale/deleted model readability, and no-share Playwright coverage in `frontend/e2e/anonymous-local-storage.spec.ts`
 
 **Checkpoint**: Anonymous work survives same-browser refreshes when storage permits, remains readable after model policy changes, and cannot be shared before synchronization.
@@ -124,10 +124,10 @@
 
 ### Implementation for User Story 4
 
-- [ ] T040 [US4] Implement per-conversation validation, canonical digest verification, session/turn/response snapshot import, unique identity reservation, and partial result mapping in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationSyncService.kt`
-- [ ] T041 [US4] Expose authenticated `POST /api/v2/anonymous/conversations/sync` with bounded batch/body limits and safe item-level conflict/skip/failure responses in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationSyncController.kt`
-- [ ] T042 [US4] Implement the sync request/response client and registration-to-login handoff in `frontend/src/lib/api/anonymousConversationSync.ts` and `frontend/src/components/auth/RegisterForm.tsx`
-- [ ] T043 [US4] Add retryable synchronization status, confirmed-local cleanup, unsupported-data retention, and post-import server-session handoff in `frontend/src/lib/hooks/useAnonymousConversations.ts` and `frontend/src/components/chat/ChatPage.tsx`
+- [X] T040 [US4] Implement per-conversation validation, canonical digest verification, session/turn/response snapshot import, unique identity reservation, and partial result mapping in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationSyncService.kt`
+- [X] T041 [US4] Expose authenticated `POST /api/v2/anonymous/conversations/sync` with bounded batch/body limits and safe item-level conflict/skip/failure responses in `backend/src/main/kotlin/com/octopusllm/anonymous/AnonymousConversationSyncController.kt`
+- [X] T042 [US4] Implement the sync request/response client and registration-to-login handoff in `frontend/src/lib/api/anonymousConversationSync.ts` and `frontend/src/components/auth/RegisterForm.tsx`
+- [X] T043 [US4] Add retryable synchronization status, confirmed-local cleanup, unsupported-data retention, and post-import server-session handoff in `frontend/src/lib/hooks/useAnonymousConversations.ts` and `frontend/src/components/chat/AnonymousChatPage.tsx`
 - [ ] T044 [US4] Add registration migration Playwright coverage for partial success, retry/no-duplicates, digest conflict, local retention, and sharing after confirmed import in `frontend/e2e/anonymous-conversation-sync.spec.ts`
 
 **Checkpoint**: A newly registered user receives each eligible local conversation exactly once, while failed or unsupported data remains available locally and retryable.
@@ -147,7 +147,7 @@
 
 ### Implementation for User Story 5
 
-- [ ] T047 [US5] Rewire authenticated `submitTurn`/retry execution through `LlmTurnRunner` while retaining persistence, ownership checks, media/tool behavior, and existing response snapshots in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
+- [X] T047 [US5] Rewire authenticated `submitTurn`/retry execution through `LlmTurnRunner` while retaining persistence, ownership checks, media/tool behavior, and existing response snapshots in `backend/src/main/kotlin/com/octopusllm/chat/ChatService.kt`
 - [ ] T048 [US5] Verify synchronized sessions enter existing history/share flows without granting model permissions and preserve deleted-model response readability in `backend/src/test/kotlin/com/octopusllm/share/ShareServiceTest.kt` and `backend/src/test/kotlin/com/octopusllm/chat/SharedQuestImportTest.kt`
 - [ ] T049 [US5] Add authenticated-vs-anonymous route and capability regression coverage to `frontend/e2e/chat-ux-redesign.spec.ts`
 
@@ -160,8 +160,8 @@
 **Purpose**: Harden privacy, operations, documentation, and end-to-end verification across all stories.
 
 - [ ] T050 [P] Add security/redaction tests for public DTOs, logs/metrics, cache headers, raw-IP/key exclusion, exact security permits, and no anonymous persistence in `backend/src/test/kotlin/com/octopusllm/security/AnonymousAccessSecurityTest.kt`
-- [ ] T051 [P] Document deployment configuration, anonymous limits, storage/privacy boundaries, and operational rollback expectations in `docs/anonymous-model-access.md`
-- [ ] T052 [P] Add focused proxy-path tests for public, sync, and admin routes and verify upstream paths are preserved in `frontend/src/app/api/[...path]/route.test.ts`
+- [X] T051 [P] Document deployment configuration, anonymous limits, storage/privacy boundaries, and operational rollback expectations in `docs/anonymous-model-access.md`
+- [X] T052 [P] Add focused proxy-path tests for public, sync, and admin routes and verify upstream paths are preserved in `frontend/src/app/api/[...path]/route.test.ts`
 - [ ] T053 Run the backend unit/integration suite and production build defined in `specs/010-anonymous-model-access/quickstart.md`, then fix failures without weakening the acceptance criteria
 - [ ] T054 Run frontend unit, type-check, lint, production-build, and Playwright flows from the published frontend origin defined in `specs/010-anonymous-model-access/quickstart.md`
 - [ ] T055 Run the Docker Compose smoke flow against the published frontend origin and verify both `localhost` and `127.0.0.1` behavior where configured in `docker-compose.yml` and `specs/010-anonymous-model-access/quickstart.md`
