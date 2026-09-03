@@ -82,6 +82,7 @@
 - [X] T027 [US2] Build the responsive `/admin/models` table with URL-backed filters/page state, page/all matching selection, state badges, confirmations, progress, result summaries, and retry affordances in `frontend/src/components/admin/AdminModelAccessPage.tsx` and `frontend/src/app/(app)/admin/models/page.tsx`
 - [X] T028 [US2] Add the model-management navigation entry and connected admin route wiring in `frontend/src/components/admin/AdminShell.tsx` and `frontend/src/app/(app)/admin/models/page.tsx`
 - [ ] T029 [US2] Add administrator Playwright coverage for 100-plus models, cross-connection filtering, multi-page select-all, preview scope, all bulk actions, partial results, and historical-response preservation in `frontend/e2e/admin-anonymous-model-access.spec.ts`
+- [X] T056 [US2] Add administrator-configurable Guest defaults, enforce enabled/anonymous eligibility and a maximum of three defaults, order defaults first in the public catalogue, and expose the per-model control in `frontend/src/components/admin/AdminModelAccessPage.tsx` and the built-in model API
 
 **Checkpoint**: Administrators can safely manage the public allowlist and normal display state across the catalogue without changing the other state accidentally.
 

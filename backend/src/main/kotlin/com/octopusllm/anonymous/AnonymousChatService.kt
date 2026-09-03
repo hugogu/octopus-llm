@@ -135,7 +135,16 @@ class AnonymousChatService(
 
     private fun anonymousPageRequest(page: Int, size: Int): PageRequest {
         if (page < 0 || size !in 1..100) throw badRequest("page must be at least 0 and size must be between 1 and 100")
-        return PageRequest.of(page, size, Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.asc("createdAt"), Sort.Order.asc("id")))
+        return PageRequest.of(
+            page,
+            size,
+            Sort.by(
+                Sort.Order.desc("isAnonymousDefault"),
+                Sort.Order.asc("sortOrder"),
+                Sort.Order.asc("createdAt"),
+                Sort.Order.asc("id"),
+            ),
+        )
     }
 
     private fun badRequest(message: String) = ResponseStatusException(HttpStatus.BAD_REQUEST, message)

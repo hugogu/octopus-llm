@@ -68,6 +68,7 @@ class AdminModelAccessControllerTest @Autowired constructor(
             .exchange().expectStatus().isOk
             .expectBody()
             .jsonPath("$.items[?(@.id == '${anonymousModel.id}')].isAnonymousAllowed").isEqualTo(false)
+            .jsonPath("$.items[?(@.id == '${anonymousModel.id}')].isAnonymousDefault").isEqualTo(false)
 
         client.get().uri("/api/v2/anonymous/models")
             .exchange().expectStatus().isOk

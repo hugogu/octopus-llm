@@ -5,11 +5,14 @@ models and supports search, filtering, pagination, page selection, select-all-ma
 the following independent bulk actions:
 
 - Allow or revoke anonymous access (`is_anonymous_allowed`)
+- Configure up to three Guest default models (`is_anonymous_default`); they are listed first for a fresh anonymous browser
 - Show or hide a model (`is_enabled`)
 - Delete configured models while retaining immutable provider-response snapshots
 
 Anonymous chat is available at `/chat` without an account. The public catalogue exposes only enabled,
-built-in models that are explicitly allowed. Anonymous requests are text-only, have no server session,
+built-in models that are explicitly allowed. Administrators can mark at most three of those models as
+Guest defaults; a fresh anonymous browser preselects them first and fills any remaining slots from the
+rest of the public catalogue. Anonymous requests are text-only, have no server session,
 tools, media, retries, or share links, and are rate/concurrency limited. Stream state is stored in the
 browser under `octopus.anonymous-conversations.v1`; local-only conversations are not shareable.
 
@@ -38,6 +41,6 @@ To disable anonymous use immediately, revoke anonymous access for all models in 
 does not change normal authenticated visibility or enabled state. In-flight streams may finish under
 their existing lease; newly submitted requests re-check the current policy.
 
-The Flyway migration `V041__anonymous_model_access.sql` is forward-only. Rollback should be performed
+The Flyway migrations `V041__anonymous_model_access.sql` and `V042__anonymous_default_models.sql` are forward-only. Rollback should be performed
 by disabling the policy and deploying a compatible application version; do not drop the migration
 tables or the policy column while historical synchronization or audit records may still be present.

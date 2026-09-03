@@ -14,6 +14,7 @@ interface ConfiguredModelRepository : JpaRepository<ConfiguredModel, UUID> {
     fun findByIdAndUserId(id: UUID, userId: UUID): ConfiguredModel?
     fun findByIdInAndUserId(ids: Collection<UUID>, userId: UUID): List<ConfiguredModel>
     fun countByConnectionId(connectionId: UUID): Long
+    fun countByIsAnonymousDefaultTrue(): Long
 
     fun findByConnectionId(connectionId: UUID, pageable: Pageable): Page<ConfiguredModel>
     fun findByIdAndConnectionId(id: UUID, connectionId: UUID): ConfiguredModel?

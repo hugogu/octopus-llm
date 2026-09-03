@@ -27,6 +27,7 @@ data class AdminModelAccessView(
     val capabilities: Map<String, Any?>,
     val isEnabled: Boolean,
     val isAnonymousAllowed: Boolean,
+    val isAnonymousDefault: Boolean,
 )
 
 data class AdminModelConnectionView(val id: UUID, val label: String?)
@@ -249,9 +250,15 @@ class AdminModelAccessService(
             else -> {
                 when (operation.action) {
                     "ALLOW_ANONYMOUS" -> model.isAnonymousAllowed = true
-                    "REVOKE_ANONYMOUS" -> model.isAnonymousAllowed = false
+                    "REVOKE_ANONYMOUS" -> {
+                        model.isAnonymousAllowed = false
+                        model.isAnonymousDefault = false
+                    }
                     "SHOW" -> model.isEnabled = true
-                    "HIDE" -> model.isEnabled = false
+                    "HIDE" -> {
+                        model.isEnabled = false
+                        model.isAnonymousDefault = false
+                    }
                 }
                 configuredModelRepository.save(model)
                 auditService.record(adminId, auditAction(operation.action), AdminAuditTargetType.MODEL, model.id)
@@ -323,6 +330,7 @@ class AdminModelAccessService(
             ),
             isEnabled = model.isEnabled,
             isAnonymousAllowed = model.isAnonymousAllowed,
+            isAnonymousDefault = model.isAnonymousDefault,
         )
     }
 

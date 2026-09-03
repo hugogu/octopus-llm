@@ -164,6 +164,7 @@ export function patchBuiltinModel(
     displayName?: string;
     isEnabled?: boolean;
     isAnonymousAllowed?: boolean;
+    isAnonymousDefault?: boolean;
   },
 ): Promise<BuiltinModel> {
   return request(

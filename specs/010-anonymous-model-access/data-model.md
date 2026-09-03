@@ -12,15 +12,16 @@
 
 ## New or changed schema
 
-All identifiers and columns use the repository's `snake_case` database convention. The next migration is `V041__anonymous_model_access.sql`; no application startup DDL is used.
+All identifiers and columns use the repository's `snake_case` database convention. The anonymous-access tables and flag are added by `V041__anonymous_model_access.sql`; Guest default selection is added by `V042__anonymous_default_models.sql`. No application startup DDL is used.
 
 ### `configured_models`
 
 ```text
 is_anonymous_allowed BOOLEAN NOT NULL DEFAULT FALSE
+is_anonymous_default BOOLEAN NOT NULL DEFAULT FALSE
 ```
 
-Add an index that starts with `connection_id`, `is_enabled`, and `is_anonymous_allowed`, followed by the existing stable ordering fields. The public query still joins `connections.is_builtin = true`; the index is an execution aid, not an authorization rule.
+`is_anonymous_default` may be true only for an enabled, anonymous-allowed built-in model and is capped at three through the administrator service. Add an index for default rows. The public query still joins `connections.is_builtin = true`; indexes are execution aids, not authorization rules. Public ordering puts defaults first, followed by the existing stable ordering fields.
 
 ### `anonymous_request_leases`
 

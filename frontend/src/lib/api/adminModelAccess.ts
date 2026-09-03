@@ -81,6 +81,19 @@ export function getAdminModelBulk(token: string, operationId: string) {
   );
 }
 
+export function setAdminModelAnonymousDefault(
+  token: string,
+  connectionId: string,
+  configuredModelId: string,
+  isAnonymousDefault: boolean,
+) {
+  return request<{ isAnonymousDefault: boolean }>(
+    `/api/v2/admin/connections/${encodeURIComponent(connectionId)}/models/${encodeURIComponent(configuredModelId)}`,
+    { method: "PATCH", body: JSON.stringify({ isAnonymousDefault }) },
+    token,
+  );
+}
+
 export interface AdminModelBulkResult {
   operationId: string;
   status: string;

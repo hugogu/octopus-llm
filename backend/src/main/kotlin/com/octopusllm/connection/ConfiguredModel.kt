@@ -49,6 +49,9 @@ class ConfiguredModel(
     @Column(name = "is_anonymous_allowed", nullable = false)
     var isAnonymousAllowed: Boolean = false,
 
+    @Column(name = "is_anonymous_default", nullable = false)
+    var isAnonymousDefault: Boolean = false,
+
     @Column(name = "sort_order", nullable = false)
     var sortOrder: Int = 0,
 

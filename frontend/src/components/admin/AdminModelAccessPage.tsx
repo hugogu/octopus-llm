@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Search, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Eye, EyeOff, Search, Star, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { getToken } from "@/lib/api/auth";
@@ -9,6 +9,7 @@ import {
   executeAdminModelBulk,
   listAdminModels,
   previewAdminModelBulk,
+  setAdminModelAnonymousDefault,
   type AdminModelAccessFilter,
   type AdminModelBulkAction,
   type AdminModelSelection,
@@ -37,6 +38,7 @@ export default function AdminModelAccessPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<Awaited<ReturnType<typeof executeAdminModelBulk>> | null>(null);
+  const [defaultBusyId, setDefaultBusyId] = useState<string | null>(null);
 
   const filter = useMemo<AdminModelAccessFilter>(() => ({
     q: q.trim() || undefined,
@@ -131,6 +133,24 @@ export default function AdminModelAccessPage() {
     }
   }
 
+  async function toggleAnonymousDefault(model: AdminModelAccess) {
+    if (!model.isAnonymousDefault && (!model.isEnabled || !model.isAnonymousAllowed)) {
+      setError("A guest default model must be displayed and open to anonymous users.");
+      return;
+    }
+    setDefaultBusyId(model.id);
+    setError(null);
+    try {
+      await setAdminModelAnonymousDefault(token, model.connection.id, model.id, !model.isAnonymousDefault);
+      setNotice(model.isAnonymousDefault ? "Removed from guest defaults." : "Added to guest defaults.");
+      await load();
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "Could not update guest defaults.");
+    } finally {
+      setDefaultBusyId(null);
+    }
+  }
+
   const failedIds = result?.items.filter((item) => item.outcome === "FAILED").map((item) => item.configuredModelId) ?? [];
 
   return (
@@ -162,7 +182,29 @@ export default function AdminModelAccessPage() {
         </div>
         {selectAllMatching ? <div className="border-b border-blue-100 bg-blue-50 px-4 py-2 text-xs text-blue-800">All matching models are selected. Uncheck rows to exclude them from this operation.</div> : null}
         {loading ? <div className="p-8 text-center text-sm text-stone-500">Loading models…</div> : models.length === 0 ? <div className="p-12 text-center text-sm text-stone-500">No built-in models match these filters.</div> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500"><tr><th className="w-10 px-4 py-3" /><th className="px-4 py-3">Model</th><th className="px-4 py-3">Connection</th><th className="px-4 py-3">Capabilities</th><th className="px-4 py-3">State</th></tr></thead><tbody className="divide-y divide-stone-100">{models.map((model) => <tr key={model.id} className="hover:bg-stone-50/70"><td className="px-4 py-3"><input type="checkbox" checked={selected.has(model.id)} onChange={() => toggle(model.id)} className="accent-[#c96442]" aria-label={`Select ${model.displayName}`} /></td><td className="px-4 py-3"><p className="font-medium text-stone-800">{model.displayName}</p><p className="text-xs text-stone-500">{model.modelId}</p></td><td className="px-4 py-3 text-stone-600">{model.connection.label || "Unlabelled"}<p className="text-xs text-stone-400">{model.protocol}</p></td><td className="px-4 py-3"><div className="flex flex-wrap gap-1">{model.capabilities.streaming ? <Badge>streaming</Badge> : null}{model.capabilities.vision ? <Badge>vision</Badge> : null}{model.capabilities.tools ? <Badge>tools</Badge> : null}</div></td><td className="px-4 py-3"><div className="flex flex-wrap gap-1"><Badge tone={model.isEnabled ? "green" : "gray"}>{model.isEnabled ? "displayed" : "hidden"}</Badge><Badge tone={model.isAnonymousAllowed ? "orange" : "gray"}>{model.isAnonymousAllowed ? "anonymous" : "private"}</Badge></div></td></tr>)}</tbody></table></div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+                <tr><th className="w-10 px-4 py-3" /><th className="px-4 py-3">Model</th><th className="px-4 py-3">Connection</th><th className="px-4 py-3">Capabilities</th><th className="px-4 py-3">State</th><th className="px-4 py-3">Guest default</th></tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {models.map((model) => (
+                  <tr key={model.id} className="hover:bg-stone-50/70">
+                    <td className="px-4 py-3"><input type="checkbox" checked={selected.has(model.id)} onChange={() => toggle(model.id)} className="accent-[#c96442]" aria-label={`Select ${model.displayName}`} /></td>
+                    <td className="px-4 py-3"><p className="font-medium text-stone-800">{model.displayName}</p><p className="text-xs text-stone-500">{model.modelId}</p></td>
+                    <td className="px-4 py-3 text-stone-600">{model.connection.label || "Unlabelled"}<p className="text-xs text-stone-400">{model.protocol}</p></td>
+                    <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{model.capabilities.streaming ? <Badge>streaming</Badge> : null}{model.capabilities.vision ? <Badge>vision</Badge> : null}{model.capabilities.tools ? <Badge>tools</Badge> : null}</div></td>
+                    <td className="px-4 py-3"><div className="flex flex-wrap gap-1"><Badge tone={model.isEnabled ? "green" : "gray"}>{model.isEnabled ? "displayed" : "hidden"}</Badge><Badge tone={model.isAnonymousAllowed ? "orange" : "gray"}>{model.isAnonymousAllowed ? "anonymous" : "private"}</Badge></div></td>
+                    <td className="px-4 py-3">
+                      <button type="button" disabled={busy || defaultBusyId === model.id} onClick={() => void toggleAnonymousDefault(model)} className={`inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${model.isAnonymousDefault ? "border-amber-300 bg-amber-50 text-amber-800" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50"}`} title={model.isAnonymousDefault ? "Remove from guest defaults" : "Set as a guest default model"}>
+                        <Star className="mr-1 h-3.5 w-3.5" />{model.isAnonymousDefault ? "Default" : "Set default"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         <div className="flex items-center justify-between border-t border-stone-200 px-4 py-3 text-xs text-stone-500"><span>{totalElements} built-in models · page {totalPages === 0 ? 0 : page + 1} of {totalPages}</span><div className="flex gap-1"><button type="button" disabled={page === 0 || loading} onClick={() => setPage((current) => current - 1)} className="rounded-lg border border-stone-200 p-1.5 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button><button type="button" disabled={page + 1 >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-stone-200 p-1.5 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button></div></div>
       </section>

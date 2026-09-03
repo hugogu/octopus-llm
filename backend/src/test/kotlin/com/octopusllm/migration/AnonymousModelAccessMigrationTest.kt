@@ -23,4 +23,14 @@ class AnonymousModelAccessMigrationTest {
         assertTrue(sql.contains("UNIQUE (user_id, source_conversation_id)"))
         assertTrue(sql.contains("outcome IN ('PENDING', 'CHANGED', 'ALREADY_SATISFIED', 'ALREADY_DELETED', 'FAILED')"))
     }
+
+    @Test
+    fun `V042 contains the guest default model policy`() {
+        val sql = requireNotNull(javaClass.classLoader.getResourceAsStream("db/migration/V042__anonymous_default_models.sql"))
+            .bufferedReader()
+            .use { it.readText() }
+
+        assertTrue(sql.contains("is_anonymous_default BOOLEAN NOT NULL DEFAULT FALSE"))
+        assertTrue(sql.contains("idx_configured_models_anonymous_defaults"))
+    }
 }

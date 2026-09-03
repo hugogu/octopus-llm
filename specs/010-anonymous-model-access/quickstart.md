@@ -22,7 +22,7 @@ Never use a production key in local fixtures or commit these values. The HMAC se
 
 ## 2. Apply schema and seed a public model
 
-Start the existing PostgreSQL service, run the normal Flyway-backed backend startup, and verify migration `V041__anonymous_model_access.sql` applies cleanly. Do not run the migration SQL manually against the database.
+Start the existing PostgreSQL service, run the normal Flyway-backed backend startup, and verify migrations `V041__anonymous_model_access.sql` and `V042__anonymous_default_models.sql` apply cleanly. Do not run the migration SQL manually against the database.
 
 Using an administrator account, create or identify at least three built-in configured models, then set combinations such as:
 
@@ -33,6 +33,10 @@ Using an administrator account, create or identify at least three built-in confi
 | C | false | true | Absent anonymously because normal display is disabled |
 
 Also keep one user-owned/BYOK model enabled; it must never appear in the public catalogue or admin built-in model-management list.
+
+In `/admin/models`, mark up to three enabled and anonymous-allowed models as `Guest default`. A fresh
+anonymous browser should preselect those models first. Attempting to mark a fourth model must be
+rejected, and hiding or revoking a default model must clear its default marker.
 
 ## 3. Verify public chat
 

@@ -249,6 +249,7 @@ export interface BuiltinModel {
   displayName: string;
   isEnabled: boolean;
   isAnonymousAllowed: boolean;
+  isAnonymousDefault: boolean;
   sortOrder: number;
   inputPricePerMtok: number | null;
   outputPricePerMtok: number | null;
@@ -267,6 +268,7 @@ export interface AdminModelAccess {
   capabilities: { streaming: boolean; vision: boolean; tools: boolean };
   isEnabled: boolean;
   isAnonymousAllowed: boolean;
+  isAnonymousDefault: boolean;
 }
 
 export interface ConnectionAllocationView {

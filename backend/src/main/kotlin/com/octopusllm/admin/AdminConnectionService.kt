@@ -174,6 +174,7 @@ class AdminConnectionService(
         displayName: String?,
         isEnabled: Boolean?,
         isAnonymousAllowed: Boolean?,
+        isAnonymousDefault: Boolean?,
         sortOrder: Int?,
         inputPricePerMtok: BigDecimal?,
         outputPricePerMtok: BigDecimal?,
@@ -184,6 +185,19 @@ class AdminConnectionService(
         if (displayName != null) model.displayName = requiredText(displayName, "displayName")
         if (isEnabled != null) model.isEnabled = isEnabled
         if (isAnonymousAllowed != null) model.isAnonymousAllowed = isAnonymousAllowed
+        if (isEnabled == false || isAnonymousAllowed == false) model.isAnonymousDefault = false
+        if (isAnonymousDefault == true && !model.isAnonymousDefault) {
+            if (!model.isEnabled || !model.isAnonymousAllowed) {
+                throw ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "A guest default model must be enabled and open to anonymous users",
+                )
+            }
+            if (configuredModelRepository.countByIsAnonymousDefaultTrue() >= 3) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "At most three guest default models are allowed")
+            }
+        }
+        if (isAnonymousDefault != null) model.isAnonymousDefault = isAnonymousDefault
         if (capabilityOverrides != null) {
             // Merge so toggles (which send only input_modalities) preserve other override keys.
             model.capabilityOverrides = model.capabilityOverrides.toMutableMap().apply { putAll(capabilityOverrides) }

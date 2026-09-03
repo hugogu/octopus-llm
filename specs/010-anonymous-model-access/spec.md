@@ -42,6 +42,7 @@ An administrator manages a large model catalogue from the existing administratio
 4. **Given** one or more models are selected, **When** the administrator confirms “remove anonymous access”, **Then** those models no longer appear in the anonymous model picker or accept new anonymous chat turns.
 5. **Given** one or more models are selected, **When** the administrator chooses the bulk display action, **Then** the selected models become displayed/enabled in the normal model picker; the administrator can also bulk hide/disable them. Display changes do not by themselves grant anonymous access.
 6. **Given** one or more models are selected for deletion, **When** the administrator confirms the destructive action, **Then** the selected configured models are removed, historical saved responses remain readable, and the UI reports the completed and unsuccessful items.
+7. **Given** an enabled model is approved for anonymous use, **When** an administrator marks it as a Guest default, **Then** it is preselected first for fresh anonymous browsers; no more than three Guest defaults can be configured, and hiding or revoking a default automatically removes that marker.
 7. **Given** a bulk operation has completed, **When** the UI refreshes the list, **Then** it shows the resulting states and a non-silent success or error summary, including partial failures when applicable.
 
 ### User Story 3 - Preserve Anonymous Conversations Locally (Priority: P1)
@@ -126,6 +127,7 @@ An authenticated user continues using the service with their existing account hi
 - **FR-018**: Every administrator-initiated change to anonymous access, normal display state, or model deletion MUST be auditable with the administrator, operation time, affected models, and resulting action.
 - **FR-019**: Anonymous access MUST not expose API keys, private connection settings, personal account data, or another user's conversations. It MUST enforce safe anonymous defaults for per-client request rate, concurrent requests, prompt/history size, selected-model count, and provider execution duration, and MUST continue to honor the service's existing spend, safety, and model-capability policies.
 - **FR-020**: Authenticated users MUST retain their existing model access, server-side history, account features, and sharing behavior unless an administrator changes the corresponding normal model state or existing account policy.
+- **FR-021**: Administrators MUST be able to configure at most three enabled, anonymous-approved built-in models as Guest defaults. The public catalogue MUST order those defaults first, and a fresh anonymous browser MUST preselect the configured defaults before filling remaining selections from other public models.
 
 ### Scope Boundaries
 
