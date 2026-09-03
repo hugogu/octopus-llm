@@ -67,6 +67,12 @@ export default function LoginForm() {
             Register
           </Link>
         </p>
+        <p>
+          Want to try it first?{" "}
+          <Link href="/chat" className="font-medium text-[#b75536] hover:text-[#c96442]">
+            Continue as guest
+          </Link>
+        </p>
         <Link href="/forgot-password" className="font-medium text-[#b75536] hover:text-[#c96442]">
           Forgot password?
         </Link>

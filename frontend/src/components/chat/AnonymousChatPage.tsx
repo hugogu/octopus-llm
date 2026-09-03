@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageSquare, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 import ChatInput from "@/components/chat/ChatInput";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 import AnonymousChatNotice from "@/components/chat/AnonymousChatNotice";
@@ -148,7 +149,12 @@ export default function AnonymousChatPage() {
                 <h1 className="text-base font-semibold text-stone-900">{activeConversation?.title ?? "Anonymous conversation"}</h1>
                 <p className="text-xs text-stone-500">Try approved models without signing in</p>
               </div>
-              <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs text-stone-600">Guest mode</span>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs text-stone-600">Guest mode</span>
+                <Link href="/register?returnTo=%2Fchat" className="rounded-lg border border-[#c96442] px-2.5 py-1.5 text-xs font-medium text-[#a04a32] hover:bg-[#fff5ef]">
+                  Create account
+                </Link>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2" aria-label="Public models">
               {loading ? <span className="text-sm text-stone-500">Loading public models…</span> : models.map((model) => (
