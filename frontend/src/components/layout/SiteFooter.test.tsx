@@ -24,7 +24,8 @@ describe("SiteFooter", () => {
 
     render(await SiteFooter());
 
-    expect(screen.getByRole("contentinfo")).toHaveClass("mt-4", "bg-[#faf9f5]", "py-3");
+    expect(screen.getByRole("contentinfo")).toHaveClass("bg-[#faf9f5]", "py-3");
+    expect(screen.getByRole("contentinfo")).not.toHaveClass("mt-4");
     expect(screen.getByText("Octopus LLM", { selector: "p" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Octopus LLM" })).toHaveAttribute(
       "href",

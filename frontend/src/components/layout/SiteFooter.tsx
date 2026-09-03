@@ -18,7 +18,7 @@ export default async function SiteFooter() {
   };
 
   return (
-    <footer className="mt-4 border-t border-stone-200/80 bg-[#faf9f5] px-4 py-3 sm:px-6">
+    <footer className="border-t border-stone-200/80 bg-[#faf9f5] px-4 py-3 sm:px-6">
       <div className="mx-auto flex max-w-5xl flex-col gap-2 text-xs text-stone-500 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 text-center sm:text-left">
           {siteInfo.siteName && <p className="font-medium text-stone-700">{siteInfo.siteName}</p>}
