@@ -173,6 +173,7 @@ class AdminConnectionService(
         configuredModelId: UUID,
         displayName: String?,
         isEnabled: Boolean?,
+        isAnonymousAllowed: Boolean?,
         sortOrder: Int?,
         inputPricePerMtok: BigDecimal?,
         outputPricePerMtok: BigDecimal?,
@@ -182,6 +183,7 @@ class AdminConnectionService(
         val model = requireModel(connectionId, configuredModelId)
         if (displayName != null) model.displayName = requiredText(displayName, "displayName")
         if (isEnabled != null) model.isEnabled = isEnabled
+        if (isAnonymousAllowed != null) model.isAnonymousAllowed = isAnonymousAllowed
         if (capabilityOverrides != null) {
             // Merge so toggles (which send only input_modalities) preserve other override keys.
             model.capabilityOverrides = model.capabilityOverrides.toMutableMap().apply { putAll(capabilityOverrides) }

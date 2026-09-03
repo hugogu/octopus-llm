@@ -63,6 +63,12 @@ class AdminModelAccessControllerTest @Autowired constructor(
         )
         val token = jwt.issue(admin.id, admin.sessionEpoch)
 
+        client.get().uri("/api/v2/admin/models")
+            .header("Authorization", "Bearer $token")
+            .exchange().expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.items[?(@.id == '${anonymousModel.id}')].isAnonymousAllowed").isEqualTo(false)
+
         client.get().uri("/api/v2/anonymous/models")
             .exchange().expectStatus().isOk
             .expectBody()

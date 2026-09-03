@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Cable, DownloadCloud, Plus, Search, Sparkles, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Cable, DownloadCloud, Plus, Search, ShieldCheck, ShieldOff, Sparkles, Trash2, UserMinus, UserPlus } from "lucide-react";
 import Button from "@/components/ui/Button";
 import AdminShell from "@/components/admin/AdminShell";
 import { buildCapabilityOverrides, togglesFromOverrides } from "@/components/settings/connections/formUtils";
@@ -292,6 +292,21 @@ function ConnectionCard({
                   </span>
                 </span>
                 <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    aria-pressed={m.isAnonymousAllowed}
+                    title={m.isAnonymousAllowed ? "Revoke anonymous access" : "Open to anonymous users"}
+                    onClick={() => void act(() => patchBuiltinModel(token, connection.id, m.id, { isAnonymousAllowed: !m.isAnonymousAllowed }))}
+                    className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      m.isAnonymousAllowed
+                        ? "border-[#c96442] bg-[#c96442]/10 text-[#b75536]"
+                        : "border-stone-200 bg-white text-stone-400 hover:bg-stone-50"
+                    }`}
+                  >
+                    {m.isAnonymousAllowed ? <ShieldCheck className="mr-1 h-3 w-3" /> : <ShieldOff className="mr-1 h-3 w-3" />}
+                    {m.isAnonymousAllowed ? "Anonymous on" : "Open anonymous"}
+                  </button>
                   {MODALITY_KEYS.map((key) => {
                     const toggles = togglesFromOverrides(m.capabilityOverrides);
                     const on = toggles[key];

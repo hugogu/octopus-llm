@@ -139,4 +139,30 @@ class AdminConnectionControllerTest @Autowired constructor(
             .expectBody()
             .jsonPath("$.items[?(@.id == '$connectionId')]").doesNotExist()
     }
+
+    @Test
+    fun `admin can toggle anonymous access for a built-in model`() {
+        val admin = newUser(admin = true, active = true)
+        val adminToken = token(admin)
+        val connectionId = createBuiltin(adminToken)
+        val modelId = webTestClient.post().uri("/api/v2/admin/connections/$connectionId/models")
+            .header("Authorization", "Bearer $adminToken")
+            .bodyValue(mapOf("modelId" to "anonymous-toggle-test", "displayName" to "Anonymous toggle test"))
+            .exchange().expectStatus().isCreated
+            .expectBody().returnResult().responseBody!!
+            .let { Regex("\"id\":\"([0-9a-f-]+)\"").find(String(it))!!.groupValues[1] }
+
+        webTestClient.patch().uri("/api/v2/admin/connections/$connectionId/models/$modelId")
+            .header("Authorization", "Bearer $adminToken")
+            .bodyValue(mapOf("isAnonymousAllowed" to true))
+            .exchange().expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.isAnonymousAllowed").isEqualTo(true)
+
+        webTestClient.get().uri("/api/v2/admin/connections/$connectionId/models")
+            .header("Authorization", "Bearer $adminToken")
+            .exchange().expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.items[?(@.id == '$modelId')].isAnonymousAllowed").isEqualTo(true)
+    }
 }

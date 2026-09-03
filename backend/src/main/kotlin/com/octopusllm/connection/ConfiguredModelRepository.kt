@@ -46,9 +46,9 @@ interface ConfiguredModelRepository : JpaRepository<ConfiguredModel, UUID> {
         SELECT m FROM ConfiguredModel m
         JOIN m.connection c
         WHERE c.isBuiltin = true
-          AND (:q IS NULL OR LOWER(m.modelId) LIKE LOWER(CONCAT('%', :q, '%'))
-               OR LOWER(m.displayName) LIKE LOWER(CONCAT('%', :q, '%'))
-               OR LOWER(COALESCE(c.label, '')) LIKE LOWER(CONCAT('%', :q, '%')))
+          AND (:q = '' OR LOWER(m.modelId) LIKE CONCAT('%', :q, '%')
+               OR LOWER(m.displayName) LIKE CONCAT('%', :q, '%')
+               OR LOWER(COALESCE(c.label, '')) LIKE CONCAT('%', :q, '%'))
           AND (:connectionId IS NULL OR c.id = :connectionId)
           AND (:protocol IS NULL OR c.protocol = :protocol)
           AND (:enabled IS NULL OR m.isEnabled = :enabled)

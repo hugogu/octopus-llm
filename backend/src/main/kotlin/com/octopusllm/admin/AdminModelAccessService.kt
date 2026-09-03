@@ -106,6 +106,7 @@ class AdminModelAccessService(
     ): Mono<PageResponse<AdminModelAccessView>> = Mono.fromCallable {
         if (page < 0 || size !in 1..100) throw badRequest("page must be at least 0 and size must be between 1 and 100")
         val property = SORT_FIELDS[sort] ?: throw badRequest("Unsupported sort field")
+        val normalizedQuery = q?.trim()?.lowercase().orEmpty()
         val sortDirection = when (direction.lowercase()) {
             "asc" -> Sort.Direction.ASC
             "desc" -> Sort.Direction.DESC
@@ -117,7 +118,7 @@ class AdminModelAccessService(
             Sort.by(Sort.Order(sortDirection, property), Sort.Order.asc("id")),
         )
         configuredModelRepository.findBuiltinForAdmin(
-            q = q?.trim()?.takeIf { it.isNotEmpty() },
+            q = normalizedQuery,
             connectionId = connectionId,
             protocol = protocol?.trim()?.takeIf { it.isNotEmpty() },
             enabled = enabled,
@@ -277,7 +278,7 @@ class AdminModelAccessService(
             "FILTER" -> {
                 val filter = selection.filter ?: throw badRequest("Filter selection requires a filter")
                 val page = configuredModelRepository.findBuiltinForAdmin(
-                    q = filter.q?.trim()?.takeIf { it.isNotEmpty() },
+                    q = filter.q?.trim()?.lowercase().orEmpty(),
                     connectionId = filter.connectionId,
                     protocol = filter.protocol?.trim()?.takeIf { it.isNotEmpty() },
                     enabled = filter.enabled,

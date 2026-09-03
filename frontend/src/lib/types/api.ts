@@ -248,6 +248,7 @@ export interface BuiltinModel {
   modelId: string;
   displayName: string;
   isEnabled: boolean;
+  isAnonymousAllowed: boolean;
   sortOrder: number;
   inputPricePerMtok: number | null;
   outputPricePerMtok: number | null;
