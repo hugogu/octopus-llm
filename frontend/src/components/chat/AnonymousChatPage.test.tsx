@@ -12,5 +12,7 @@ describe("AnonymousChatPage", () => {
     render(<AnonymousChatPage />);
 
     expect(screen.getByRole("link", { name: "Create account" })).toHaveAttribute("href", "/register?returnTo=%2Fchat");
+    expect(screen.getByRole("button", { name: /New conversation/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Select models/ })).toBeInTheDocument();
   });
 });

@@ -17,7 +17,7 @@ test("anonymous conversation survives refresh and has no share action", async ({
   await page.getByPlaceholder(/Ask all selected models/).press("Enter");
   await expect(page.getByText("saved")).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Remember this")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Remember this" })).toBeVisible();
   await expect(page.getByText(/cannot be shared/)).toBeVisible();
   await expect(page.getByRole("button", { name: /Share/ })).toHaveCount(0);
 });

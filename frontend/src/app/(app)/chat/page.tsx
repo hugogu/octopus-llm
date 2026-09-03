@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ChatInput from "@/components/chat/ChatInput";
+import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 import MediaAttachments from "@/components/chat/MediaAttachments";
 import ResponseGroup, { type ResponsePanelData } from "@/components/chat/ResponseGroup";
@@ -522,69 +523,72 @@ function AuthenticatedChatPage() {
   }, [activeSession, currentSessionMeta]);
 
   return (
-    <div className="flex h-screen max-h-screen bg-[#faf9f5]">
-      <SessionSidebar
-        sessions={sessions}
-        currentSessionId={sessionId}
-        onSelectSession={handleSelectSession}
-        onDeleteSession={handleDeleteSession}
-        onNewSession={handleNewSession}
-        loading={sessionsLoading}
-      />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-stone-200 px-6 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold text-stone-900">
-                {currentSessionMeta?.title || activeSession?.title || "New conversation"}
-              </h1>
-              <p className="truncate text-xs text-stone-500">Compare configured endpoints in one thread</p>
+    <ChatWorkspace
+      sidebar={(
+        <SessionSidebar
+          sessions={sessions}
+          currentSessionId={sessionId}
+          onSelectSession={handleSelectSession}
+          onDeleteSession={handleDeleteSession}
+          onNewSession={handleNewSession}
+          loading={sessionsLoading}
+        />
+      )}
+      title={currentSessionMeta?.title || activeSession?.title || "New conversation"}
+      subtitle="Compare configured endpoints in one thread"
+      actions={(
+        <>
+          <ModelSelectorPanel
+            models={models}
+            selectedIds={selectedIds}
+            onChange={(ids) => {
+              setSelectedIds(ids);
+              void setLastSelectedModel(ids[0] ?? null);
+            }}
+          />
+          {sessionId ? (
+            <>
+              <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden />
+              <ShareConversationButton sessionId={sessionId} />
+              <button
+                type="button"
+                onClick={handleExport}
+                className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:text-stone-900"
+              >
+                <Download className="h-3.5 w-3.5" /> Export
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </button>
+            </>
+          ) : null}
+          {localSyncCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => void handleSyncLocal()}
+              disabled={syncingLocal}
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 disabled:opacity-50"
+            >
+              {syncingLocal ? "Syncing local…" : `Sync ${localSyncCount} local conversation${localSyncCount === 1 ? "" : "s"}`}
+            </button>
+          ) : null}
+        </>
+      )}
+      composer={(
+        <>
+          {attachmentNotice && (
+            <div className="mx-auto mb-2 w-full max-w-3xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {attachmentNotice}
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <ModelSelectorPanel
-                models={models}
-                selectedIds={selectedIds}
-                onChange={(ids) => {
-                  setSelectedIds(ids);
-                  void setLastSelectedModel(ids[0] ?? null);
-                }}
-              />
-              {sessionId ? (
-                <>
-                  <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden />
-                  <ShareConversationButton sessionId={sessionId} />
-                  <button
-                    type="button"
-                    onClick={handleExport}
-                    className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:text-stone-900"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Export
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete()}
-                    className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                  </button>
-                </>
-              ) : null}
-              {localSyncCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => void handleSyncLocal()}
-                  disabled={syncingLocal}
-                  className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 disabled:opacity-50"
-                >
-                  {syncingLocal ? "Syncing local…" : `Sync ${localSyncCount} local conversation${localSyncCount === 1 ? "" : "s"}`}
-                </button>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto px-6">
-          <div className="flex w-full flex-col gap-6 py-6">
+          )}
+          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} supportsAudio={supportsAudio} limits={mediaLimits} />
+        </>
+      )}
+    >
             {loadError ? (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>
             ) : null}
@@ -647,18 +651,6 @@ function AuthenticatedChatPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="border-t border-stone-200 bg-[#faf9f5] px-6 py-2">
-          {attachmentNotice && (
-            <div className="mx-auto mb-2 w-full max-w-3xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {attachmentNotice}
-            </div>
-          )}
-          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} supportsAudio={supportsAudio} limits={mediaLimits} />
-        </div>
-      </div>
-    </div>
+    </ChatWorkspace>
   );
 }

@@ -1,16 +1,64 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MessageSquare, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import ChatInput from "@/components/chat/ChatInput";
-import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
+import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import AnonymousChatNotice from "@/components/chat/AnonymousChatNotice";
+import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
+import ModelSelectorPanel, { type ModelSelectorModel } from "@/components/chat/ModelSelectorPanel";
+import ResponseGroup, { type ResponsePanelData } from "@/components/chat/ResponseGroup";
+import SessionSidebar from "@/components/chat/SessionSidebar";
 import { listAllAnonymousModels, streamAnonymousTurn } from "@/lib/api/anonymousChat";
 import { useAnonymousConversations } from "@/lib/hooks/useAnonymousConversations";
-import type { AnonymousModelV2, AnonymousSseEvent } from "@/lib/types/api";
+import type {
+  AnonymousModelV2,
+  AnonymousSseEvent,
+  CapabilityMatrix,
+} from "@/lib/types/api";
+import type {
+  AnonymousConversation,
+  AnonymousConversationTurn,
+} from "@/lib/utils/anonymousConversationStorage";
 
 const SELECTED_MODELS_STORAGE_KEY = "octopus:selected-anonymous-model-ids";
+
+function capabilityMatrix(model: AnonymousModelV2): CapabilityMatrix {
+  return {
+    input_modalities: model.capabilities.vision ? ["text", "image"] : ["text"],
+    output_modalities: ["text"],
+    context_length_tokens: null,
+    supports_streaming: model.capabilities.streaming,
+    supports_function_calling: false,
+    supports_system_prompt: true,
+    supports_video_input: false,
+  };
+}
+
+function selectorModel(model: AnonymousModelV2): ModelSelectorModel {
+  return {
+    id: model.id,
+    displayName: model.displayName,
+    isEnabled: true,
+    builtin: true,
+    connectionLabel: null,
+    protocol: model.protocol,
+    capabilityMatrix: capabilityMatrix(model),
+  };
+}
+
+function responseStatus(status: AnonymousConversationTurn["responses"][number]["status"]): ResponsePanelData["status"] {
+  return status.toLowerCase() as ResponsePanelData["status"];
+}
+
+function localSession(conversation: AnonymousConversation) {
+  return {
+    id: conversation.id,
+    title: conversation.title,
+    createdAt: conversation.createdAt,
+    updatedAt: conversation.updatedAt,
+  };
+}
 
 export default function AnonymousChatPage() {
   const [models, setModels] = useState<AnonymousModelV2[]>([]);
@@ -67,12 +115,14 @@ export default function AnonymousChatPage() {
     }
   }, [selectedIds]);
 
+  const selectorModels = useMemo(() => models.map(selectorModel), [models]);
   const modelsById = useMemo(() => Object.fromEntries(models.map((model) => [model.id, model])), [models]);
+  const selectorModelsById = useMemo(
+    () => Object.fromEntries(selectorModels.map((model) => [model.id, model])),
+    [selectorModels],
+  );
   const selectedModels = selectedIds.map((id) => modelsById[id]).filter((model): model is AnonymousModelV2 => Boolean(model));
-
-  const toggleModel = useCallback((id: string) => {
-    setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  }, []);
+  const localSessions = useMemo(() => conversations.map(localSession), [conversations]);
 
   const send = useCallback(async (promptText: string) => {
     if (selectedModels.length === 0 || streaming) return;
@@ -119,83 +169,79 @@ export default function AnonymousChatPage() {
     }
   }, [activeConversation, addTurn, applyEvent, selectedModels, startTurn, streaming]);
 
-  return (
-    <div className="flex h-screen max-h-screen bg-[#faf9f5]" data-testid="anonymous-chat">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-stone-200 bg-[#f5f4ee] sm:flex">
-        <button type="button" onClick={() => createConversation()} className="m-3 inline-flex items-center justify-center rounded-lg bg-[#c96442] px-3 py-2 text-sm font-medium text-white">
-          <Plus className="mr-2 h-4 w-4" /> New conversation
-        </button>
-        <div className="flex-1 overflow-y-auto p-2">
-          {conversations.map((conversation) => (
-            <div key={conversation.id} className={`group mb-1 flex items-center gap-2 rounded-lg p-2.5 ${conversation.id === activeId ? "border border-stone-200 bg-white" : "hover:bg-white/70"}`}>
-              <button type="button" onClick={() => selectConversation(conversation.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <MessageSquare className="h-4 w-4 shrink-0 text-stone-400" />
-                <span className="truncate text-sm text-stone-800">{conversation.title}</span>
-              </button>
-              <button type="button" onClick={() => deleteConversation(conversation.id)} aria-label="Delete local conversation" className="rounded p-1 text-stone-400 opacity-0 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="border-t border-stone-200 p-3 text-xs text-stone-500">Local-only history · not shareable</div>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-stone-200 px-4 py-3 sm:px-6">
-          <div className="mx-auto flex max-w-5xl flex-col gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h1 className="text-base font-semibold text-stone-900">{activeConversation?.title ?? "Anonymous conversation"}</h1>
-                <p className="text-xs text-stone-500">Try approved models without signing in</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs text-stone-600">Guest mode</span>
-                <Link href="/register?returnTo=%2Fchat" className="rounded-lg border border-[#c96442] px-2.5 py-1.5 text-xs font-medium text-[#a04a32] hover:bg-[#fff5ef]">
-                  Create account
-                </Link>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2" aria-label="Public models">
-              {loading ? <span className="text-sm text-stone-500">Loading public models…</span> : models.map((model) => (
-                <label key={model.id} className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${selectedIds.includes(model.id) ? "border-[#c96442] bg-[#fff5ef] text-[#9d452d]" : "border-stone-200 bg-white text-stone-600"}`}>
-                  <input type="checkbox" checked={selectedIds.includes(model.id)} onChange={() => toggleModel(model.id)} className="accent-[#c96442]" />
-                  {model.displayName}
-                </label>
-              ))}
-            </div>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-          <div className="mx-auto max-w-5xl space-y-4">
-            <AnonymousChatNotice storageWarning={storageWarning} />
-            {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-            {activeConversation?.turns.map((turn) => (
-              <section key={turn.id} className="space-y-3">
-                <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-sm text-white">{turn.promptText}</div>
-                <div className="grid gap-3 lg:grid-cols-2">
-                  {turn.responses.map((response) => (
-                    <article key={`${turn.id}:${response.configuredModelId}`} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <h2 className="text-sm font-semibold text-stone-800">{response.modelDisplayName}</h2>
-                        <span className={`text-xs ${response.status === "ERROR" ? "text-red-600" : response.status === "STREAMING" ? "text-amber-600" : "text-stone-400"}`}>{response.status.toLowerCase()}</span>
-                      </div>
-                      {response.reasoningText ? <p className="mb-2 whitespace-pre-wrap text-xs text-stone-500">{response.reasoningText}</p> : null}
-                      <MarkdownRenderer content={response.responseText || (response.status === "STREAMING" ? "…" : "")} className="text-sm" />
-                      {response.errorMessage ? <p className="mt-2 text-xs text-red-600">{response.errorMessage}</p> : null}
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
-            {!activeConversation?.turns.length ? <div className="flex min-h-[42vh] items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-white/70 text-sm text-stone-500">Select a public model and ask a question to begin.</div> : null}
-          </div>
-        </main>
-        <div className="border-t border-stone-200 bg-[#faf9f5] px-4 py-3 sm:px-6">
-          <ChatInput onSubmit={(prompt) => void send(prompt)} disabled={streaming || selectedModels.length === 0 || loading} supportsAttachments={false} supportsAudio={false} />
-        </div>
+  const renderTurn = useCallback((turn: AnonymousConversationTurn) => (
+    <section key={turn.id} className="space-y-3">
+      <div className="ml-auto w-fit max-w-3xl rounded-2xl bg-[#30302e] px-4 py-3 text-white shadow-sm">
+        <MarkdownRenderer content={turn.promptText} className="text-sm [&_p]:mb-0 [&_*]:text-white" />
       </div>
-    </div>
+      <ResponseGroup
+        panels={turn.responses.map((response): ResponsePanelData => ({
+          key: `${turn.id}:${response.configuredModelId}`,
+          modelId: response.modelId,
+          displayName: response.modelDisplayName,
+          text: response.responseText,
+          reasoning: response.reasoningText ?? "",
+          status: responseStatus(response.status),
+          errorMessage: response.errorMessage,
+          capabilityMatrix: selectorModelsById[response.configuredModelId]?.capabilityMatrix,
+        }))}
+      />
+    </section>
+  ), [selectorModelsById]);
+
+  return (
+    <ChatWorkspace
+      sidebar={(
+        <SessionSidebar
+          sessions={localSessions}
+          currentSessionId={activeId}
+          onSelectSession={selectConversation}
+          onDeleteSession={deleteConversation}
+          onNewSession={() => void createConversation()}
+          variant="anonymous"
+        />
+      )}
+      title={activeConversation?.title ?? "New conversation"}
+      subtitle="Compare approved models without signing in"
+      actions={(
+        <>
+          <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs text-stone-600">Guest mode</span>
+          <ModelSelectorPanel
+            models={selectorModels}
+            selectedIds={selectedIds}
+            onChange={setSelectedIds}
+            manageHref={null}
+            emptyMessage="No public models are available right now."
+          />
+          <Link href="/register?returnTo=%2Fchat" className="rounded-lg border border-[#c96442] px-3 py-1.5 text-xs font-medium text-[#a04a32] transition hover:bg-[#fff5ef]">
+            Create account
+          </Link>
+        </>
+      )}
+      composer={(
+        <ChatInput
+          onSubmit={(promptText) => void send(promptText)}
+          disabled={streaming || selectedModels.length === 0 || loading}
+          supportsAttachments={false}
+          supportsAudio={false}
+        />
+      )}
+      testId="anonymous-chat"
+    >
+      <AnonymousChatNotice storageWarning={storageWarning} />
+      {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+      {loading ? (
+        <div className="space-y-4">
+          <div className="ml-auto h-24 max-w-3xl animate-pulse rounded-2xl bg-stone-200" />
+          <div className="h-52 animate-pulse rounded-2xl bg-stone-200" />
+        </div>
+      ) : activeConversation?.turns.length ? (
+        activeConversation.turns.map(renderTurn)
+      ) : (
+        <div className="flex min-h-[50vh] items-center justify-center rounded-3xl border border-dashed border-stone-300 bg-white/70 px-8 text-center text-sm text-stone-500">
+          {models.length > 0 ? "Select a public model and ask a question to begin." : "No public models are available right now."}
+        </div>
+      )}
+    </ChatWorkspace>
   );
 }

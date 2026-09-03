@@ -2,18 +2,32 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, SlidersHorizontal, Wrench } from "lucide-react";
-import type { ConfiguredModelV2 } from "@/lib/types/api";
+import type { CapabilityMatrix } from "@/lib/types/api";
+
+export interface ModelSelectorModel {
+  id: string;
+  displayName: string;
+  isEnabled: boolean;
+  builtin: boolean;
+  connectionLabel: string | null;
+  protocol: string;
+  capabilityMatrix: CapabilityMatrix;
+}
 
 interface ModelSelectorPanelProps {
-  models: ConfiguredModelV2[];
+  models: ModelSelectorModel[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  manageHref?: string | null;
+  emptyMessage?: string;
 }
 
 export default function ModelSelectorPanel({
   models,
   selectedIds,
   onChange,
+  manageHref = "/settings/models",
+  emptyMessage = "No enabled models. Configure one in Settings.",
 }: ModelSelectorPanelProps) {
   // Closed by default. (selectedIds loads async from storage, so keying the initial state off it
   // would open the panel on every refresh before the saved selection arrives.)
@@ -32,7 +46,7 @@ export default function ModelSelectorPanel({
   // Group by provider (connection label, falling back to protocol) and sort both the groups and the
   // models within each group by name, so a long model list stays easy to scan.
   const groupedModels = useMemo(() => {
-    const groups = new Map<string, ConfiguredModelV2[]>();
+    const groups = new Map<string, ModelSelectorModel[]>();
     for (const model of enabledModels) {
       const key = model.connectionLabel ?? model.protocol;
       const bucket = groups.get(key);
@@ -92,16 +106,15 @@ export default function ModelSelectorPanel({
         <div className="absolute right-0 z-30 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-stone-200 bg-white p-3 shadow-lg">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-500">Models</span>
-            <a
-              href="/settings/models"
-              className="text-xs font-medium text-[#b75536] transition hover:text-[#c96442]"
-            >
-              Manage models
-            </a>
+            {manageHref ? (
+              <a href={manageHref} className="text-xs font-medium text-[#b75536] transition hover:text-[#c96442]">
+                Manage models
+              </a>
+            ) : null}
           </div>
 
           {enabledModels.length === 0 ? (
-            <p className="py-3 text-sm text-stone-500">No enabled models. Configure one in Settings.</p>
+            <p className="py-3 text-sm text-stone-500">{emptyMessage}</p>
           ) : (
             <div className="flex max-h-72 flex-col gap-3 overflow-y-auto pr-1">
               {groupedModels.map(([label, items]) => (
