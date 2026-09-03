@@ -13,10 +13,12 @@ globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObse
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: vi.fn(),
+    replace: vi.fn(),
     refresh: vi.fn(),
     back: vi.fn(),
   }),
   usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Mock next/headers
@@ -25,3 +27,18 @@ vi.mock('next/headers', () => ({
     get: vi.fn(() => ({ value: 'test-token' })),
   }),
 }));
+
+export function sseResponse(events: Array<{ event?: string; data: unknown }>): Response {
+  const body = events
+    .map(({ event, data }) => `${event ? `event: ${event}\n` : ''}data: ${JSON.stringify(data)}\n\n`)
+    .join('');
+  return new Response(body, {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
+}
+
+export function resetBrowserStorage(): void {
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+}

@@ -1,8 +1,10 @@
 package com.octopusllm.admin
 
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
 import java.util.UUID
 
@@ -29,13 +31,21 @@ class SiteSettingsService(
         req.footerText?.let { s.footerText = it.normalize() }
         req.icpRecordNo?.let { s.icpRecordNo = it.normalize() }
         req.policeRecordNo?.let { s.policeRecordNo = it.normalize() }
+        req.chinaFilingEnabled?.let { s.chinaFilingEnabled = it }
+        if (s.chinaFilingEnabled && s.icpRecordNo.isNullOrBlank()) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "ICP record number is required when Chinese filing information is enabled",
+            )
+        }
         s.updatedBy = adminId
         s.updatedAt = Instant.now()
         val saved = repository.save(s)
         log.info(
-            "site_settings_updated by={} siteName={} icpNo={} policeNo={}",
+            "site_settings_updated by={} siteName={} chinaFilingEnabled={} icpNo={} policeNo={}",
             adminId.toString().take(8),
             !saved.siteName.isNullOrBlank(),
+            saved.chinaFilingEnabled,
             !saved.icpRecordNo.isNullOrBlank(),
             !saved.policeRecordNo.isNullOrBlank(),
         )

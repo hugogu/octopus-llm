@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import { login, register } from "@/lib/api/auth";
+import { syncAnonymousConversations } from "@/lib/api/anonymousConversationSync";
 
 const inputClass =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm placeholder:text-stone-400 focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]";
@@ -28,7 +29,10 @@ export default function RegisterForm() {
     setLoading(true);
     try {
       await register({ email, password });
-      await login({ email, password });
+      const loginResult = await login({ email, password });
+      // Registration is already successful if local migration fails. The local copy is retained and
+      // the user can retry from the anonymous chat surface after returning to it.
+      await syncAnonymousConversations(loginResult.token).catch(() => {});
       const requested = searchParams.get("returnTo");
       router.replace(requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/chat");
     } catch (err: unknown) {

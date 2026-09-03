@@ -1,14 +1,36 @@
-import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import type { ReactNode } from "react";
+"use client";
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
-  // Token is stored client-side; middleware handles server-level protection.
-  // Here we check the auth_token cookie set by the login page.
-  const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
-  if (!token) {
-    redirect("/login");
+import { useEffect, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { getToken } from "@/lib/api/auth";
+
+export default function AppLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const publicChat = pathname === "/chat";
+  const [allowed, setAllowed] = useState(publicChat);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      if (publicChat) {
+        setAllowed(true);
+        return;
+      }
+      if (getToken()) {
+        setAllowed(true);
+        return;
+      }
+      setAllowed(false);
+      router.replace(`/login?returnTo=${encodeURIComponent(pathname || "/chat")}`);
+    });
+  }, [pathname, publicChat, router]);
+
+  if (!allowed) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#faf9f5]">
+        <p className="text-sm text-stone-500">Checking access…</p>
+      </main>
+    );
   }
   return <>{children}</>;
 }

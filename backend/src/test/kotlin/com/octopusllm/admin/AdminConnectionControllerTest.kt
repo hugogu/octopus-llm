@@ -3,7 +3,10 @@ package com.octopusllm.admin
 import com.octopusllm.auth.JwtTokenService
 import com.octopusllm.auth.User
 import com.octopusllm.auth.UserRepository
+import com.octopusllm.connection.ConfiguredModelRepository
 import com.octopusllm.testsupport.AbstractPostgresIntegrationTest
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -13,6 +16,7 @@ import java.util.UUID
 class AdminConnectionControllerTest @Autowired constructor(
     private val webTestClient: WebTestClient,
     private val userRepository: UserRepository,
+    private val configuredModelRepository: ConfiguredModelRepository,
     private val jwtTokenService: JwtTokenService,
 ) : AbstractPostgresIntegrationTest() {
 
@@ -30,6 +34,12 @@ class AdminConnectionControllerTest @Autowired constructor(
         )
 
     private fun token(user: User) = jwtTokenService.issue(user.id, user.sessionEpoch)
+
+    private fun clearGuestDefaults() {
+        val defaults = configuredModelRepository.findAll().filter { it.isAnonymousDefault }
+        defaults.forEach { it.isAnonymousDefault = false }
+        configuredModelRepository.saveAll(defaults)
+    }
 
     private fun createBuiltin(adminToken: String): String =
         webTestClient.post().uri("/api/v2/admin/connections")
@@ -138,5 +148,80 @@ class AdminConnectionControllerTest @Autowired constructor(
             .exchange().expectStatus().isOk
             .expectBody()
             .jsonPath("$.items[?(@.id == '$connectionId')]").doesNotExist()
+    }
+
+    @Test
+    fun `admin can toggle anonymous access for a built-in model`() {
+        clearGuestDefaults()
+        val admin = newUser(admin = true, active = true)
+        val adminToken = token(admin)
+        val connectionId = createBuiltin(adminToken)
+        val modelId = webTestClient.post().uri("/api/v2/admin/connections/$connectionId/models")
+            .header("Authorization", "Bearer $adminToken")
+            .bodyValue(mapOf("modelId" to "anonymous-toggle-test", "displayName" to "Anonymous toggle test"))
+            .exchange().expectStatus().isCreated
+            .expectBody().returnResult().responseBody!!
+            .let { Regex("\"id\":\"([0-9a-f-]+)\"").find(String(it))!!.groupValues[1] }
+
+        webTestClient.patch().uri("/api/v2/admin/connections/$connectionId/models/$modelId")
+            .header("Authorization", "Bearer $adminToken")
+            .bodyValue(mapOf("isAnonymousAllowed" to true))
+            .exchange().expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.isAnonymousAllowed").isEqualTo(true)
+
+        webTestClient.patch().uri("/api/v2/admin/connections/$connectionId/models/$modelId")
+            .header("Authorization", "Bearer $adminToken")
+            .bodyValue(mapOf("isAnonymousDefault" to true))
+            .exchange().expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.isAnonymousDefault").isEqualTo(true)
+
+        webTestClient.get().uri("/api/v2/admin/connections/$connectionId/models")
+            .header("Authorization", "Bearer $adminToken")
+            .exchange().expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.items[?(@.id == '$modelId')].isAnonymousAllowed").isEqualTo(true)
+            .jsonPath("$.items[?(@.id == '$modelId')].isAnonymousDefault").isEqualTo(true)
+    }
+
+    @Test
+    fun `guest defaults require anonymous eligibility and are capped at three`() {
+        clearGuestDefaults()
+        val admin = newUser(admin = true, active = true)
+        val adminToken = token(admin)
+        val connectionId = createBuiltin(adminToken)
+        val modelIds = (1..4).map { index ->
+            webTestClient.post().uri("/api/v2/admin/connections/$connectionId/models")
+                .header("Authorization", "Bearer $adminToken")
+                .bodyValue(mapOf("modelId" to "guest-default-$index", "displayName" to "Guest default $index"))
+                .exchange().expectStatus().isCreated
+                .expectBody().returnResult().responseBody!!
+                .let { Regex("\"id\":\"([0-9a-f-]+)\"").find(String(it))!!.groupValues[1] }
+        }
+
+        webTestClient.patch().uri("/api/v2/admin/connections/$connectionId/models/${modelIds.first()}")
+            .header("Authorization", "Bearer $adminToken")
+            .bodyValue(mapOf("isAnonymousDefault" to true))
+            .exchange().expectStatus().isEqualTo(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY)
+
+        modelIds.take(3).forEach { modelId ->
+            webTestClient.patch().uri("/api/v2/admin/connections/$connectionId/models/$modelId")
+                .header("Authorization", "Bearer $adminToken")
+                .bodyValue(mapOf("isAnonymousAllowed" to true, "isAnonymousDefault" to true))
+                .exchange().expectStatus().isOk
+                .expectBody().jsonPath("$.isAnonymousDefault").isEqualTo(true)
+        }
+
+        webTestClient.patch().uri("/api/v2/admin/connections/$connectionId/models/${modelIds[3]}")
+            .header("Authorization", "Bearer $adminToken")
+            .bodyValue(mapOf("isAnonymousAllowed" to true, "isAnonymousDefault" to true))
+            .exchange().expectStatus().isEqualTo(org.springframework.http.HttpStatus.CONFLICT)
+
+        val publicModels = webTestClient.get().uri("/api/v2/anonymous/models?size=100")
+            .exchange().expectStatus().isOk
+            .expectBody().returnResult().responseBody!!
+        val publicIds = jacksonObjectMapper().readTree(publicModels).path("items").map { it.path("id").asText() }
+        assertEquals(modelIds.take(3).toSet(), publicIds.take(3).toSet())
     }
 }

@@ -4,6 +4,7 @@ import { apiUrl } from "@/lib/api/base";
 export interface SiteSettingsPublic {
   siteName: string | null;
   footerText: string | null;
+  chinaFilingEnabled: boolean;
   icpRecordNo: string | null;
   policeRecordNo: string | null;
 }

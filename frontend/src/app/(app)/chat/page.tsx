@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ChatInput from "@/components/chat/ChatInput";
+import ChatWorkspace from "@/components/chat/ChatWorkspace";
 import MarkdownRenderer from "@/components/chat/MarkdownRenderer";
 import MediaAttachments from "@/components/chat/MediaAttachments";
 import ResponseGroup, { type ResponsePanelData } from "@/components/chat/ResponseGroup";
 import ModelSelectorPanel from "@/components/chat/ModelSelectorPanel";
 import SessionSidebar from "@/components/chat/SessionSidebar";
 import ShareConversationButton from "@/components/chat/ShareConversationButton";
+import AnonymousChatPage from "@/components/chat/AnonymousChatPage";
 import { getToken } from "@/lib/api/auth";
 import { confirmDialog } from "@/lib/ui/confirm";
 import {
@@ -21,6 +23,7 @@ import {
   streamTurnV2,
 } from "@/lib/api/chatV2";
 import { listConfiguredModels } from "@/lib/api/connections";
+import { syncAnonymousConversations } from "@/lib/api/anonymousConversationSync";
 import { getMediaLimits, uploadMedia } from "@/lib/api/media";
 import { DEFAULT_MEDIA_LIMITS, type MediaLimits } from "@/lib/media/limits";
 import { useParallelStream } from "@/lib/hooks/useParallelStream";
@@ -39,6 +42,7 @@ import {
   conversationToMarkdown,
   downloadTextFile,
 } from "@/lib/utils/exportConversation";
+import { readAnonymousConversations } from "@/lib/utils/anonymousConversationStorage";
 
 const SELECTED_MODELS_STORAGE_KEY = "octopus:selected-configured-model-ids";
 
@@ -53,6 +57,17 @@ const retryStreamKey = (turnId: string, configuredModelId: string) =>
   `retry:${turnId}:${configuredModelId}`;
 
 export default function ChatPage() {
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  useEffect(() => {
+    queueMicrotask(() => setAuthenticated(Boolean(getToken())));
+  }, []);
+  if (authenticated === null) {
+    return <main className="flex min-h-screen items-center justify-center bg-[#faf9f5]"><p className="text-sm text-stone-500">Loading chat…</p></main>;
+  }
+  return authenticated ? <AuthenticatedChatPage /> : <AnonymousChatPage />;
+}
+
+function AuthenticatedChatPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const querySessionId = searchParams.get("session");
@@ -66,6 +81,8 @@ export default function ChatPage() {
   const [liveTurns, setLiveTurns] = useState<Record<string, DraftTurnState>>({});
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [mediaLimits, setMediaLimits] = useState<MediaLimits>(DEFAULT_MEDIA_LIMITS);
+  const [localSyncCount, setLocalSyncCount] = useState(0);
+  const [syncingLocal, setSyncingLocal] = useState(false);
   const initializedSelectionRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const { streams, start, clear, handleEvent } = useParallelStream();
@@ -232,6 +249,30 @@ export default function ChatPage() {
     const token = getToken();
     if (!token) return;
     queueMicrotask(() => void getMediaLimits(token).then(setMediaLimits).catch(() => {}));
+  }, []);
+  useEffect(() => {
+    queueMicrotask(() => setLocalSyncCount(
+      readAnonymousConversations().envelope.conversations
+        .filter((conversation) => conversation.syncStatus === "LOCAL_ONLY").length,
+    ));
+  }, []);
+
+  const handleSyncLocal = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setSyncingLocal(true);
+    try {
+      await syncAnonymousConversations(token);
+      setLocalSyncCount(
+        readAnonymousConversations().envelope.conversations
+          .filter((conversation) => conversation.syncStatus === "LOCAL_ONLY").length,
+      );
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Local conversation synchronization failed");
+    } finally {
+      setSyncingLocal(false);
+    }
   }, []);
   const currentSessionMeta = sessionId
     ? sessions.find((session) => session.id === sessionId)
@@ -482,59 +523,72 @@ export default function ChatPage() {
   }, [activeSession, currentSessionMeta]);
 
   return (
-    <div className="flex h-screen max-h-screen bg-[#faf9f5]">
-      <SessionSidebar
-        sessions={sessions}
-        currentSessionId={sessionId}
-        onSelectSession={handleSelectSession}
-        onDeleteSession={handleDeleteSession}
-        onNewSession={handleNewSession}
-        loading={sessionsLoading}
-      />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-stone-200 px-6 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold text-stone-900">
-                {currentSessionMeta?.title || activeSession?.title || "New conversation"}
-              </h1>
-              <p className="truncate text-xs text-stone-500">Compare configured endpoints in one thread</p>
+    <ChatWorkspace
+      sidebar={(
+        <SessionSidebar
+          sessions={sessions}
+          currentSessionId={sessionId}
+          onSelectSession={handleSelectSession}
+          onDeleteSession={handleDeleteSession}
+          onNewSession={handleNewSession}
+          loading={sessionsLoading}
+        />
+      )}
+      title={currentSessionMeta?.title || activeSession?.title || "New conversation"}
+      subtitle="Compare configured endpoints in one thread"
+      actions={(
+        <>
+          <ModelSelectorPanel
+            models={models}
+            selectedIds={selectedIds}
+            onChange={(ids) => {
+              setSelectedIds(ids);
+              void setLastSelectedModel(ids[0] ?? null);
+            }}
+          />
+          {sessionId ? (
+            <>
+              <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden />
+              <ShareConversationButton sessionId={sessionId} />
+              <button
+                type="button"
+                onClick={handleExport}
+                className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:text-stone-900"
+              >
+                <Download className="h-3.5 w-3.5" /> Export
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Delete
+              </button>
+            </>
+          ) : null}
+          {localSyncCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => void handleSyncLocal()}
+              disabled={syncingLocal}
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800 disabled:opacity-50"
+            >
+              {syncingLocal ? "Syncing local…" : `Sync ${localSyncCount} local conversation${localSyncCount === 1 ? "" : "s"}`}
+            </button>
+          ) : null}
+        </>
+      )}
+      composer={(
+        <>
+          {attachmentNotice && (
+            <div className="mx-auto mb-2 w-full max-w-3xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {attachmentNotice}
             </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              <ModelSelectorPanel
-                models={models}
-                selectedIds={selectedIds}
-                onChange={(ids) => {
-                  setSelectedIds(ids);
-                  void setLastSelectedModel(ids[0] ?? null);
-                }}
-              />
-              {sessionId ? (
-                <>
-                  <span className="mx-0.5 h-5 w-px bg-stone-200" aria-hidden />
-                  <ShareConversationButton sessionId={sessionId} />
-                  <button
-                    type="button"
-                    onClick={handleExport}
-                    className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:text-stone-900"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Export
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete()}
-                    className="flex items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto px-6">
-          <div className="flex w-full flex-col gap-6 py-6">
+          )}
+          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} supportsAudio={supportsAudio} limits={mediaLimits} />
+        </>
+      )}
+    >
             {loadError ? (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>
             ) : null}
@@ -597,18 +651,6 @@ export default function ChatPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="border-t border-stone-200 bg-[#faf9f5] px-6 py-2">
-          {attachmentNotice && (
-            <div className="mx-auto mb-2 w-full max-w-3xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              {attachmentNotice}
-            </div>
-          )}
-          <ChatInput onSubmit={handleSubmit} disabled={streaming || selectedIds.length === 0} supportsAttachments={supportsAttachments} supportsAudio={supportsAudio} limits={mediaLimits} />
-        </div>
-      </div>
-    </div>
+    </ChatWorkspace>
   );
 }

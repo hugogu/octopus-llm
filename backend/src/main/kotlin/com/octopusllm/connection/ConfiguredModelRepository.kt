@@ -14,9 +14,56 @@ interface ConfiguredModelRepository : JpaRepository<ConfiguredModel, UUID> {
     fun findByIdAndUserId(id: UUID, userId: UUID): ConfiguredModel?
     fun findByIdInAndUserId(ids: Collection<UUID>, userId: UUID): List<ConfiguredModel>
     fun countByConnectionId(connectionId: UUID): Long
+    fun countByIsAnonymousDefaultTrue(): Long
 
     fun findByConnectionId(connectionId: UUID, pageable: Pageable): Page<ConfiguredModel>
     fun findByIdAndConnectionId(id: UUID, connectionId: UUID): ConfiguredModel?
+
+    @Query(
+        """
+        SELECT m FROM ConfiguredModel m
+        JOIN m.connection c
+        WHERE c.isBuiltin = true
+          AND m.isEnabled = true
+          AND m.isAnonymousAllowed = true
+        """,
+    )
+    fun findAnonymousAllowed(pageable: Pageable): Page<ConfiguredModel>
+
+    @Query(
+        """
+        SELECT m FROM ConfiguredModel m
+        JOIN m.connection c
+        WHERE m.id IN :ids
+          AND c.isBuiltin = true
+          AND m.isEnabled = true
+          AND m.isAnonymousAllowed = true
+        """,
+    )
+    fun findAnonymousEligibleByIds(@Param("ids") ids: Collection<UUID>): List<ConfiguredModel>
+
+    @Query(
+        """
+        SELECT m FROM ConfiguredModel m
+        JOIN m.connection c
+        WHERE c.isBuiltin = true
+          AND (:q = '' OR LOWER(m.modelId) LIKE CONCAT('%', :q, '%')
+               OR LOWER(m.displayName) LIKE CONCAT('%', :q, '%')
+               OR LOWER(COALESCE(c.label, '')) LIKE CONCAT('%', :q, '%'))
+          AND (:connectionId IS NULL OR c.id = :connectionId)
+          AND (:protocol IS NULL OR c.protocol = :protocol)
+          AND (:enabled IS NULL OR m.isEnabled = :enabled)
+          AND (:anonymousAllowed IS NULL OR m.isAnonymousAllowed = :anonymousAllowed)
+        """,
+    )
+    fun findBuiltinForAdmin(
+        @Param("q") q: String?,
+        @Param("connectionId") connectionId: UUID?,
+        @Param("protocol") protocol: String?,
+        @Param("enabled") enabled: Boolean?,
+        @Param("anonymousAllowed") anonymousAllowed: Boolean?,
+        pageable: Pageable,
+    ): Page<ConfiguredModel>
 
     /** Owned models plus models on built-in connections allocated to the user (for chat selection). */
     @Query(

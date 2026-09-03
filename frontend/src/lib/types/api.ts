@@ -248,6 +248,8 @@ export interface BuiltinModel {
   modelId: string;
   displayName: string;
   isEnabled: boolean;
+  isAnonymousAllowed: boolean;
+  isAnonymousDefault: boolean;
   sortOrder: number;
   inputPricePerMtok: number | null;
   outputPricePerMtok: number | null;
@@ -255,6 +257,18 @@ export interface BuiltinModel {
   capabilityOverrides: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AdminModelAccess {
+  id: string;
+  connection: { id: string; label: string | null };
+  modelId: string;
+  displayName: string;
+  protocol: string;
+  capabilities: { streaming: boolean; vision: boolean; tools: boolean };
+  isEnabled: boolean;
+  isAnonymousAllowed: boolean;
+  isAnonymousDefault: boolean;
 }
 
 export interface ConnectionAllocationView {
@@ -329,6 +343,41 @@ export interface ConfiguredModelV2 {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface AnonymousModelV2 {
+  id: string;
+  modelId: string;
+  displayName: string;
+  protocol: string;
+  capabilities: {
+    streaming: boolean;
+    vision: boolean;
+    tools: boolean;
+  };
+}
+
+export interface AnonymousHistoryTurn {
+  role: "USER" | "ASSISTANT";
+  content: string;
+}
+
+export interface AnonymousChatRequest {
+  clientConversationId: string;
+  clientRequestId: string;
+  promptText: string;
+  selectedConfiguredModelIds: string[];
+  history: AnonymousHistoryTurn[];
+}
+
+export type AnonymousSseEvent =
+  | { event: "status"; state: "STARTED" }
+  | { event: "token"; configuredModelId: string; text: string }
+  | { event: "reasoning"; configuredModelId: string; text: string }
+  | { event: "capability_notice"; configuredModelId: string; notice: string }
+  | { event: "model_complete"; configuredModelId: string; status: "COMPLETE" }
+  | { event: "model_error"; configuredModelId: string; status: "ERROR"; errorCode: string; errorMessage: string }
+  | { event: "result"; state: "COMPLETE" }
+  | { event: "error"; code: string; message: string };
 
 export interface AddConfiguredModelRequestV2 {
   connectionId: string;

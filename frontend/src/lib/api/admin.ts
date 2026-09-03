@@ -159,7 +159,13 @@ export function patchBuiltinModel(
   token: string,
   connectionId: string,
   configuredModelId: string,
-  body: { capabilityOverrides?: Record<string, unknown>; displayName?: string; isEnabled?: boolean },
+  body: {
+    capabilityOverrides?: Record<string, unknown>;
+    displayName?: string;
+    isEnabled?: boolean;
+    isAnonymousAllowed?: boolean;
+    isAnonymousDefault?: boolean;
+  },
 ): Promise<BuiltinModel> {
   return request(
     `/api/v2/admin/connections/${connectionId}/models/${configuredModelId}`,

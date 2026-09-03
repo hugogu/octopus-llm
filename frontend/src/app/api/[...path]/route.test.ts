@@ -11,6 +11,9 @@ describe("same-origin API proxy", () => {
     ["PUT", PUT, ["v2", "responses", "r1", "like"]],
     ["PATCH", PATCH, ["v2", "me"]],
     ["DELETE", DELETE, ["v2", "shared", "opaque", "responses", "r1", "like"]],
+    ["GET", GET, ["v2", "anonymous", "models"]],
+    ["POST", POST, ["v2", "anonymous", "conversations", "sync"]],
+    ["POST", POST, ["v2", "admin", "model-bulk-operations", "preview"]],
   ] as const)("preserves the complete upstream path for %s", async (method, handler, path) => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
