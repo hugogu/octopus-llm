@@ -5,47 +5,65 @@ import { getPublicSiteSettings, type SiteSettingsPublic } from "@/lib/api/siteSe
  * security record) links to its official reference site per Chinese convention; the free-form site
  * name + footer text render as plain text — admin-controlled content is never interpreted as markup.
  *
- * Returns nothing at all if every field is empty so a freshly-deployed instance does not draw an
- * empty bar at the bottom of every page.
+ * The product attribution remains visible even when optional site settings are empty or unavailable.
  */
 export default async function SiteFooter() {
   const settings = await fetchSettings();
-  if (settings == null) return null;
+  const siteInfo = settings ?? {
+    siteName: null,
+    footerText: null,
+    chinaFilingEnabled: false,
+    icpRecordNo: null,
+    policeRecordNo: null,
+  };
 
   return (
     <footer className="mt-10 border-t border-stone-200 bg-white/40 px-4 py-6 sm:px-6">
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 text-center text-xs text-stone-500">
-        {settings.siteName && <p className="font-medium text-stone-700">{settings.siteName}</p>}
-        {settings.footerText && <p className="whitespace-pre-wrap">{settings.footerText}</p>}
-        {settings.chinaFilingEnabled && (settings.icpRecordNo || settings.policeRecordNo) && (
-          <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            {settings.icpRecordNo && (
-              <a
-                href="https://beian.miit.gov.cn/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-stone-700 hover:underline"
-              >
-                {settings.icpRecordNo}
-              </a>
-            )}
-            {settings.icpRecordNo && settings.policeRecordNo && (
-              <span aria-hidden className="text-stone-300">
-                |
-              </span>
-            )}
-            {settings.policeRecordNo && (
-              <a
-                href="https://beian.mps.gov.cn/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-stone-700 hover:underline"
-              >
-                {settings.policeRecordNo}
-              </a>
-            )}
-          </p>
-        )}
+      <div className="mx-auto flex max-w-5xl flex-col gap-3 text-xs text-stone-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 text-center sm:text-left">
+          {siteInfo.siteName && <p className="font-medium text-stone-700">{siteInfo.siteName}</p>}
+          {siteInfo.footerText && <p className="whitespace-pre-wrap">{siteInfo.footerText}</p>}
+          {siteInfo.chinaFilingEnabled && (siteInfo.icpRecordNo || siteInfo.policeRecordNo) && (
+            <p className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 sm:justify-start">
+              {siteInfo.icpRecordNo && (
+                <a
+                  href="https://beian.miit.gov.cn/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-stone-700 hover:underline"
+                >
+                  {siteInfo.icpRecordNo}
+                </a>
+              )}
+              {siteInfo.icpRecordNo && siteInfo.policeRecordNo && (
+                <span aria-hidden className="text-stone-300">
+                  |
+                </span>
+              )}
+              {siteInfo.policeRecordNo && (
+                <a
+                  href="https://beian.mps.gov.cn/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-stone-700 hover:underline"
+                >
+                  {siteInfo.policeRecordNo}
+                </a>
+              )}
+            </p>
+          )}
+        </div>
+        <p className="shrink-0 text-center sm:text-right">
+          Powered by{" "}
+          <a
+            href="https://github.com/hugogu/octopus-llm"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-stone-700 hover:underline"
+          >
+            Octopus LLM
+          </a>
+        </p>
       </div>
     </footer>
   );

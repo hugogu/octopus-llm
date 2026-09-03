@@ -24,7 +24,11 @@ describe("SiteFooter", () => {
 
     render(await SiteFooter());
 
-    expect(screen.getByText("Octopus LLM")).toBeInTheDocument();
+    expect(screen.getByText("Octopus LLM", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Octopus LLM" })).toHaveAttribute(
+      "href",
+      "https://github.com/hugogu/octopus-llm",
+    );
     expect(screen.queryByText("京ICP备12345678号")).not.toBeInTheDocument();
     expect(screen.queryByText("京公网安备11010102000001号")).not.toBeInTheDocument();
   });
