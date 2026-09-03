@@ -194,7 +194,13 @@ class AdminModelAccessService(
             operationRepository.save(operation)
 
             val items = itemRepository.findByOperationIdOrderByDisplayNameSnapshotAsc(operation.id)
-            items.forEach { item -> processItem(adminId, operation, item) }
+            items.forEach { item ->
+                try {
+                    processItem(adminId, operation, item)
+                } catch (_: Exception) {
+                    failItem(item, "MODEL_OPERATION_FAILED", "The model operation could not be completed")
+                }
+            }
             operation.processedCount = items.size
             operation.successCount = operation.changedCount + operation.alreadySatisfiedCount
             operation.failureCount = items.count { it.outcome == "FAILED" }

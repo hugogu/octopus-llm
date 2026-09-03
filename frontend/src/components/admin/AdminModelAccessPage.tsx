@@ -83,7 +83,6 @@ export default function AdminModelAccessPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-    if (!selectAllMatching) setSelectAllMatching(false);
   }
 
   const pageSelected = models.length > 0 && models.every((model) => selected.has(model.id));

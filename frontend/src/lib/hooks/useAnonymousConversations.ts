@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AnonymousModelV2, AnonymousSseEvent } from "@/lib/types/api";
 import {
+  ANONYMOUS_CONVERSATIONS_KEY,
   createAnonymousConversation,
   createAnonymousTurn,
   emptyAnonymousEnvelope,
@@ -34,7 +35,7 @@ export function useAnonymousConversations() {
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== "octopus.anonymous-conversations.v1") return;
+      if (event.key !== ANONYMOUS_CONVERSATIONS_KEY) return;
       const result = readAnonymousConversations();
       envelopeRef.current = result.envelope;
       setEnvelope(result.envelope);
