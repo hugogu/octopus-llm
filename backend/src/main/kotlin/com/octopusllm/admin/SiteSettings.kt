@@ -32,6 +32,9 @@ class SiteSettings(
     @Column(name = "police_record_no", columnDefinition = "TEXT")
     var policeRecordNo: String? = null,
 
+    @Column(name = "china_filing_enabled", nullable = false)
+    var chinaFilingEnabled: Boolean = false,
+
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now(),
 

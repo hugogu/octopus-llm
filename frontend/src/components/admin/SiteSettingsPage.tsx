@@ -36,6 +36,7 @@ export default function SiteSettingsPage() {
       setForm({
         siteName: s.siteName ?? "",
         footerText: s.footerText ?? "",
+        chinaFilingEnabled: s.chinaFilingEnabled,
         icpRecordNo: s.icpRecordNo ?? "",
         policeRecordNo: s.policeRecordNo ?? "",
       });
@@ -57,13 +58,19 @@ export default function SiteSettingsPage() {
   const save = async () => {
     const token = getToken();
     if (!token) return;
-    setSaving(true);
     setError(null);
     setSuccess(null);
+    const chinaFilingEnabled = form.chinaFilingEnabled ?? false;
+    if (chinaFilingEnabled && !(form.icpRecordNo ?? "").trim()) {
+      setError("Enter an ICP record number before showing Chinese filing information.");
+      return;
+    }
+    setSaving(true);
     try {
       await updateSiteSettings(token, {
         siteName: form.siteName ?? null,
         footerText: form.footerText ?? null,
+        chinaFilingEnabled,
         icpRecordNo: form.icpRecordNo ?? null,
         policeRecordNo: form.policeRecordNo ?? null,
       });
@@ -125,17 +132,33 @@ export default function SiteSettingsPage() {
               </div>
             </section>
             <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-3 text-sm font-semibold text-stone-800">Chinese site records</h2>
-              <p className="mb-3 text-xs text-stone-500">
-                These render at the footer with their standard reference links. Leave blank to omit.
-              </p>
+              <div className="mb-3 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-stone-800">Chinese site records</h2>
+                  <p className="mt-1 text-xs text-stone-500">
+                    Enable this to show the records in the public footer. An ICP number is required when enabled.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={form.chinaFilingEnabled ?? false}
+                  aria-label="Show Chinese filing information"
+                  onClick={() => set("chinaFilingEnabled", !(form.chinaFilingEnabled ?? false))}
+                  disabled={saving}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ${form.chinaFilingEnabled ? "bg-[#c96442]" : "bg-stone-300"}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${form.chinaFilingEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
+              </div>
               <div className="space-y-3">
                 <label className="block text-sm">
-                  <span className="text-stone-700">ICP record number</span>
+                  <span className="text-stone-700">ICP record number {form.chinaFilingEnabled ? <span className="text-red-600">*</span> : <span className="text-stone-400">(required when enabled)</span>}</span>
                   <input
                     value={form.icpRecordNo ?? ""}
                     onChange={(e) => set("icpRecordNo", e.target.value)}
                     placeholder="京ICP备12345678号-1"
+                    aria-required={form.chinaFilingEnabled ?? false}
                     className={`mt-1 ${inputClass}`}
                   />
                 </label>

@@ -25,7 +25,13 @@ class SiteSettingsControllerTest @Autowired constructor(
         )
         siteSettings.update(
             admin.id,
-            SiteSettingsUpdate(siteName = "  ", footerText = null, icpRecordNo = "  ", policeRecordNo = "  "),
+            SiteSettingsUpdate(
+                siteName = "  ",
+                footerText = null,
+                chinaFilingEnabled = false,
+                icpRecordNo = "  ",
+                policeRecordNo = "  ",
+            ),
         )
     }
 
@@ -50,6 +56,7 @@ class SiteSettingsControllerTest @Autowired constructor(
             .exchange()
             .expectStatus().isOk
             .expectBody().jsonPath("$.siteName").doesNotExist()
+            .jsonPath("$.chinaFilingEnabled").isEqualTo(false)
             .jsonPath("$.icpRecordNo").doesNotExist()
 
         web.put().uri("/api/v2/admin/site-settings")
@@ -59,6 +66,7 @@ class SiteSettingsControllerTest @Autowired constructor(
                 mapOf(
                     "siteName" to "  ",
                     "footerText" to "  © Octopus LLM  ",
+                    "chinaFilingEnabled" to true,
                     "icpRecordNo" to " 京ICP备12345678号-1  ",
                     "policeRecordNo" to " 京公网安备11010102000001号  ",
                 ),
@@ -68,6 +76,7 @@ class SiteSettingsControllerTest @Autowired constructor(
             .expectBody()
             .jsonPath("$.siteName").doesNotExist()
             .jsonPath("$.footerText").isEqualTo("© Octopus LLM")
+            .jsonPath("$.chinaFilingEnabled").isEqualTo(true)
             .jsonPath("$.icpRecordNo").isEqualTo("京ICP备12345678号-1")
             .jsonPath("$.policeRecordNo").isEqualTo("京公网安备11010102000001号")
             .jsonPath("$.updatedAt").exists()
@@ -99,6 +108,7 @@ class SiteSettingsControllerTest @Autowired constructor(
                 mapOf(
                     "siteName" to "Octopus",
                     "footerText" to "© Octopus",
+                    "chinaFilingEnabled" to true,
                     "icpRecordNo" to "京ICP备12345678号",
                     "policeRecordNo" to "京公网安备11010102000001号",
                 ),
@@ -112,6 +122,7 @@ class SiteSettingsControllerTest @Autowired constructor(
             .expectBody()
             .jsonPath("$.siteName").isEqualTo("Octopus")
             .jsonPath("$.footerText").isEqualTo("© Octopus")
+            .jsonPath("$.chinaFilingEnabled").isEqualTo(true)
             .jsonPath("$.icpRecordNo").isEqualTo("京ICP备12345678号")
             .jsonPath("$.policeRecordNo").isEqualTo("京公网安备11010102000001号")
             .jsonPath("$.updatedAt").doesNotExist()
@@ -129,6 +140,41 @@ class SiteSettingsControllerTest @Autowired constructor(
             .expectBody()
             .jsonPath("$.siteName").doesNotExist()
             .jsonPath("$.footerText").doesNotExist()
+            .jsonPath("$.chinaFilingEnabled").isEqualTo(false)
+            .jsonPath("$.icpRecordNo").doesNotExist()
+            .jsonPath("$.policeRecordNo").doesNotExist()
+    }
+
+    @Test
+    fun `enabling Chinese filing requires an ICP number and disabled records stay private`() {
+        val token = adminToken()
+
+        web.put().uri("/api/v2/admin/site-settings")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("chinaFilingEnabled" to true))
+            .exchange()
+            .expectStatus().isBadRequest
+
+        web.put().uri("/api/v2/admin/site-settings")
+            .header("Authorization", "Bearer $token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(
+                mapOf(
+                    "chinaFilingEnabled" to false,
+                    "icpRecordNo" to "京ICP备12345678号",
+                    "policeRecordNo" to "京公网安备11010102000001号",
+                ),
+            )
+            .exchange()
+            .expectStatus().isOk
+            .expectBody().jsonPath("$.chinaFilingEnabled").isEqualTo(false)
+
+        web.get().uri("/api/v2/site-settings")
+            .exchange()
+            .expectStatus().isOk
+            .expectBody()
+            .jsonPath("$.chinaFilingEnabled").isEqualTo(false)
             .jsonPath("$.icpRecordNo").doesNotExist()
             .jsonPath("$.policeRecordNo").doesNotExist()
     }

@@ -17,7 +17,7 @@ export default async function SiteFooter() {
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 text-center text-xs text-stone-500">
         {settings.siteName && <p className="font-medium text-stone-700">{settings.siteName}</p>}
         {settings.footerText && <p className="whitespace-pre-wrap">{settings.footerText}</p>}
-        {(settings.icpRecordNo || settings.policeRecordNo) && (
+        {settings.chinaFilingEnabled && (settings.icpRecordNo || settings.policeRecordNo) && (
           <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
             {settings.icpRecordNo && (
               <a
