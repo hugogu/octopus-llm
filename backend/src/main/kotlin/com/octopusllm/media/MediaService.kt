@@ -141,8 +141,8 @@ class MediaService(
             )
 
             fun detect(bytes: ByteArray, declaredContentType: String?): DetectedType? {
-                magicSniff(bytes, declaredContentType)?.let { return it }
                 val declared = declaredContentType?.substringBefore(';')?.trim()?.lowercase()
+                magicSniff(bytes, declared)?.let { return it }
                 return declared?.let(declaredFallbacks::get)
             }
 
@@ -154,14 +154,11 @@ class MediaService(
                     startsWith(0xFF, 0xD8, 0xFF) -> DetectedType("image", "image/jpeg", "jpg")
                     startsWith(0x47, 0x49, 0x46, 0x38) -> DetectedType("image", "image/gif", "gif")
                     b.size >= 12 && startsWith(0x52, 0x49, 0x46, 0x46) &&
-                        (b[8].toInt() and 0xFF) == 0x57 && (b[9].toInt() and 0xFF) == 0x45 ->
+                        (b[8].toInt() and 0xFF) == 0x57 && (b[9].toInt() and 0xFF) == 0x45 &&
+                        (b[10].toInt() and 0xFF) == 0x42 && (b[11].toInt() and 0xFF) == 0x50 ->
                         DetectedType("image", "image/webp", "webp")
                     b.size >= 12 && b[4].toInt() == 0x66 && b[5].toInt() == 0x74 &&
-                        b[6].toInt() == 0x79 && b[7].toInt() == 0x70 -> { // ISO base media 'ftyp'
-                        val brand = String(b, 8, 4, Charsets.US_ASCII)
-                        if (brand in setOf("avif", "avis")) DetectedType("image", "image/avif", "avif")
-                        else DetectedType("video", "video/mp4", "mp4")
-                    }
+                        b[6].toInt() == 0x79 && b[7].toInt() == 0x70 -> sniffIsoBaseMedia(b, declared)
                     startsWith(0x1A, 0x45, 0xDF, 0xA3) -> { // EBML — webm/mkv, audio or video
                         val family = declared?.substringBefore('/')?.lowercase()
                         if (family == "audio") DetectedType("audio", "audio/webm", "webm")
@@ -178,6 +175,40 @@ class MediaService(
                         else DetectedType("audio", "audio/ogg", "ogg")
                     }
                     else -> null
+                }
+            }
+
+            private fun sniffIsoBaseMedia(bytes: ByteArray, declared: String?): DetectedType {
+                val brands = isoBrands(bytes)
+                val declaredType = declared?.let(declaredFallbacks::get)
+                return when {
+                    brands.any { it in setOf("avif", "avis") } -> DetectedType("image", "image/avif", "avif")
+                    brands.any { it in setOf("heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs") } ->
+                        declaredType?.takeIf { it.mimeType in setOf("image/heic", "image/heif") }
+                            ?: DetectedType("image", "image/heic", "heic")
+                    brands.any { it in setOf("mif1", "msf1") } ->
+                        declaredType?.takeIf { it.mimeType in setOf("image/heic", "image/heif") }
+                            ?: DetectedType("image", "image/heif", "heif")
+                    brands.any { it in setOf("M4A ", "M4B ", "M4P ") } -> DetectedType("audio", "audio/mp4", "m4a")
+                    brands.any { it == "qt  " } -> DetectedType("video", "video/quicktime", "mov")
+                    brands.any { it == "M4V " } -> DetectedType("video", "video/x-m4v", "m4v")
+                    declaredType?.mimeType in setOf("audio/mp4", "video/quicktime", "video/x-m4v") ->
+                        declaredType ?: DetectedType("video", "video/mp4", "mp4")
+                    else -> DetectedType("video", "video/mp4", "mp4")
+                }
+            }
+
+            private fun isoBrands(bytes: ByteArray): Set<String> {
+                val boxLength = ((bytes[0].toInt() and 0xFF) shl 24) or
+                    ((bytes[1].toInt() and 0xFF) shl 16) or
+                    ((bytes[2].toInt() and 0xFF) shl 8) or
+                    (bytes[3].toInt() and 0xFF)
+                val end = if (boxLength in 16..bytes.size) boxLength else bytes.size
+                return buildSet {
+                    add(String(bytes, 8, 4, Charsets.US_ASCII))
+                    for (offset in 16 until (end - 3) step 4) {
+                        add(String(bytes, offset, 4, Charsets.US_ASCII))
+                    }
                 }
             }
         }

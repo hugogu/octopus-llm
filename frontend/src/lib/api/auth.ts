@@ -54,17 +54,11 @@ export async function replaceAuthToken(token: string, expiresAt?: string): Promi
 }
 
 export async function logout(): Promise<void> {
-  const token = getToken();
-  if (token) {
-    await fetch(apiUrl("/api/v1/auth/logout"), {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    }).catch(() => {});
-  }
+  await fetch(apiUrl("/api/v1/auth/logout"), { method: "POST" }).catch(() => {});
   await fetch("/api/auth/session", { method: "DELETE", cache: "no-store" }).catch(() => {});
 }
 
-/** Returns only a non-sensitive session-presence marker, never the JWT. */
+/** Returns a non-sensitive session marker, or a legacy JWT only until migration completes. */
 export function getToken(): string | null {
   if (typeof document === "undefined") return null;
   const marker = readCookie(AUTH_SESSION_COOKIE);
@@ -92,7 +86,9 @@ function jwtExpiry(token: string): string | undefined {
   const payload = token.split(".")[1];
   if (!payload) return undefined;
   try {
-    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: unknown };
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const decoded = JSON.parse(atob(padded)) as { exp?: unknown };
     if (typeof decoded.exp !== "number" || !Number.isFinite(decoded.exp)) return undefined;
     const expiresAt = new Date(decoded.exp * 1000);
     return Number.isNaN(expiresAt.getTime()) ? undefined : expiresAt.toISOString();
