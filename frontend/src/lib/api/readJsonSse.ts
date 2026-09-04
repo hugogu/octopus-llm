@@ -19,7 +19,10 @@ export async function readJsonSse<T extends JsonPayload>(
   let dataLines: string[] = [];
 
   const dispatch = () => {
-    if (dataLines.length === 0) return;
+    if (dataLines.length === 0) {
+      eventName = undefined;
+      return;
+    }
     const raw = dataLines.join("\n");
     dataLines = [];
     try {
