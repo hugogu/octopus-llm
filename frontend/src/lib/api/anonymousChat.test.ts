@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { listAnonymousModels, streamAnonymousTurn } from "./anonymousChat";
 import { resetBrowserStorage, sseResponse } from "@/test/setup";
-import type { AnonymousSseEvent } from "@/lib/types/api";
 
 describe("anonymous chat API", () => {
   afterEach(() => {
