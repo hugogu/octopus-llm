@@ -7,7 +7,7 @@ export interface SiteSettingsPublic {
   chinaFilingEnabled: boolean;
   icpRecordNo: string | null;
   policeRecordNo: string | null;
-  googleAnalyticsMeasurementId: string | null;
+  googleAnalyticsMeasurementId?: string | null;
 }
 
 /** Admin shape returned by `/api/v2/admin/site-settings` — adds audit metadata. */
