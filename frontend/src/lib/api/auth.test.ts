@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { logout, migrateLegacySession } from "./auth";
+import { logout, migrateLegacySession, replaceAuthToken } from "./auth";
 
 describe("browser authentication", () => {
   afterEach(() => {
@@ -34,5 +34,16 @@ describe("browser authentication", () => {
 
     expect(fetchMock.mock.calls[0]).toEqual([`${window.location.origin}/api/v1/auth/logout`, { method: "POST" }]);
     expect(fetchMock.mock.calls[1]).toEqual(["/api/auth/session", { method: "DELETE", cache: "no-store" }]);
+  });
+
+  it("does not make relative session requests during server rendering", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", undefined);
+
+    await replaceAuthToken("header.payload.signature");
+    await logout();
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

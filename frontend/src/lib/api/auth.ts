@@ -42,6 +42,7 @@ export async function requestPasswordReset(email: string): Promise<{ status: str
  * the proxy attaches the HttpOnly cookie to the backend request.
  */
 export async function replaceAuthToken(token: string, expiresAt?: string): Promise<void> {
+  if (typeof window === "undefined") return;
   const response = await fetch("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -54,6 +55,7 @@ export async function replaceAuthToken(token: string, expiresAt?: string): Promi
 }
 
 export async function logout(): Promise<void> {
+  if (typeof window === "undefined") return;
   await fetch(apiUrl("/api/v1/auth/logout"), { method: "POST" }).catch(() => {});
   await fetch("/api/auth/session", { method: "DELETE", cache: "no-store" }).catch(() => {});
 }
