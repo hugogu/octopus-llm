@@ -205,7 +205,7 @@ export default function AnonymousChatPage() {
       subtitle="Compare approved models without signing in"
       actions={(
         <>
-          <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs text-stone-600">Guest mode</span>
+          <span className="hidden rounded-full bg-stone-200 px-2.5 py-1 text-xs text-stone-600 sm:inline-flex">Guest mode</span>
           <ModelSelectorPanel
             models={selectorModels}
             selectedIds={selectedIds}
@@ -213,8 +213,13 @@ export default function AnonymousChatPage() {
             manageHref={null}
             emptyMessage="No public models are available right now."
           />
-          <Link href="/register?returnTo=%2Fchat" className="rounded-lg border border-[#c96442] px-3 py-1.5 text-xs font-medium text-[#a04a32] transition hover:bg-[#fff5ef]">
-            Create account
+          <Link
+            href="/register?returnTo=%2Fchat"
+            aria-label="Create account"
+            className="rounded-lg border border-[#c96442] px-3 py-1.5 text-xs font-medium text-[#a04a32] transition hover:bg-[#fff5ef]"
+          >
+            <span className="sm:hidden">Sign up</span>
+            <span className="hidden sm:inline">Create account</span>
           </Link>
         </>
       )}

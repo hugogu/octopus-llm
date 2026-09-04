@@ -82,6 +82,26 @@ class StreamingAdaptersTest {
     }
 
     @Test
+    fun `openai stream flushes the final data line when the provider omits the trailing newline`() {
+        startServer("/v1/chat/completions") { exchange ->
+            sendSse(
+                exchange,
+                listOf("data: {\"choices\":[{\"delta\":{\"content\":\"last token\"}}]}"),
+            )
+        }
+
+        val events = OpenAiCompatAdapter(mapper).stream(
+            modelId = "provider-model",
+            request = LlmRequest(prompt = "hello"),
+            decryptedApiKey = "test-secret",
+            baseUrlOverride = baseUrl("/v1"),
+        ).collectList().block()!!
+
+        assertEquals("last token", (events.first() as LlmStreamEvent.Token).delta)
+        assertTrue(events.last() is LlmStreamEvent.ModelComplete)
+    }
+
+    @Test
     fun `openai stream prepends the system prompt as a leading system message`() {
         var captured: CapturedRequest? = null
         startServer("/v1/chat/completions") { exchange ->
@@ -126,6 +146,26 @@ class StreamingAdaptersTest {
         val messages = mapper.readTree(captured!!.body).path("messages")
         assertEquals("system", messages.path(0).path("role").asText())
         assertEquals("当前日期与时间：2026-07-10", messages.path(0).path("content").asText())
+    }
+
+    @Test
+    fun `minimax stream completes when the provider closes without a finish reason`() {
+        startServer("/text/chatcompletion_v2") { exchange ->
+            sendSse(
+                exchange,
+                listOf("data: {\"choices\":[{\"delta\":{\"content\":\"last token\"}}]}"),
+            )
+        }
+
+        val events = MiniMaxAdapter().stream(
+            modelId = "minimax-model",
+            request = LlmRequest(prompt = "hello"),
+            decryptedApiKey = "test-secret",
+            baseUrlOverride = baseUrl(""),
+        ).collectList().block()!!
+
+        assertEquals("last token", (events.first() as LlmStreamEvent.Token).delta)
+        assertTrue(events.last() is LlmStreamEvent.ModelComplete)
     }
 
     @Test

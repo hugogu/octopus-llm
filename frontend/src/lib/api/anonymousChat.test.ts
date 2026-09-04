@@ -20,6 +20,7 @@ describe("anonymous chat API", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse([
       { event: "status", data: { state: "STARTED" } },
       { event: "token", data: { configuredModelId: "m1", text: "hello" } },
+      { event: "model_complete", data: { configuredModelId: "m1", status: "COMPLETE" } },
       { event: "model_error", data: { configuredModelId: "m2", status: "ERROR", errorCode: "PROVIDER_ERROR", errorMessage: "safe" } },
       { event: "result", data: { state: "COMPLETE" } },
     ])));
@@ -34,8 +35,37 @@ describe("anonymous chat API", () => {
     expect(events).toEqual([
       { event: "status", state: "STARTED" },
       { event: "token", configuredModelId: "m1", text: "hello" },
+      { event: "model_complete", configuredModelId: "m1", status: "COMPLETE" },
       { event: "model_error", configuredModelId: "m2", status: "ERROR", errorCode: "PROVIDER_ERROR", errorMessage: "safe" },
       { event: "result", state: "COMPLETE" },
     ]);
+  });
+
+  it("flushes an unterminated final event and closes models missing a terminal event", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      'event: token\ndata: {"configuredModelId":"m1","text":"hello"}',
+      { status: 200, headers: { "Content-Type": "text/event-stream" } },
+    )));
+    const events: AnonymousSseEvent[] = [];
+
+    await streamAnonymousTurn({
+      clientConversationId: "c1",
+      clientRequestId: "r1",
+      promptText: "hello",
+      selectedConfiguredModelIds: ["m1", "m2"],
+      history: [],
+    }, (event) => events.push(event));
+
+    expect(events[0]).toEqual({ event: "token", configuredModelId: "m1", text: "hello" });
+    expect(events[1]).toMatchObject({
+      event: "model_error",
+      configuredModelId: "m1",
+      errorCode: "INCOMPLETE_STREAM",
+    });
+    expect(events[2]).toMatchObject({
+      event: "model_error",
+      configuredModelId: "m2",
+      errorCode: "INCOMPLETE_STREAM",
+    });
   });
 });

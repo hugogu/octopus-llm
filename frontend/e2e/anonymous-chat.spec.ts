@@ -36,6 +36,20 @@ test.describe("anonymous chat", () => {
     await expect(page.getByText(/cannot be shared/)).toBeVisible();
   });
 
+  test("uses a single-column mobile layout with an on-demand conversation drawer", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto("/chat");
+
+    await expect(page.getByRole("button", { name: "Open conversations" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "New conversation" })).not.toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+    await page.getByRole("button", { name: "Open conversations" }).click();
+    await expect(page.getByRole("button", { name: "New conversation" })).toBeVisible();
+    await page.getByRole("button", { name: "Close conversations" }).last().click();
+    await expect(page.getByRole("button", { name: "Open conversations" })).toBeVisible();
+  });
+
   test("does not open authenticated session history directly", async ({ request, baseURL }) => {
     const response = await request.get(`${baseURL}/api/v2/chat/sessions`);
     expect(response.status()).toBe(401);

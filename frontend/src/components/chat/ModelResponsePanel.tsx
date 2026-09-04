@@ -97,8 +97,8 @@ export default function ModelResponsePanel({
 
   return (
     <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-2 border-b border-stone-100 bg-stone-50/60 px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 bg-stone-50/60 px-3 py-2.5 sm:px-4">
+        <div className="flex min-w-0 flex-1 basis-[12rem] items-center gap-2">
           <span
             className={`h-2 w-2 shrink-0 rounded-full ${
               status === "streaming"
@@ -115,7 +115,7 @@ export default function ModelResponsePanel({
             {connectionLabel ? <p className="truncate text-[11px] text-stone-400">{connectionLabel}</p> : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <ResponseLikeButton
             responseId={responseId}
             initialCount={likeCount}
@@ -191,7 +191,7 @@ export default function ModelResponsePanel({
       )}
       {deleteError && <div role="alert" className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs text-red-700">{deleteError}</div>}
 
-      <div className="min-h-[60px] flex-1 px-4 py-3 text-sm">
+      <div className="min-h-[60px] flex-1 px-3 py-3 text-sm sm:px-4">
         <ToolStatusIndicator toolCalls={toolCalls} />
         {status === "error" ? (
           <span className="text-red-600">{errorMessage ?? "An error occurred"}</span>

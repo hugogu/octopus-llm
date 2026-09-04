@@ -335,11 +335,14 @@ function AuthenticatedChatPage() {
       sendIds = capableIds;
     }
 
+    let requestSessionId = sessionId;
+    let streamFinished = false;
     try {
-      let id = sessionId;
+      let id = requestSessionId;
       if (!id) {
         const session = await createSessionV2();
         id = session.id;
+        requestSessionId = id;
         sessionIdRef.current = id;
         setSessionId(id);
         setActiveSession({ id, title: session.title, turns: [] });
@@ -370,6 +373,7 @@ function AuthenticatedChatPage() {
           }
         },
       );
+      streamFinished = true;
       const token = getToken();
       if (token) {
         const session = await getSessionV2(id, token);
@@ -383,7 +387,21 @@ function AuthenticatedChatPage() {
       clear(id);
       await loadSessions();
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Chat request failed");
+      const message = error instanceof Error ? error.message : "Chat request failed";
+      setLoadError(message);
+      if (!streamFinished && requestSessionId) {
+        // A dropped SSE connection used to leave the live turn and every response in streaming
+        // state, which disabled the composer forever. Keep the prompt visible, mark each affected
+        // model as failed, and close the turn so the user can retry immediately.
+        sendIds.forEach((configuredModelId) => handleEvent(requestSessionId!, {
+          event: "model_error",
+          configuredModelId,
+          modelId: modelsById[configuredModelId]?.modelId ?? configuredModelId,
+          error: message,
+          responseId: "",
+        }));
+        handleEvent(requestSessionId, { event: "all_complete" });
+      }
     }
   }, [clear, handleEvent, loadSessions, modelsById, router, selectedIds, sessionId, start]);
 

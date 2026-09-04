@@ -1,4 +1,5 @@
 import { apiUrl } from "@/lib/api/base";
+import { readJsonSse } from "@/lib/api/readJsonSse";
 import type {
   AnonymousChatRequest,
   AnonymousModelV2,
@@ -45,41 +46,35 @@ export async function streamAnonymousTurn(
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     body: JSON.stringify(body),
   }));
-  await readSse(response, onEvent);
-}
-
-async function readSse(
-  response: Response,
-  onEvent: (event: AnonymousSseEvent) => void,
-): Promise<void> {
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("No response body");
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let eventName: string | undefined;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (line.startsWith("event:")) {
-        eventName = line.slice(6).trim();
-        continue;
+  const terminalModels = new Set<string>();
+  await readJsonSse<AnonymousSseEvent>(
+    response,
+    (event) => {
+      if (event.event === "model_complete" || event.event === "model_error") {
+        terminalModels.add(event.configuredModelId);
       }
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (!data) continue;
-      try {
-        const payload = JSON.parse(data) as Record<string, unknown>;
-        onEvent({ event: eventName ?? "error", ...payload } as AnonymousSseEvent);
-      } catch {
-        onEvent({ event: "error", code: "MALFORMED_STREAM", message: "The response stream was invalid." });
-      } finally {
-        eventName = undefined;
-      }
+      onEvent(event);
+    },
+    {
+      onMalformed: () => onEvent({
+        event: "error",
+        code: "MALFORMED_STREAM",
+        message: "The response stream was invalid.",
+      }),
+    },
+  );
+
+  // A disconnected proxy can end a successful HTTP response without delivering the final model
+  // event. Resolve those cards explicitly instead of leaving them permanently in streaming state.
+  for (const configuredModelId of body.selectedConfiguredModelIds) {
+    if (!terminalModels.has(configuredModelId)) {
+      onEvent({
+        event: "model_error",
+        configuredModelId,
+        status: "ERROR",
+        errorCode: "INCOMPLETE_STREAM",
+        errorMessage: "The response stream ended before this model completed.",
+      });
     }
   }
 }

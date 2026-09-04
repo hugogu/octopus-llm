@@ -86,6 +86,24 @@ internal object SseStreaming {
                 }
                 Flux.fromIterable(payloads)
             }
+            // Some providers close the connection directly after the final data line and omit the
+            // trailing newline. Flush that line at EOF so the last token/finish event is not lost.
+            .concatWith(
+                Flux.defer {
+                    if (pending.isEmpty()) {
+                        Flux.empty()
+                    } else {
+                        val line = String(pending, StandardCharsets.UTF_8).trim()
+                        pending = ByteArray(0)
+                        if (line.startsWith("data:")) {
+                            val data = line.removePrefix("data:").trim()
+                            if (data.isNotEmpty()) Flux.just(data) else Flux.empty()
+                        } else {
+                            Flux.empty()
+                        }
+                    }
+                },
+            )
     }
 }
 

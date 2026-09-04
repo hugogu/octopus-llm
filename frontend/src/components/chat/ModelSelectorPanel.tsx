@@ -92,10 +92,10 @@ export default function ModelSelectorPanel({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="flex items-center gap-2 rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:text-stone-900"
+        className="flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-600 transition hover:text-stone-900 sm:gap-2 sm:px-3"
       >
         <SlidersHorizontal className="h-3.5 w-3.5 text-stone-400" />
-        <span className="max-w-[180px] truncate">{summary}</span>
+        <span className="max-w-[32vw] truncate sm:max-w-[180px]">{summary}</span>
         <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-medium tracking-normal text-stone-500">
           {selectedModels.length}/{enabledModels.length || 0}
         </span>

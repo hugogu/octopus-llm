@@ -25,6 +25,7 @@ class MiniMaxAdapter : LlmAdapter {
         return Flux.defer {
             val startMs = System.currentTimeMillis()
             val parser = ThinkingContentParser(modelId)
+            var terminalEventSeen = false
             val baseUrl = baseUrlOverride ?: defaultBaseUrl
             val client = StreamingWebClient.builder(baseUrl)
                 .defaultHeader("Authorization", "Bearer $decryptedApiKey")
@@ -47,9 +48,28 @@ class MiniMaxAdapter : LlmAdapter {
                         } catch (error: Exception) {
                             listOf(LlmStreamEvent.ModelError(modelId, "Invalid JSON: ${error.message}"))
                         }
+                        if (events.any { it is LlmStreamEvent.ModelComplete || it is LlmStreamEvent.ModelError }) {
+                            terminalEventSeen = true
+                        }
                         Flux.fromIterable(events)
                     }
                 }
+                .concatWith(
+                    Flux.defer {
+                        if (terminalEventSeen) {
+                            Flux.empty()
+                        } else {
+                            Flux.just(
+                                LlmStreamEvent.ModelComplete(
+                                    modelId = modelId,
+                                    inputTokens = null,
+                                    outputTokens = null,
+                                    latencyMs = System.currentTimeMillis() - startMs,
+                                ),
+                            )
+                        }
+                    },
+                )
                 .onErrorResume { e ->
                     Flux.just(LlmStreamEvent.ModelError(modelId, e.message ?: "Unknown error"))
                 }

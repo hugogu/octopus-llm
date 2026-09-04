@@ -1,5 +1,6 @@
 import { getToken } from "@/lib/api/auth";
 import { apiUrl } from "@/lib/api/base";
+import { readJsonSse } from "@/lib/api/readJsonSse";
 import type {
   ChatSessionV2,
   GetSessionResponseV2,
@@ -99,14 +100,15 @@ export async function streamTurnV2(
   onEvent: (event: SseEventV2) => void,
   token?: string,
 ): Promise<void> {
-  await readSse(await checked(await fetch(
+  const response = await checked(await fetch(
     apiUrl(`/api/v2/chat/sessions/${encodeURIComponent(sessionId)}/turns`),
     {
       method: "POST",
       headers: { ...headers(token), Accept: "text/event-stream" },
       body: JSON.stringify(body),
     },
-  )), onEvent);
+  ));
+  await readModelSse(response, body.selectedConfiguredModelIds, onEvent);
 }
 
 export async function retryModelV2(
@@ -117,7 +119,7 @@ export async function retryModelV2(
   onEvent: (event: SseEventV2) => void,
   token?: string,
 ): Promise<void> {
-  await readSse(await checked(await fetch(
+  const response = await checked(await fetch(
     apiUrl(
       `/api/v2/chat/sessions/${encodeURIComponent(sessionId)}` +
       `/turns/${encodeURIComponent(turnId)}` +
@@ -128,33 +130,32 @@ export async function retryModelV2(
       headers: { ...headers(token), Accept: "text/event-stream" },
       body: JSON.stringify({ clientRequestId }),
     },
-  )), onEvent);
+  ));
+  await readModelSse(response, [configuredModelId], onEvent);
 }
 
-async function readSse(
+async function readModelSse(
   response: Response,
+  configuredModelIds: string[],
   onEvent: (event: SseEventV2) => void,
 ): Promise<void> {
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("No response body");
+  const terminalModels = new Set<string>();
+  await readJsonSse<SseEventV2>(response, (event) => {
+    if (event.event === "model_complete" || event.event === "model_error") {
+      terminalModels.add(event.configuredModelId);
+    }
+    onEvent(event);
+  });
 
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (!data) continue;
-      try {
-        onEvent(JSON.parse(data) as SseEventV2);
-      } catch {
-        // Ignore malformed provider chunks without aborting other model streams.
-      }
+  for (const configuredModelId of configuredModelIds) {
+    if (!terminalModels.has(configuredModelId)) {
+      onEvent({
+        event: "model_error",
+        configuredModelId,
+        modelId: "",
+        error: "The response stream ended before this model completed.",
+        responseId: "",
+      });
     }
   }
 }
