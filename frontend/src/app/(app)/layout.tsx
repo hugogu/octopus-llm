@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getToken } from "@/lib/api/auth";
+import { getToken, migrateLegacySession } from "@/lib/api/auth";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -16,12 +16,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         setAllowed(true);
         return;
       }
-      if (getToken()) {
-        setAllowed(true);
+      if (!getToken()) {
+        setAllowed(false);
+        router.replace(`/login?returnTo=${encodeURIComponent(pathname || "/chat")}`);
         return;
       }
-      setAllowed(false);
-      router.replace(`/login?returnTo=${encodeURIComponent(pathname || "/chat")}`);
+      void migrateLegacySession().catch(() => {}).finally(() => setAllowed(true));
     });
   }, [pathname, publicChat, router]);
 

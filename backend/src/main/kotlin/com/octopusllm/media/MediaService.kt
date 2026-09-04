@@ -108,22 +108,42 @@ class MediaService(
     }
 
     /**
-     * Detected media classification. The set of accepted types is bounded by what providers accept;
-     * unknown/ambiguous content falls back to the declared content type's family.
+     * Detected media classification. Bytes win when a known signature is present. For formats that
+     * cannot be recognized cheaply, the declared type is accepted only from an explicit allowlist
+     * and is mapped to a canonical extension. This prevents an upload such as `image/svg+xml` or
+     * `image/html` from becoming executable same-origin static content.
      */
     data class DetectedType(val mediaType: String, val mimeType: String, val extension: String) {
         companion object {
+            private val declaredFallbacks = mapOf(
+                "image/png" to DetectedType("image", "image/png", "png"),
+                "image/jpeg" to DetectedType("image", "image/jpeg", "jpg"),
+                "image/gif" to DetectedType("image", "image/gif", "gif"),
+                "image/webp" to DetectedType("image", "image/webp", "webp"),
+                "image/avif" to DetectedType("image", "image/avif", "avif"),
+                "image/bmp" to DetectedType("image", "image/bmp", "bmp"),
+                "image/heic" to DetectedType("image", "image/heic", "heic"),
+                "image/heif" to DetectedType("image", "image/heif", "heif"),
+                "video/mp4" to DetectedType("video", "video/mp4", "mp4"),
+                "video/webm" to DetectedType("video", "video/webm", "webm"),
+                "video/ogg" to DetectedType("video", "video/ogg", "ogv"),
+                "video/quicktime" to DetectedType("video", "video/quicktime", "mov"),
+                "video/x-m4v" to DetectedType("video", "video/x-m4v", "m4v"),
+                "audio/mpeg" to DetectedType("audio", "audio/mpeg", "mp3"),
+                "audio/mp4" to DetectedType("audio", "audio/mp4", "m4a"),
+                "audio/aac" to DetectedType("audio", "audio/aac", "aac"),
+                "audio/wav" to DetectedType("audio", "audio/wav", "wav"),
+                "audio/x-wav" to DetectedType("audio", "audio/x-wav", "wav"),
+                "audio/ogg" to DetectedType("audio", "audio/ogg", "ogg"),
+                "audio/webm" to DetectedType("audio", "audio/webm", "webm"),
+                "audio/flac" to DetectedType("audio", "audio/flac", "flac"),
+                "audio/x-flac" to DetectedType("audio", "audio/x-flac", "flac"),
+            )
+
             fun detect(bytes: ByteArray, declaredContentType: String?): DetectedType? {
-                magicSniff(bytes, declaredContentType)?.let { return it }
-                // Fall back to the declared content type when bytes aren't a recognized signature.
                 val declared = declaredContentType?.substringBefore(';')?.trim()?.lowercase()
-                if (declared != null) {
-                    val family = declared.substringBefore('/')
-                    if (family in setOf("image", "video", "audio")) {
-                        return DetectedType(family, declared, declared.substringAfter('/').substringBefore('+'))
-                    }
-                }
-                return null
+                magicSniff(bytes, declared)?.let { return it }
+                return declared?.let(declaredFallbacks::get)
             }
 
             private fun magicSniff(b: ByteArray, declared: String?): DetectedType? {
@@ -134,11 +154,11 @@ class MediaService(
                     startsWith(0xFF, 0xD8, 0xFF) -> DetectedType("image", "image/jpeg", "jpg")
                     startsWith(0x47, 0x49, 0x46, 0x38) -> DetectedType("image", "image/gif", "gif")
                     b.size >= 12 && startsWith(0x52, 0x49, 0x46, 0x46) &&
-                        (b[8].toInt() and 0xFF) == 0x57 && (b[9].toInt() and 0xFF) == 0x45 ->
+                        (b[8].toInt() and 0xFF) == 0x57 && (b[9].toInt() and 0xFF) == 0x45 &&
+                        (b[10].toInt() and 0xFF) == 0x42 && (b[11].toInt() and 0xFF) == 0x50 ->
                         DetectedType("image", "image/webp", "webp")
                     b.size >= 12 && b[4].toInt() == 0x66 && b[5].toInt() == 0x74 &&
-                        b[6].toInt() == 0x79 && b[7].toInt() == 0x70 -> // 'ftyp'
-                        DetectedType("video", "video/mp4", "mp4")
+                        b[6].toInt() == 0x79 && b[7].toInt() == 0x70 -> sniffIsoBaseMedia(b, declared)
                     startsWith(0x1A, 0x45, 0xDF, 0xA3) -> { // EBML — webm/mkv, audio or video
                         val family = declared?.substringBefore('/')?.lowercase()
                         if (family == "audio") DetectedType("audio", "audio/webm", "webm")
@@ -155,6 +175,40 @@ class MediaService(
                         else DetectedType("audio", "audio/ogg", "ogg")
                     }
                     else -> null
+                }
+            }
+
+            private fun sniffIsoBaseMedia(bytes: ByteArray, declared: String?): DetectedType {
+                val brands = isoBrands(bytes)
+                val declaredType = declared?.let(declaredFallbacks::get)
+                return when {
+                    brands.any { it in setOf("avif", "avis") } -> DetectedType("image", "image/avif", "avif")
+                    brands.any { it in setOf("heic", "heix", "hevc", "hevx", "heim", "heis", "hevm", "hevs") } ->
+                        declaredType?.takeIf { it.mimeType in setOf("image/heic", "image/heif") }
+                            ?: DetectedType("image", "image/heic", "heic")
+                    brands.any { it in setOf("mif1", "msf1") } ->
+                        declaredType?.takeIf { it.mimeType in setOf("image/heic", "image/heif") }
+                            ?: DetectedType("image", "image/heif", "heif")
+                    brands.any { it in setOf("M4A ", "M4B ", "M4P ") } -> DetectedType("audio", "audio/mp4", "m4a")
+                    brands.any { it == "qt  " } -> DetectedType("video", "video/quicktime", "mov")
+                    brands.any { it == "M4V " } -> DetectedType("video", "video/x-m4v", "m4v")
+                    declaredType?.mimeType in setOf("audio/mp4", "video/quicktime", "video/x-m4v") ->
+                        declaredType ?: DetectedType("video", "video/mp4", "mp4")
+                    else -> DetectedType("video", "video/mp4", "mp4")
+                }
+            }
+
+            private fun isoBrands(bytes: ByteArray): Set<String> {
+                val boxLength = ((bytes[0].toInt() and 0xFF) shl 24) or
+                    ((bytes[1].toInt() and 0xFF) shl 16) or
+                    ((bytes[2].toInt() and 0xFF) shl 8) or
+                    (bytes[3].toInt() and 0xFF)
+                val end = if (boxLength in 16..bytes.size) boxLength else bytes.size
+                return buildSet {
+                    add(String(bytes, 8, 4, Charsets.US_ASCII))
+                    for (offset in 16 until (end - 3) step 4) {
+                        add(String(bytes, offset, 4, Charsets.US_ASCII))
+                    }
                 }
             }
         }

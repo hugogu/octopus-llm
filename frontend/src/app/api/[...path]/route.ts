@@ -1,4 +1,5 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { isIP } from "node:net";
 
 const backendBaseUrl =
   process.env.INTERNAL_API_URL
@@ -19,12 +20,19 @@ const hopByHopHeaders = new Set([
   "upgrade",
 ]);
 
-// Browser-only request headers that must not be forwarded upstream. The browser talks to this
-// route same-origin; the hop to the backend is server-to-server, so the browser's Origin/Referer
-// are meaningless there. Forwarding them makes the backend's CORS filter evaluate (and reject) an
-// otherwise same-origin request. Auth is via Bearer token and backend CSRF is disabled, so dropping
-// these is safe. See SecurityConfig.corsConfigurationSource on the backend.
-const browserOnlyRequestHeaders = new Set(["origin", "referer"]);
+// Browser-only and client-controlled forwarding headers must not reach the backend. The browser
+// talks to this route same-origin; Origin/Referer are meaningless on the server-to-server hop, and
+// trusting a caller-provided X-Forwarded-For lets it choose another user's rate-limit bucket.
+const browserOnlyRequestHeaders = new Set([
+  "origin",
+  "referer",
+  "forwarded",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-proto",
+  "x-real-ip",
+  "x-octopus-ingress-token",
+]);
 
 type RouteContext = {
   params: Promise<{ path: string[] }>;
@@ -36,6 +44,11 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   const upstreamUrl = new URL(upstreamPath, `${backendBaseUrl}/`);
   upstreamUrl.search = request.nextUrl.search;
 
+  const sessionToken = request.cookies.get("auth_token")?.value;
+  if (sessionToken && !isSafeMethod(request.method) && !isSameOrigin(request)) {
+    return NextResponse.json({ message: "Same-origin request required" }, { status: 403 });
+  }
+
   const headers = new Headers();
   request.headers.forEach((value, key) => {
     const lowerKey = key.toLowerCase();
@@ -43,6 +56,17 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
       headers.set(key, value);
     }
   });
+
+  // The browser never receives the JWT after the session route stores it as HttpOnly. Ignore any
+  // Authorization value supplied by client JavaScript and inject only the same-origin session cookie.
+  headers.delete("authorization");
+  if (sessionToken) headers.set("Authorization", `Bearer ${sessionToken}`);
+
+  // A direct browser request must never pick a different user's rate-limit bucket by supplying
+  // X-Forwarded-For. Deployments that have a trusted edge proxy can opt in by having that proxy
+  // overwrite X-Forwarded-For with one literal client IP and attach the configured private token.
+  const clientIp = trustedClientIp(request);
+  if (clientIp) headers.set("X-Forwarded-For", clientIp);
 
   const init: RequestInit = {
     method: request.method,
@@ -74,6 +98,21 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
     statusText: upstream.statusText,
     headers: responseHeaders,
   });
+}
+
+function isSafeMethod(method: string): boolean {
+  return method === "GET" || method === "HEAD" || method === "OPTIONS";
+}
+
+function isSameOrigin(request: NextRequest): boolean {
+  return request.headers.get("origin") === request.nextUrl.origin;
+}
+
+function trustedClientIp(request: NextRequest): string | null {
+  const ingressToken = process.env.TRUSTED_INGRESS_TOKEN;
+  if (!ingressToken || request.headers.get("x-octopus-ingress-token") !== ingressToken) return null;
+  const forwardedFor = request.headers.get("x-forwarded-for")?.trim();
+  return forwardedFor && isIP(forwardedFor) !== 0 ? forwardedFor : null;
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {

@@ -4,6 +4,7 @@ import { DELETE, GET, PATCH, POST, PUT } from "./route";
 
 describe("same-origin API proxy", () => {
   afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => delete process.env.TRUSTED_INGRESS_TOKEN);
 
   it.each([
     ["GET", GET, ["v2", "analytics", "public", "by-model"]],
@@ -55,5 +56,66 @@ describe("same-origin API proxy", () => {
     // Exact bytes preserved end to end.
     const forwarded = new Uint8Array(await new Response(captured?.body as ReadableStream).arrayBuffer());
     expect(Array.from(forwarded)).toEqual(Array.from(payload));
+  });
+
+  it("does not forward client-controlled forwarding headers and uses only the HttpOnly session cookie", async () => {
+    let captured: RequestInit | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((_url: unknown, init: RequestInit) => {
+      captured = init;
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    }));
+    const request = new NextRequest("http://localhost/api/v2/me", {
+      headers: {
+        Authorization: "Bearer browser-visible-value",
+        Cookie: "auth_token=http-only-jwt; auth_session=1",
+        Forwarded: "for=203.0.113.7",
+        "X-Forwarded-For": "203.0.113.7, 198.51.100.8",
+        "X-Real-IP": "203.0.113.7",
+      },
+    });
+
+    await GET(request, { params: Promise.resolve({ path: ["v2", "me"] }) });
+
+    const headers = new Headers(captured?.headers);
+    expect(headers.get("authorization")).toBe("Bearer http-only-jwt");
+    expect(headers.get("forwarded")).toBeNull();
+    expect(headers.get("x-forwarded-for")).toBeNull();
+    expect(headers.get("x-real-ip")).toBeNull();
+  });
+
+  it("forwards a single client IP only when the trusted ingress authenticates it", async () => {
+    process.env.TRUSTED_INGRESS_TOKEN = "proxy-only-secret";
+    let captured: RequestInit | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation((_url: unknown, init: RequestInit) => {
+      captured = init;
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    }));
+    const request = new NextRequest("http://localhost/api/v2/anonymous/models", {
+      headers: {
+        "X-Forwarded-For": "203.0.113.7",
+        "X-Octopus-Ingress-Token": "proxy-only-secret",
+      },
+    });
+
+    await GET(request, { params: Promise.resolve({ path: ["v2", "anonymous", "models"] }) });
+
+    expect(new Headers(captured?.headers).get("x-forwarded-for")).toBe("203.0.113.7");
+  });
+
+  it("rejects cross-origin write requests that would use the HttpOnly session", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const request = new NextRequest("http://localhost/api/v2/chat/sessions", {
+      method: "POST",
+      headers: {
+        Cookie: "auth_token=http-only-jwt; auth_session=1",
+        Origin: "https://attacker.example",
+      },
+    });
+
+    const response = await POST(request, { params: Promise.resolve({ path: ["v2", "chat", "sessions"] }) });
+
+    expect(response.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
