@@ -8,10 +8,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Platform-wide site-info shown in the public footer (site name, free-form footer text, ICP record
- * number for MIIT filing, public-security record number). Single mutable row (id = 1): editable
+ * Platform-wide site-info and public analytics configuration. Single mutable row (id = 1): editable
  * from the admin panel by `/api/v2/admin/site-settings`; the public read endpoint
- * `/api/v2/site-settings` returns only the non-secret fields needed for the footer.
+ * `/api/v2/site-settings` returns only the non-secret fields needed by the frontend.
  */
 @Entity
 @Table(name = "site_settings")
@@ -31,6 +30,9 @@ class SiteSettings(
 
     @Column(name = "police_record_no", columnDefinition = "TEXT")
     var policeRecordNo: String? = null,
+
+    @Column(name = "google_analytics_measurement_id", columnDefinition = "TEXT")
+    var googleAnalyticsMeasurementId: String? = null,
 
     @Column(name = "china_filing_enabled", nullable = false)
     var chinaFilingEnabled: Boolean = false,

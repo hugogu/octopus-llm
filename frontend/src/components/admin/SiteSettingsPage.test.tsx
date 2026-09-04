@@ -26,6 +26,7 @@ const blankSettings = () => ({
   chinaFilingEnabled: false,
   icpRecordNo: null,
   policeRecordNo: null,
+  googleAnalyticsMeasurementId: null,
   updatedAt: "2026-01-01T00:00:00.000Z",
   updatedBy: null,
 });
@@ -63,6 +64,32 @@ describe("SiteSettingsPage", () => {
       chinaFilingEnabled: true,
       icpRecordNo: "京ICP备12345678号",
       policeRecordNo: "",
+      googleAnalyticsMeasurementId: "",
     }));
+  });
+
+  it("saves a Google Analytics 4 Measurement ID", async () => {
+    render(<SiteSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText("Measurement ID"), {
+      target: { value: "G-ABC123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(updateSiteSettings).toHaveBeenCalledWith("test-token", expect.objectContaining({
+      googleAnalyticsMeasurementId: "G-ABC123",
+    })));
+  });
+
+  it("rejects an invalid Google Analytics 4 Measurement ID before saving", async () => {
+    render(<SiteSettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText("Measurement ID"), {
+      target: { value: "UA-12345" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText(/valid Google Analytics 4 Measurement ID/i)).toBeInTheDocument();
+    expect(updateSiteSettings).not.toHaveBeenCalled();
   });
 });

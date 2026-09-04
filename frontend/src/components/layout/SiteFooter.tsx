@@ -7,14 +7,18 @@ import { getPublicSiteSettings, type SiteSettingsPublic } from "@/lib/api/siteSe
  *
  * The product attribution remains visible even when optional site settings are empty or unavailable.
  */
-export default async function SiteFooter() {
-  const settings = await fetchSettings();
-  const siteInfo = settings ?? {
+export default async function SiteFooter({
+  settings,
+}: {
+  settings?: SiteSettingsPublic | null;
+} = {}) {
+  const siteInfo = (settings === undefined ? await fetchSettings() : settings) ?? {
     siteName: null,
     footerText: null,
     chinaFilingEnabled: false,
     icpRecordNo: null,
     policeRecordNo: null,
+    googleAnalyticsMeasurementId: null,
   };
 
   return (

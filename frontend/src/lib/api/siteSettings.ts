@@ -1,12 +1,13 @@
 import { apiUrl } from "@/lib/api/base";
 
-/** Public shape returned by `/api/v2/site-settings` — used by the frontend footer. */
+/** Public shape returned by `/api/v2/site-settings` — used by the footer and analytics loader. */
 export interface SiteSettingsPublic {
   siteName: string | null;
   footerText: string | null;
   chinaFilingEnabled: boolean;
   icpRecordNo: string | null;
   policeRecordNo: string | null;
+  googleAnalyticsMeasurementId: string | null;
 }
 
 /** Admin shape returned by `/api/v2/admin/site-settings` — adds audit metadata. */

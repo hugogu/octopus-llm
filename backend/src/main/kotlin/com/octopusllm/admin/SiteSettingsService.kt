@@ -31,6 +31,16 @@ class SiteSettingsService(
         req.footerText?.let { s.footerText = it.normalize() }
         req.icpRecordNo?.let { s.icpRecordNo = it.normalize() }
         req.policeRecordNo?.let { s.policeRecordNo = it.normalize() }
+        req.googleAnalyticsMeasurementId?.let {
+            val measurementId = it.normalize()
+            if (measurementId != null && !GOOGLE_ANALYTICS_MEASUREMENT_ID.matches(measurementId)) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Google Analytics Measurement ID must look like G-XXXXXXXXXX",
+                )
+            }
+            s.googleAnalyticsMeasurementId = measurementId
+        }
         req.chinaFilingEnabled?.let { s.chinaFilingEnabled = it }
         if (s.chinaFilingEnabled && s.icpRecordNo.isNullOrBlank()) {
             throw ResponseStatusException(
@@ -54,4 +64,8 @@ class SiteSettingsService(
 
     /** Trim and collapse all-whitespace to `null` so the row never stores a meaningless value. */
     private fun String.normalize(): String? = trim().ifBlank { null }
+
+    companion object {
+        private val GOOGLE_ANALYTICS_MEASUREMENT_ID = Regex("G-[A-Za-z0-9]{1,62}")
+    }
 }

@@ -11,9 +11,9 @@ import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 
 /**
- * Public site-info endpoint used by the frontend footer. Unauthenticated (whitelisted in
- * SecurityConfig) so the footer renders even on auth pages before any token exists. Returns
- * only the safe public shape — no audit metadata.
+ * Public site-info endpoint used by the frontend footer and analytics loader. Unauthenticated
+ * (whitelisted in SecurityConfig) so these shared site features work before any token exists.
+ * Returns only the safe public shape — no audit metadata.
  */
 @RestController
 @RequestMapping("/api/v2/site-settings")

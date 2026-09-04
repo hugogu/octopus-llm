@@ -1,5 +1,6 @@
 package com.octopusllm.admin
 
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -13,9 +14,9 @@ import reactor.core.scheduler.Schedulers
 import java.util.UUID
 
 /**
- * Admin site-info configuration — site name, free-form footer text, ICP record number,
- * police-record number. Lives under the admin-only `/api/v2/admin` path space (gated in
- * SecurityConfig). Persisted to the single-row `site_settings` table by [SiteSettingsService].
+ * Admin site-info and analytics configuration. Lives under the admin-only `/api/v2/admin` path
+ * space (gated in SecurityConfig). Persisted to the single-row `site_settings` table by
+ * [SiteSettingsService].
  */
 @RestController
 @RequestMapping("/api/v2/admin/site-settings")
@@ -30,7 +31,7 @@ class SiteSettingsController(
     @ResponseStatus(HttpStatus.OK)
     fun update(
         @AuthenticationPrincipal principal: String,
-        @RequestBody request: SiteSettingsUpdate,
+        @Valid @RequestBody request: SiteSettingsUpdate,
     ): Mono<SiteSettingsAdminView> =
         Mono.fromCallable {
             service.update(UUID.fromString(principal), request).toAdminView()

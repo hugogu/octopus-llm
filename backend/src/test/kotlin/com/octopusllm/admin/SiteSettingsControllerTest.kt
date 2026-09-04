@@ -31,6 +31,7 @@ class SiteSettingsControllerTest @Autowired constructor(
                 chinaFilingEnabled = false,
                 icpRecordNo = "  ",
                 policeRecordNo = "  ",
+                googleAnalyticsMeasurementId = "  ",
             ),
         )
     }
@@ -69,6 +70,7 @@ class SiteSettingsControllerTest @Autowired constructor(
                     "chinaFilingEnabled" to true,
                     "icpRecordNo" to " 京ICP备12345678号-1  ",
                     "policeRecordNo" to " 京公网安备11010102000001号  ",
+                    "googleAnalyticsMeasurementId" to " G-ABC123  ",
                 ),
             )
             .exchange()
@@ -79,6 +81,7 @@ class SiteSettingsControllerTest @Autowired constructor(
             .jsonPath("$.chinaFilingEnabled").isEqualTo(true)
             .jsonPath("$.icpRecordNo").isEqualTo("京ICP备12345678号-1")
             .jsonPath("$.policeRecordNo").isEqualTo("京公网安备11010102000001号")
+            .jsonPath("$.googleAnalyticsMeasurementId").isEqualTo("G-ABC123")
             .jsonPath("$.updatedAt").exists()
             .jsonPath("$.updatedBy").exists()
     }
@@ -111,6 +114,7 @@ class SiteSettingsControllerTest @Autowired constructor(
                     "chinaFilingEnabled" to true,
                     "icpRecordNo" to "京ICP备12345678号",
                     "policeRecordNo" to "京公网安备11010102000001号",
+                    "googleAnalyticsMeasurementId" to "G-SITE123",
                 ),
             )
             .exchange()
@@ -125,6 +129,7 @@ class SiteSettingsControllerTest @Autowired constructor(
             .jsonPath("$.chinaFilingEnabled").isEqualTo(true)
             .jsonPath("$.icpRecordNo").isEqualTo("京ICP备12345678号")
             .jsonPath("$.policeRecordNo").isEqualTo("京公网安备11010102000001号")
+            .jsonPath("$.googleAnalyticsMeasurementId").isEqualTo("G-SITE123")
             .jsonPath("$.updatedAt").doesNotExist()
             .jsonPath("$.updatedBy").doesNotExist()
     }
@@ -134,7 +139,7 @@ class SiteSettingsControllerTest @Autowired constructor(
         web.put().uri("/api/v2/admin/site-settings")
             .header("Authorization", "Bearer ${adminToken()}")
             .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(mapOf("siteName" to "   ", "footerText" to "\t\n", "icpRecordNo" to "", "policeRecordNo" to "    "))
+            .bodyValue(mapOf("siteName" to "   ", "footerText" to "\t\n", "icpRecordNo" to "", "policeRecordNo" to "    ", "googleAnalyticsMeasurementId" to "  "))
             .exchange()
             .expectStatus().isOk
             .expectBody()
@@ -143,6 +148,17 @@ class SiteSettingsControllerTest @Autowired constructor(
             .jsonPath("$.chinaFilingEnabled").isEqualTo(false)
             .jsonPath("$.icpRecordNo").doesNotExist()
             .jsonPath("$.policeRecordNo").doesNotExist()
+            .jsonPath("$.googleAnalyticsMeasurementId").doesNotExist()
+    }
+
+    @Test
+    fun `rejects an invalid Google Analytics Measurement ID`() {
+        web.put().uri("/api/v2/admin/site-settings")
+            .header("Authorization", "Bearer ${adminToken()}")
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue(mapOf("googleAnalyticsMeasurementId" to "UA-12345"))
+            .exchange()
+            .expectStatus().isBadRequest
     }
 
     @Test

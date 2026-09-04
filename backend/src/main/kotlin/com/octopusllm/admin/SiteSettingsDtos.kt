@@ -14,16 +14,18 @@ data class SiteSettingsUpdate(
     @field:Size(max = 2048) val footerText: String? = null,
     @field:Size(max = 256) val icpRecordNo: String? = null,
     @field:Size(max = 256) val policeRecordNo: String? = null,
+    @field:Size(max = 64) val googleAnalyticsMeasurementId: String? = null,
     val chinaFilingEnabled: Boolean? = null,
 )
 
-/** Public, safe shape returned by the footer endpoint — no audit metadata, no secrets. */
+/** Public, safe shape returned by the site settings endpoint — no audit metadata or secrets. */
 data class SiteSettingsPublicView(
     val siteName: String?,
     val footerText: String?,
     val chinaFilingEnabled: Boolean,
     val icpRecordNo: String?,
     val policeRecordNo: String?,
+    val googleAnalyticsMeasurementId: String?,
 )
 
 /** Admin shape: full row including who/when. */
@@ -33,6 +35,7 @@ data class SiteSettingsAdminView(
     val chinaFilingEnabled: Boolean,
     val icpRecordNo: String?,
     val policeRecordNo: String?,
+    val googleAnalyticsMeasurementId: String?,
     val updatedAt: Instant,
     val updatedBy: UUID?,
 )
@@ -43,6 +46,7 @@ internal fun SiteSettings.toPublicView() = SiteSettingsPublicView(
     chinaFilingEnabled = chinaFilingEnabled,
     icpRecordNo = icpRecordNo.takeIf { chinaFilingEnabled },
     policeRecordNo = policeRecordNo.takeIf { chinaFilingEnabled },
+    googleAnalyticsMeasurementId = googleAnalyticsMeasurementId,
 )
 
 internal fun SiteSettings.toAdminView() = SiteSettingsAdminView(
@@ -51,6 +55,7 @@ internal fun SiteSettings.toAdminView() = SiteSettingsAdminView(
     chinaFilingEnabled = chinaFilingEnabled,
     icpRecordNo = icpRecordNo,
     policeRecordNo = policeRecordNo,
+    googleAnalyticsMeasurementId = googleAnalyticsMeasurementId,
     updatedAt = updatedAt,
     updatedBy = updatedBy,
 )

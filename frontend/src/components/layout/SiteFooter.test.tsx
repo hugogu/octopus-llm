@@ -14,6 +14,7 @@ const settings = (chinaFilingEnabled: boolean) => ({
   chinaFilingEnabled,
   icpRecordNo: "京ICP备12345678号",
   policeRecordNo: "京公网安备11010102000001号",
+  googleAnalyticsMeasurementId: null,
 });
 
 describe("SiteFooter", () => {

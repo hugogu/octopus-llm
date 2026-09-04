@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import AdminShell from "@/components/admin/AdminShell";
 import { getToken } from "@/lib/api/auth";
@@ -15,6 +16,7 @@ const inputClass =
   "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 shadow-sm focus:border-[#c96442] focus:outline-none focus:ring-1 focus:ring-[#c96442]";
 
 export default function SiteSettingsPage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<SiteSettingsAdmin | null>(null);
   const [form, setForm] = useState<SiteSettingsUpdate>({});
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,7 @@ export default function SiteSettingsPage() {
         chinaFilingEnabled: s.chinaFilingEnabled,
         icpRecordNo: s.icpRecordNo ?? "",
         policeRecordNo: s.policeRecordNo ?? "",
+        googleAnalyticsMeasurementId: s.googleAnalyticsMeasurementId ?? "",
       });
       setError(null);
     } catch (cause) {
@@ -65,6 +68,11 @@ export default function SiteSettingsPage() {
       setError("Enter an ICP record number before showing Chinese filing information.");
       return;
     }
+    const googleAnalyticsMeasurementId = (form.googleAnalyticsMeasurementId ?? "").trim();
+    if (googleAnalyticsMeasurementId && !/^G-[A-Za-z0-9]{1,62}$/.test(googleAnalyticsMeasurementId)) {
+      setError("Enter a valid Google Analytics 4 Measurement ID, for example G-XXXXXXXXXX.");
+      return;
+    }
     setSaving(true);
     try {
       await updateSiteSettings(token, {
@@ -73,8 +81,10 @@ export default function SiteSettingsPage() {
         chinaFilingEnabled,
         icpRecordNo: form.icpRecordNo ?? null,
         policeRecordNo: form.policeRecordNo ?? null,
+        googleAnalyticsMeasurementId: googleAnalyticsMeasurementId || "",
       });
       setSuccess("Site settings saved.");
+      router.refresh();
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to save");
@@ -174,6 +184,26 @@ export default function SiteSettingsPage() {
               </div>
             </section>
           </div>
+          <section className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-semibold text-stone-800">Google Analytics</h2>
+            <p className="mt-1 text-xs text-stone-500">
+              Add a GA4 Measurement ID to track page views. Leave it blank to disable analytics.
+            </p>
+            <label className="mt-3 block text-sm">
+              <span className="text-stone-700">Measurement ID</span>
+              <input
+                value={form.googleAnalyticsMeasurementId ?? ""}
+                onChange={(e) => set("googleAnalyticsMeasurementId", e.target.value)}
+                placeholder="G-XXXXXXXXXX"
+                spellCheck={false}
+                autoCapitalize="characters"
+                className={`mt-1 ${inputClass}`}
+              />
+            </label>
+            <p className="mt-2 text-xs text-stone-500">
+              Find this value in Google Analytics under Admin → Data streams → Web.
+            </p>
+          </section>
           {settings && (
             <p className="text-xs text-stone-500">
               Last updated {new Date(settings.updatedAt).toLocaleString()}.
