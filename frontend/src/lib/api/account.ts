@@ -42,7 +42,7 @@ export async function changePassword(
     method: "POST",
     body: JSON.stringify({ currentPassword, newPassword }),
   });
-  replaceAuthToken(response.token, response.expiresAt);
+  await replaceAuthToken(response.token, response.expiresAt);
   return response;
 }
 

@@ -74,6 +74,9 @@ services:
       INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8080}
       BROWSER_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+      # Optional: lets a trusted ingress preserve one verified client IP for backend rate limiting.
+      # The ingress must overwrite X-Forwarded-For and set X-Octopus-Ingress-Token to this value.
+      TRUSTED_INGRESS_TOKEN: ${TRUSTED_INGRESS_TOKEN:-}
     depends_on:
       - backend
 
