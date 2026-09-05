@@ -6,6 +6,18 @@ describe("same-origin API proxy", () => {
   afterEach(() => vi.unstubAllGlobals());
   afterEach(() => delete process.env.TRUSTED_INGRESS_TOKEN);
 
+  it.each(["same-origin", "same-site", "cross-site", "none"])("checks authenticated writes behind an HTTPS proxy: %s", async (site) => {
+    const upstream = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", upstream);
+    const response = await POST(new NextRequest("http://0.0.0.0:3000/api/v2/me", {
+      method: "POST",
+      headers: { Origin: "https://octopusllm.dev", "Sec-Fetch-Site": site, Cookie: "auth_token=test-token" },
+      body: "{}",
+    }), { params: Promise.resolve({ path: ["v2", "me"] }) });
+    expect(response.status).toBe(site === "same-origin" ? 200 : 403);
+    expect(upstream).toHaveBeenCalledTimes(site === "same-origin" ? 1 : 0);
+  });
+
   it.each([
     ["GET", GET, ["v2", "analytics", "public", "by-model"]],
     ["POST", POST, ["v2", "chat", "sessions", "s1", "shares"]],

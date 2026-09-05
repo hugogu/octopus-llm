@@ -1,3 +1,4 @@
+import { isSameOrigin } from "@/lib/api/sameOrigin";
 import { NextRequest, NextResponse } from "next/server";
 
 const AUTH_COOKIE = "auth_token";
@@ -38,10 +39,6 @@ export function DELETE(request: NextRequest): NextResponse {
   return response;
 }
 
-function isSameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  return origin === request.nextUrl.origin;
-}
 
 function maxAgeFrom(expiresAt: unknown): number {
   if (typeof expiresAt !== "string") return DEFAULT_MAX_AGE_SECONDS;

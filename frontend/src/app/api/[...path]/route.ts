@@ -1,3 +1,4 @@
+import { isSameOrigin } from "@/lib/api/sameOrigin";
 import { NextRequest, NextResponse } from "next/server";
 import { isIP } from "node:net";
 
@@ -104,9 +105,6 @@ function isSafeMethod(method: string): boolean {
   return method === "GET" || method === "HEAD" || method === "OPTIONS";
 }
 
-function isSameOrigin(request: NextRequest): boolean {
-  return request.headers.get("origin") === request.nextUrl.origin;
-}
 
 function trustedClientIp(request: NextRequest): string | null {
   const ingressToken = process.env.TRUSTED_INGRESS_TOKEN;

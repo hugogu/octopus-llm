@@ -5,6 +5,17 @@ import { DELETE, POST } from "./route";
 describe("secure browser session route", () => {
   afterEach(() => vi.unstubAllEnvs());
 
+  it.each(["same-origin", "same-site", "cross-site", "none"])("checks browser metadata behind an HTTPS proxy: %s", async (site) => {
+    const headers = { Origin: "https://octopusllm.dev", "Sec-Fetch-Site": site, "Content-Type": "application/json" };
+    const response = await POST(new NextRequest("http://0.0.0.0:3000/api/auth/session", {
+      method: "POST", headers, body: JSON.stringify({ token: "test-token" }),
+    }));
+    expect(response.status).toBe(site === "same-origin" ? 200 : 403);
+    expect(DELETE(new NextRequest("http://0.0.0.0:3000/api/auth/session", {
+      method: "DELETE", headers,
+    })).status).toBe(site === "same-origin" ? 200 : 403);
+  });
+
   it("stores the JWT only in an HttpOnly, secure-in-production cookie", async () => {
     const request = new NextRequest("http://localhost/api/auth/session", {
       method: "POST",
